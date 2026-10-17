@@ -62,6 +62,11 @@ them at the top right.
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
 
+
+<img width="2247" height="1263" alt="image" src="https://github.com/user-attachments/assets/d7bac3e0-8c6b-4b3f-94bb-e0d18f402c06" />
+
+
+
 ## 3. Pick: which asteroids pass in front of a star for you?
 
 In the **Pick** tab: keep the start date (today) and choose the number of days, e.g. 7 for a first try. Click
@@ -76,6 +81,10 @@ path for events at your site. The log at the bottom shows its progress.
 When it is done, the table shows the events found. Click **Use for search**: it sets the Search tab to the same
 window and takes you there.
 
+<img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/aa334f0b-d6c1-4586-8507-fecfa299c19e" />
+
+
+
 ## 4. Search: the exact predictions
 
 In the **Search** tab, click **Run search**. For each picked asteroid PySyzygos downloads its current orbit from JPL
@@ -85,6 +94,9 @@ star's drop in brightness and the duration.
 > **The first search takes a little longer:** about a second per asteroid for the downloads (orbits two at a time).
 > A search again within a day uses them directly and takes seconds. Orbits older than a day are downloaded again,
 > so your predictions always use JPL's latest orbit.
+
+<img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/beb2c54c-0ab2-4050-ab65-38b82c77d165" />
+
 
 ## 5. Results: look at the events
 
@@ -98,6 +110,9 @@ The **Results** tab lists every event, best first. For each one:
 * **☆**: keeps the event in your favorites.
 
 Star the events you like.
+
+<img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/c4f4c7d9-f685-46d0-ba22-780502e32452" />
+
 
 ## 6. Favorites: everything about one event
 
@@ -113,6 +128,12 @@ In the **Favorites** tab, **click a row**. Below the table you get:
 Each favorite keeps its own copy of map and preview, so later searches do not change them.
 
 **That's it.** Next time: `uv run pysyzygos`, and run a new pick when your window has passed.
+
+<img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/441cb3fe-b8e5-497a-8540-edcf5f1b7d01" />
+
+<img width="2292" height="1963" alt="image" src="https://github.com/user-attachments/assets/85cef7b2-f6d3-4590-ad08-1a1b29f1460b" />
+
+More details and the exact path can be reviewed checking the "Path Verification:" box on top. Then click on a event (click any part of the row, on the date for example, just not on a link!). Scroll down to the "Path verification area" and explore! Step by Step button computes and displays all calculation details. You can also run a automated cross check to compare a Geodetic path with Occult.exe path export data.
 
 ---
 
