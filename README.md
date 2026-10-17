@@ -1237,52 +1237,6 @@ To import a KML file into Google Maps, you must use the Google My Maps platform 
 - Upload Your File: Drag and drop your KML files (maps folder) into the box.
 
 
-### GUI Step by Step in Screenshots
-#### Site
-Setup sit(s)e and equipment.
-<img width="2212" height="1265" alt="image" src="https://github.com/user-attachments/assets/536207cf-5a08-4249-88ba-6089983ceaea" />
-
-#### Pick
-Run Auto Pick Targets for site, this narrows the number of potential target asteroids down to close encounters and creates a list of targets the precision search runs on (with a fitting pre-screen, "Asteroids: auto", this takes seconds; build one in the Pre-screens panel below the Run button):
-<img width="2207" height="1623" alt="image" src="https://github.com/user-attachments/assets/53e12100-2d71-4121-94d9-727e011f2837" />
-Without a pre-screen, the pick is the most compute-intensive step: all 464740 potential targets from JPL are screened against the stars along their apparent paths as seen from the site.
-A computing progress info is updated in the Log window:
-<img width="2207" height="481" alt="image" src="https://github.com/user-attachments/assets/a75000a0-65bb-478c-8f7c-2c3f73c9992a" />
-<img width="2206" height="1687" alt="image" src="https://github.com/user-attachments/assets/47f8f16a-eaf1-4f72-b90c-778696534b31" />
-
-
-#### Planets & Moons
-Additionally to Asteroid star occultations, larger solar system bodies are also supported since version 0.13.0:
-<img width="2207" height="1785" alt="image" src="https://github.com/user-attachments/assets/e4fb9750-eab1-4fd2-b299-790dd53a7d6e" />
-Build in Preview and KStars+Stellarium auto pointing on event.
-<img width="2210" height="1862" alt="image" src="https://github.com/user-attachments/assets/6f084f97-6b80-40bd-b46e-02b93767e38e" />
-
-#### Search
-Run the final precision search for observable events caused by targets as picked or optionally manually entered. Once completed it runs a Gaia online check of 40 event star(s) (close and double stars), that may take some time or even times out if busy, then this extra info is not be available.
-<img width="2203" height="1470" alt="image" src="https://github.com/user-attachments/assets/8cca7943-67ed-42d1-b1b3-3a661c3b0af8" />
-<img width="2206" height="1687" alt="image" src="https://github.com/user-attachments/assets/4d0ade70-1c09-4508-9846-3b0500718432" />
-
-
-#### Results
-View results table. Detail quick path view map button and star field preview (stars only), use for example Stellarium or KStars (their buttons point them at the event) to further investigate and check for other potentially interesting or interfering objects like planets, etc.. Use the Favorites "Star" Button to move a Event to your Favorites List.
-<img width="2206" height="1687" alt="image" src="https://github.com/user-attachments/assets/15f5c986-193f-49de-88ad-eb491e99775e" />
-<img width="2200" height="1566" alt="image" src="https://github.com/user-attachments/assets/47317ab9-e597-4fd0-a1e1-244645ee412b" />
-Map view, fully interactive:
-<img width="2200" height="1566" alt="image" src="https://github.com/user-attachments/assets/9f9454c3-1895-4223-8435-c2f7bdb2ace4" />
-<img width="2200" height="1566" alt="image" src="https://github.com/user-attachments/assets/e2d6917e-8bf0-4395-b87b-8b27aca84a7a" />
-Globe view:
-<img width="2200" height="1566" alt="image" src="https://github.com/user-attachments/assets/1d510f1d-c7e6-44b6-8e4b-6abb3f5477f7" />
-Preview:
-<img width="2200" height="1566" alt="image" src="https://github.com/user-attachments/assets/030ccb68-8a84-482a-93f9-3b540cec49c4" />
-And also KStars + Stellarious auto point options.
-Results and labelled with OWC stations (experimental feature):
-<img width="2256" height="1933" alt="image" src="https://github.com/user-attachments/assets/150ed7b9-416e-4918-a22c-feec0aeef68b" />
-
-
-#### Favorites
-And finally your "Starred" events in Favorites Manager, a experimental OWC feed/station info can be loaded (disabled by default as experimental):
-<img width="2318" height="2146" alt="image" src="https://github.com/user-attachments/assets/a83acd77-8718-45c9-9bff-11c2487878d1" />
-
 
 ## Contributing
 
