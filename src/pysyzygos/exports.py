@@ -85,13 +85,14 @@ def event_shown(e):
     out = dict(
         asteroid=(f"{e['label']} ({e['kind'] or 'body'})" if e.get("body") else e["label"])
         + (f" {tag}" if tag else "") + (" *" if R.size_estimated(e) else ""),
-        event_time=R.fmt_time(e["when"]), event_utc=e["utc"], gaia_id=e["star"], kind=e["kind"],
+        event_time=R.fmt_time(e["when"]), event_utc=e["utc"], gaia_id=e["star"],
+        star_name=e.get("star_name") or "", star_other_names=e.get("star_tip") or "", kind=e["kind"],
         star_mag=R.fmt(e["mag"]) + (f" \u26a0 star \u00b1{R.star_uncertain(e):.0f} km" if R.star_uncertain(e)
                                     else f" \u2691 {e['sflag']}" if e.get("sflag") else "")
         + (f" {R.twilight_text(e.get('sun'))}" if R.twilight_text(e.get("sun")) else ""),
         sun_alt=None if e.get("sun") is None else round(e["sun"], 1),
         star_flag=e.get("sflag") or "", star_sigma_km=None if e.get("star_sigma") is None else round(e["star_sigma"], 1),
-        mag_drop=drop, max_dur=R.fmt(e["dur"]), altitude=R.alt_text(e),
+        mag_drop=drop, max_dur=R.fmt(e["dur"]), altitude=R.alt_text(e) + (f" ({R.horizon_text(e)})" if R.horizon_text(e) else ""),
         moon_dist=R.moon_text(e), shadow_dist=shadow_text(e), chance=R.chance_text(e),
         chance_pct=None if e.get("p_site") is None else round(100 * e["p_site"], 1),
         shadow_km=None if e["miss"] is None else round(e["miss"], 1),

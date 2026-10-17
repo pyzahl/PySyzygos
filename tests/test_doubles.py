@@ -43,4 +43,23 @@ on = D.online_fields([rec], 4.0, archive)[0]
 assert on["double_check"] == "gaia online" and on["gaia_nss"] == 1 and on["gaia_multi_peak"] == 12
 assert "non-single star" in on["double_hint"] and "two peaks in 12 %" in on["double_hint"], on["double_hint"]
 
+# the VizieR check (stand-in answers in VizieR's tab-separated layout: # lines, header, units, dashes, rows)
+WDS_TSV = ("#\n#comment\nWDS\tDisc\tComp\tObs1\tObs2\tNobs\tpa2\tsep2\tmag1\tmag2\tSpType\tNotes\t_r\n"
+           " \t \t \tyr\tyr\t \tdeg\tarcsec\tmag\tmag\t \t \tarcsec\n"
+           "--\t--\t--\t--\t--\t--\t--\t--\t--\t--\t--\t--\t--\n"
+           "06275+2432\tAG  112\tAB\t1902\t2023\t24\t208\t2.80\t9.830\t9.88\t\tNO\t3.1\n")
+GAIA_TSV = ("RUWE\tIPDfmp\tIPDgofha\tepsi\tsepsi\tE(BP/RP)\tDup\tNSS\n \t%\t \tmas\t \t \t \t \n"
+            "--\t--\t--\t--\t--\t--\t--\t--\n\t41\t0.316\t19.754\t318500\t1.245\t0\t0\n")
+urls = []
+fetch = lambda url: (urls.append(url), WDS_TSV if "B%2Fwds" in url else GAIA_TSV)[1]
+v = D.vizier_check(3383655504436521856, 96.874689, 24.532785, fetch=fetch)
+assert len(urls) == 2 and "Source=3383655504436521856" in urls[1] and "-c.rs=30" in urls[0]
+assert v["wds"][0]["Disc"] == "AG  112" and v["wds"][0]["sep2"] == "2.80" and v["gaia"]["IPDfmp"] == "41"
+h = " | ".join(v["hints"])
+assert "two peaks in 41 %" in h and "elongated image" in h and "excess noise" in h and "orbit is known (ORB6)" in h, h
+assert "RUWE" not in h                                            # empty RUWE (2-parameter star): no reading
+txt = "\n".join(D.vizier_text(v))
+assert "WDS 06275+2432 AG  112 AB: 2.80\" at 208" in txt and "Gaia DR3:" in txt, txt
+assert D.vizier_text(None) == []
+
 print("DOUBLE STAR TESTS PASSED")

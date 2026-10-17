@@ -287,6 +287,17 @@ def kml_to_data(path):
     return dict(lines=lines, pins=pins)
 
 
+def star_label(r):
+    """(name, other names) of an event's star: 'UCAC4 573-029535' when the record has a UCAC4 number (catalog part
+    xref), else 'Gaia DR3 <id>'; the other names (Gaia DR3, TYC, HIP) for a hover text."""
+    gaia = f"Gaia DR3 {str(r.get('star') or '').strip()}" if str(r.get("star") or "").strip() else ""
+    u, t, h = (str(r.get(k) or "").strip() for k in ("star_ucac4", "star_tyc", "star_hip"))
+    if h.endswith(".0"):
+        h = h[:-2]
+    others = [x for x in (gaia if u else "", f"TYC {t}" if t else "", f"HIP {h}" if h else "") if x]
+    return (f"UCAC4 {u}" if u else gaia), " · ".join(others)
+
+
 def build_event(r, lat, lon, kml_dir, out_dir):
     when = parse_utc(r["best_utc"])
     tid = r["target_id"].strip()
@@ -328,7 +339,9 @@ def build_event(r, lat, lon, kml_dir, out_dir):
     return dict(when=when, label=label, tid=tid, body=body, kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
                 contact_dur=num(r.get("duration_s")) if (r.get("d_utc") or "").strip() else None,
-                star=r.get("star", "").strip(), mag=mag, drop=drop, dur=dur, alt=alt,
+                star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1],
+                hz=(str(r.get("horizon_flag") or "").strip(), num(r.get("horizon_alt")), num(r.get("horizon_sep_deg"))),
+                mag=mag, drop=drop, dur=dur, alt=alt,
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
                 miss=miss, margin=margin, rad=rad, kml=kml, kml_abs=kml_abs, preview=preview,
                 m_ast=num(r.get("m_ast")), m_before=num(r.get("m_before")), calc=num(r.get("calc_s")),
@@ -368,6 +381,51 @@ def alt_text(e):
     return "—" if e["alt"] is None else f"{e['alt']:.0f}° {e['compass']}".rstrip()
 
 
+def horizon_text(e):
+    """'' or the site horizon's warning: 'behind horizon (28°)' / 'near horizon (6° from it)'."""
+    flag, h, sep = e.get("hz") or ("", None, None)
+    if flag == "behind":
+        return f"behind horizon ({h:.0f}° there)" if h is not None else "behind horizon"
+    if flag == "near":
+        return f"near horizon ({sep:.0f}° from it)" if sep is not None else "near horizon"
+    return ""
+
+
+def horizon_mark(e):
+    """A mountain mark after the altitude for the site's own horizon (horizon.py): yellow behind it, red near it
+    (OccultWatcher's colours); '' without a warning."""
+    t = horizon_text(e)
+    if not t:
+        return ""
+    col = "#b45309" if t.startswith("behind") else "#dc2626"
+    return f' <span class="hzmark" style="color:{col}" title="{esc(t)}">\u26f0</span>'
+
+
+def alt_cell(e, tip):
+    """The altitude cell: '45° SE'; with the page's 'azimuth in degrees' switch '45° az 132°' (data-az, AZ_JS); the
+    site horizon's mark after it."""
+    az = f' data-az="{e["az"]:.0f}"' if e.get("az") is not None and e["alt"] is not None else ""
+    sort = "" if e["alt"] is None else f"{e['alt']:.1f}"
+    hz = horizon_text(e)
+    tip = tip + (esc(" · " + hz) if hz else "")
+    return (f'<td data-s="{sort}" title="{tip}"><span class="altcell"{az}>{esc(alt_text(e))}</span>'
+            f'{horizon_mark(e)}</td>')
+
+
+AZ_SWITCH = ('<span class="azsw" title="Tick: the star\'s azimuth in degrees (north 0, east 90) instead of the '
+             'compass direction (remembered)"><input type="checkbox" id="azdeg">az°</span>')   # in the Altitude header
+AZ_JS = """<script>
+(function(){var b=document.getElementById('azdeg');if(!b)return;
+var w=b.parentNode;w.addEventListener('click',function(ev){ev.stopPropagation();if(ev.target!==b){b.checked=!b.checked;
+ b.dispatchEvent(new Event('change'));}});                    // in the header: no sorting by this click
+var cs=[].slice.call(document.querySelectorAll('.altcell[data-az]'));cs.forEach(function(c){c.dataset.cmp=c.textContent;});
+function show(on){cs.forEach(function(c){c.textContent=on?c.dataset.cmp.split(' ')[0]+' az '+c.dataset.az+'\u00b0':c.dataset.cmp;});
+ try{localStorage.setItem('az_deg',on?'1':'0');}catch(e){}}
+try{b.checked=localStorage.getItem('az_deg')==='1';}catch(e){}
+b.addEventListener('change',function(){show(b.checked);});if(b.checked)show(true);})();
+</script>"""
+
+
 def moon_text(e):
     return "" if not e["moon"] else f"{e['moon']['icon']} {e['moon']['sep']:.0f}°"
 
@@ -375,6 +433,8 @@ def moon_text(e):
 # ---------------------------------------------------------------- HTML
 
 CSS = """
+.azsw{font-size:.8rem;font-weight:normal;color:var(--muted);margin-left:6px;white-space:nowrap;cursor:pointer}
+.azsw input{vertical-align:middle;margin:0 2px 0 0;cursor:pointer}.favbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px}
 :root{--bg:#f6f7f9;--card:#fff;--ink:#16202b;--muted:#5d6b7a;--line:#e1e5ea;--head:#eef1f5;--accent:#1f6feb;
 --in-bg:#dff5e6;--in-ink:#14653a;--near-bg:#fdf0d2;--near-ink:#7a5200}
 @media (prefers-color-scheme:dark){:root{--bg:#10151b;--card:#171e26;--ink:#e6ebf1;--muted:#93a1b1;--line:#2a3441;
@@ -800,7 +860,8 @@ def html_row_body(e):
     alt_tip = esc(f"azimuth {e['az']:.0f}\u00b0" if e["az"] is not None else "")
     dur = e.get("contact_dur")
     dur_txt = "\u2014" if not dur else (f"{dur / 60:.1f} min" if dur >= 120 else f"{dur:.1f} s")
-    tip = esc(f"Gaia DR3 {e['star']} \u00b7 radius {e['rad']:.0f} km ({e['size_src']})" if e["rad"] else "")
+    sname = e.get("star_name") or f"Gaia DR3 {e['star']}"
+    tip = esc(f"{sname} \u00b7 radius {e['rad']:.0f} km ({e['size_src']})" if e["rad"] else "")
     d_ts = parse_utc(e["d_utc"]).timestamp() if e.get("d_utc") else ""
     return (
         f'<tr><td class="ast" data-s="{esc(e["tid"])}" title="{tip}">{esc(e["label"])} '
@@ -812,14 +873,15 @@ def html_row_body(e):
         f'<td title="{esc(e.get("r_utc") or "")} UTC">{contact_text(e.get("r_utc"))}</td>'
         f'<td class="num" data-s="{s(dur)}">{dur_txt}</td>'
         f'<td class="num" data-s="{s(e["mag"])}">{fmt(e["mag"])}{star_mark(e)}{twilight_mark(e)}</td>'
-        f'<td data-s="{s(e["alt"], 1)}" title="{alt_tip}">{esc(alt_text(e))}</td>'
+        f'{alt_cell(e, alt_tip)}'
         f'<td data-s="{s(moon["sep"], 1) if moon else ""}" title="{moon_tip}">{esc(moon_text(e))}</td>'
         f"{shadow_cell(e)}" + chance_cell(e) + f"{map_cell(e)}</tr>")
 
 
 def html_row(e):
     size = f"D≈{2 * e['rad']:.1f} km" if e["rad"] is not None else ""
-    tip_ast = esc(f"Gaia DR3 {e['star']} · {size} ({e['size_src']})")
+    sname = e.get("star_name") or f"Gaia DR3 {e['star']}"
+    tip_ast = esc(f"{sname} · {size} ({e['size_src']})")
     drop_tip = ""
     if e["m_ast"] is not None:
         before = f"{e['m_before']:.2f} → " if e["m_before"] is not None else ""
@@ -864,11 +926,13 @@ def html_row(e):
         + f'>{esc(fmt_time(e["when"]))}</td>'
         f'<td class="num" data-s="{s(e["mag"])}" title="{mag_tip}">'
         + (f'<a href="{esc(VIZIER_GAIA)}{urllib.parse.quote(str(e["star"]))}" target="_blank" rel="noopener" '
-           f'title="Gaia DR3 {esc(e["star"])} in VizieR. {mag_tip}">{fmt(e["mag"])}</a>' if e.get("star") else fmt(e["mag"]))
+           f'title="{esc(e.get("star_name") or "Gaia DR3 " + str(e["star"]))}'
+           f'{esc(" (" + e["star_tip"] + ")") if e.get("star_tip") else ""}: Gaia DR3 in VizieR. {mag_tip}">'
+           f'{fmt(e["mag"])}</a>' if e.get("star") else fmt(e["mag"]))
         + star_mark(e) + twilight_mark(e) + '</td>'
         f'<td class="num" data-s="{s(e["drop"])}" title="{drop_tip}">{fmt(e["drop"])}{double_mark(e)}</td>'
         f'<td class="num" data-s="{s(e["dur"])}">{fmt(e["dur"])}</td>'
-        f'<td data-s="{s(e["alt"], 1)}" title="{alt_tip}">{esc(alt_text(e))}</td>'
+        f'{alt_cell(e, alt_tip)}'
         f'<td data-s="{s(moon["sep"], 1) if moon else ""}" title="{moon_tip}">{esc(moon_text(e))}</td>'
         f"{shadow_cell(e)}" + chance_cell(e) + calc + tail +
         f"{map_cell(e)}"
@@ -884,13 +948,59 @@ def chance_text(e):
     return "<1 %" if 0 < p < 0.005 else f"{100 * p:.0f} %"
 
 
+def sigma_text(e):
+    """The site's distance from the centre line in units of the path's 1-sigma, e.g. '0.4σ'; '' if not known."""
+    if e.get("miss") is None or not e.get("sigma1"):
+        return ""
+    return f"{e['miss'] / e['sigma1']:.1f}\u03c3"
+
+
 def chance_cell(e):
     tip = ""
     if e.get("p_site") is not None and e.get("sigma1") is not None:
         tip = (f"shadow distance {e['miss']:.1f} km, shadow radius {e['rad']:.1f} km, path uncertainty 1 sigma "
-               f"{e['sigma1']:.1f} km ({e['sigma_src'] or '?'})") if e.get("miss") is not None and e.get("rad") else ""
+               f"{e['sigma1']:.1f} km ({e['sigma_src'] or '?'}): the site lies {sigma_text(e)} from the centre "
+               f"line") if e.get("miss") is not None and e.get("rad") else ""
     p = e.get("p_site")
-    return f'<td class="num" data-s="{"" if p is None else f"{p:.4f}"}" title="{esc(tip)}">{esc(chance_text(e))}</td>'
+    txt = chance_text(e) + (f" \u00b7 {sigma_text(e)}" if sigma_text(e) and p is not None else "")
+    return f'<td class="num" data-s="{"" if p is None else f"{p:.4f}"}" title="{esc(tip)}">{esc(txt)}</td>'
+
+
+def chance_bar_svg(miss_km, rad_km, sigma1_km, p_site=None, width=520, height=64):
+    """A bar across the path at the site: green the shadow (+- radius around the centre line), orange out to 1 sigma
+    beyond its edges, black ticks at 3 sigma, and a marker where the site is (its distance in km and sigma). None
+    when the values are missing. Standard SVG, for the favorites panel."""
+    if miss_km is None or not rad_km or not sigma1_km:
+        return None
+    half = max(rad_km + 3.4 * sigma1_km, abs(miss_km) + rad_km) * 1.08
+    x = lambda km: width / 2 + km / half * (width / 2 - 10)
+    y0, h = 20, 18
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
+         f'font-family="sans-serif" font-size="11">',
+         f'<rect x="{x(-half):.1f}" y="{y0}" width="{x(half) - x(-half):.1f}" height="{h}" fill="#e5e7eb"/>',
+         f'<rect x="{x(-rad_km - sigma1_km):.1f}" y="{y0}" width="{x(rad_km + sigma1_km) - x(-rad_km - sigma1_km):.1f}" '
+         f'height="{h}" fill="#f59e0b"/>',
+         f'<rect x="{x(-rad_km):.1f}" y="{y0}" width="{x(rad_km) - x(-rad_km):.1f}" height="{h}" fill="#16a34a"/>']
+    for k in (-1, 1):
+        xs = x(k * (rad_km + 3 * sigma1_km))
+        o.append(f'<line x1="{xs:.1f}" y1="{y0 - 4}" x2="{xs:.1f}" y2="{y0 + h + 4}" stroke="#111" stroke-width="2.5"/>')
+        o.append(f'<text x="{xs + 4:.1f}" y="{y0 - 6}" text-anchor="start" fill="#111">3\u03c3</text>' if k < 0 else
+                 f'<text x="{xs - 4:.1f}" y="{y0 - 6}" text-anchor="end" fill="#111">3\u03c3</text>')
+    o.append(f'<line x1="{x(0):.1f}" y1="{y0}" x2="{x(0):.1f}" y2="{y0 + h}" stroke="#14532d" stroke-width="1"/>')
+    xm = x(abs(miss_km))
+    sig = abs(miss_km) / sigma1_km
+    o.append(f'<polygon points="{xm:.1f},{y0 - 1} {xm - 6:.1f},{y0 - 11} {xm + 6:.1f},{y0 - 11}" fill="#1d4ed8"/>')
+    o.append(f'<line x1="{xm:.1f}" y1="{y0}" x2="{xm:.1f}" y2="{y0 + h}" stroke="#1d4ed8" stroke-width="2.5"/>')
+    lab = f"site: {abs(miss_km):.1f} km = {sig:.1f}\u03c3" + (f", {100 * p_site:.0f} %" if p_site is not None else "")
+    anchor = "end" if xm > width * 0.6 else "start"
+    o.append(f'<text x="{xm + (-8 if anchor == "end" else 8):.1f}" y="{y0 - 4}" text-anchor="{anchor}" fill="#1d4ed8">'
+             f'{esc(lab)}</text>')
+    o.append(f'<text x="{x(0):.1f}" y="{y0 + h + 15}" text-anchor="middle" fill="#14532d">shadow '
+             f'{2 * rad_km:.1f} km</text>')
+    o.append(f'<text x="{x(-half):.1f}" y="{y0 + h + 15}" text-anchor="start" fill="#b45309">'
+             f'1\u03c3 = {sigma1_km:.1f} km</text>')
+    o.append("</svg>")
+    return "".join(o)
 
 
 def info_html(info):
@@ -908,14 +1018,14 @@ def to_html(events, meta):
             f'<th class="num{on("mag")}" data-k title="Gaia G magnitude of the star">Star mag</th>'
             '<th class="num" data-k title="Magnitude drop with the star fully covered">Mag drop</th>'
             '<th class="num" data-k title="Maximum duration (centre line), seconds">Max dur (s)</th>'
-            '<th data-k title="Star altitude and compass direction at closest approach">Altitude</th>'
+            '<th data-k title="Star altitude and compass direction at closest approach">Altitude' + AZ_SWITCH + '</th>'
             '<th data-k title="Moon distance from the star; shown while the Moon is up">Moon dist</th>'
             '<th class="num" data-k title="Distance of the observer from the shadow centre line">Shadow dist</th>'
             '<th class="num" data-k title="Chance that the shadow covers your site, from the shadow distance, the shadow '
             'radius and the 1-sigma path uncertainty">Chance</th>'
             + ('<th data-k>Status</th><th data-k class="c-narrow">Note</th><th data-k class="c-narrow">Added (UT)</th>'
                if fav else "")
-            + '<th title=""☆ favorites and KStars (when opened from the GUI), Map: shadow path, Preview: star field, '
+            + '<th title="☆ favorites and KStars (when opened from the GUI), Map: shadow path, Preview: star field, '
             'KML: ground track for Google Earth">Tools</th>')
     if meta.get("layout") == "bodies":                           # planets & moons: contact times
         head = ('<th data-k>Body</th>'
@@ -924,7 +1034,7 @@ def to_html(events, meta):
                 '<th data-k title="Reappearance (R) at the site, UT">R (UT)</th>'
                 '<th class="num" data-k title="From D to R at the site">Duration</th>'
                 f'<th class="num{on("mag")}" data-k title="Gaia G magnitude of the star">Star mag</th>'
-                '<th data-k title="Star altitude and compass direction at closest approach">Altitude</th>'
+                '<th data-k title="Star altitude and compass direction at closest approach">Altitude' + AZ_SWITCH + '</th>'
                 '<th data-k title="Moon distance from the star; shown while the Moon is up">Moon dist</th>'
                 '<th class="num" data-k title="Distance of the observer from the shadow centre line">Shadow dist</th>'
                 '<th class="num" data-k title="Chance that the shadow covers your site">Chance</th>'
@@ -945,7 +1055,7 @@ def to_html(events, meta):
                  f'<label title="Event times in UT, in this computer\'s time zone (Local), or in the time zone of each '
                  f'event\'s site (Site; looked up once per site), with daylight saving time">times '
                  f'<select id="favtime"><option value="ut">UT</option><option value="local">Local</option>'
-                 f'<option value="site">Site</option></select></label>'
+                 f'<option value="site">Site</option></select></label>' +
                  f'</div>' + table)
     n_kml = sum(1 for e in events if e["kml"])
     n_prev = sum(1 for e in events if e.get("preview"))
@@ -968,7 +1078,7 @@ def to_html(events, meta):
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
-</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
+</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
 

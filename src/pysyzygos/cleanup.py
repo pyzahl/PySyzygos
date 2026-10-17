@@ -37,7 +37,7 @@ OUTPUTS = ("pysyzygos.db", "pysyzygos.db-wal", "pysyzygos.db-shm", "owc_check.db
            "owc_check_hits.csv", "pick_events.csv", "pick_candidates.csv", "targets.py", "maps", "picks", "prescreen",
            "build", "*.runs.jsonl", "*.log", "*~", "#*#", ".#*", "*.tmp",
            "pyoccult.db", "pyoccult.db-wal", "pyoccult.db-shm")                   # name before 1.0.0
-SETTINGS = ("sites.py", "pysyzygos_config.py", "csv_exports.py", "gui_state.json", "favorites", "offline",
+SETTINGS = ("sites.py", "pysyzygos_config.py", "csv_exports.py", "gui_state.json", "favorites", "offline", "horizons",
             "pyoccult_config.py", "pyoccult_config.py.pre-1.0")                    # names before 1.0.0
 LIST_MAX = 25                       # items listed per category (the rest summed up)
 NEVER = {"owc_refs", "owc_reference.txt", "owc_reference.csv", "private-docs", "release", "run.sh", ".venv", ".git",

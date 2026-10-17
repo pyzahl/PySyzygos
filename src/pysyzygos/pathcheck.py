@@ -34,7 +34,9 @@ def dms(tok):
 
 def parse_listing(text):
     """Rows of an Occult path listing (centre, UT, star alt/az, Sun alt, path limits 1/2, error limits 1/2): list of
-    dicts lon, lat, sec (UT seconds of the day), star_alt, star_az, sun_alt, l1, l2, e1, e2 (lon, lat pairs). Signs
+    dicts lon, lat, sec (UT seconds of the day), star_alt, star_az, sun_alt, l1, l2, e1, e2 (lon, lat pairs). Two
+    layouts: by time (the limits as longitude/latitude pairs) and by longitude (whole degrees; the limits as latitudes
+    at that longitude, "Path Limits: Latitude Latitude"). Signs
     stand apart for short degrees ("- 9 57 38"); header and other lines are skipped. Also returns the title line."""
     rows, title = [], ""
     for line in text.splitlines():
@@ -49,16 +51,21 @@ def parse_listing(text):
                 merged.append(t[i]); i += 1
         if len(merged) < 20 or not re.fullmatch(r"-?\d+", merged[0]):
             continue
+        nums = sum(1 for x in merged if re.fullmatch(r"-?\d+(\.\d+)?", x))
         try:
             lon, lat = dms(merged[0:3]), dms(merged[3:6])
             h, m, s = int(merged[6]), int(merged[7]), float(merged[8])
             star_alt, star_az, sun_alt = float(merged[9]), float(merged[10]), float(merged[11])
-            lim = [dms(merged[12 + 3 * k: 15 + 3 * k]) for k in range(8)]
+            if nums >= 36:                                   # by time: each limit as a (longitude, latitude) pair
+                lim = [dms(merged[12 + 3 * k: 15 + 3 * k]) for k in range(8)]
+                l1, l2, e1, e2 = (lim[0], lim[1]), (lim[2], lim[3]), (lim[4], lim[5]), (lim[6], lim[7])
+            else:                                            # by longitude: the limits as latitudes at this longitude
+                lim = [dms(merged[12 + 3 * k: 15 + 3 * k]) for k in range(4)]
+                l1, l2, e1, e2 = ((lon, la) for la in lim)
         except (ValueError, IndexError):
             continue
         rows.append(dict(lon=lon, lat=lat, sec=h * 3600 + m * 60 + s, star_alt=star_alt, star_az=star_az,
-                         sun_alt=sun_alt, l1=(lim[0], lim[1]), l2=(lim[2], lim[3]), e1=(lim[4], lim[5]),
-                         e2=(lim[6], lim[7])))
+                         sun_alt=sun_alt, l1=l1, l2=l2, e1=e1, e2=e2))
     return rows, title
 
 

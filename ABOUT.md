@@ -178,7 +178,14 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   (Zacharias et al. 2017: pm from Gaia DR1 and UCAC; matched by its Gaia DR1 2015.0 position within 0.2" of the DR3
   2016.0 one and G within 0.5 mag), else UCAC4 (its J2000 position moved to 2016 within 0.5", magnitude within 1),
   through CDS XMatch (kinds 3, 4; Gaia's position kept; the UCAC errors as the proper-motion errors). Of 573,735:
-  294,496 UCAC5, 171,094 UCAC4, 108,145 none (kind 2). `gaia_local.star_sigma_mas`: the star's 1-sigma position at
+  294,496 UCAC5, 171,094 UCAC4, 108,145 none (kind 2). Third source (1.3.1, `starcat.pm_epoch`, in the same pass
+  as the `xref` part): the motion from UCAC4's MEASURED position (its central epochs, ~1990-2004, with its position
+  errors) to Gaia's 2016.0 one, over ~18 years; kind 5 wherever its error (larger axis) is smaller than the UCAC5/
+  UCAC4 one, and for stars without any. UCAC4's J2000 positions are not measurements: they are the central-epoch
+  ones carried forward with UCAC4's own proper motion, so a motion derived from them (J2000 -> Gaia) inherits that
+  motion's error. Test zone 573: UCAC5 and epoch values agree within their errors (median 0.8 sigma), UCAC4's own
+  motions do not (median 2 sigma, 23 % beyond 3 sigma), so the epoch motion replaces nearly all UCAC4 ones and about
+  half the UCAC5 ones. `gaia_local.star_sigma_mas`: the star's 1-sigma position at
   the event date (2-parameter: position + pm error or 10 mas/yr per axis, times the years; high RUWE: Gaia's errors x
   RUWE), in km at the asteroid combined with the orbit's sigma. Found with (86288) 1999 UC45, 2026-09-30: its G 11.73
   target (RUWE 1.65), observed by three stations, was not in the first local catalog, so the event was not

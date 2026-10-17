@@ -35,6 +35,7 @@ targets.py
 picks/
 prescreen/
 favorites/
+horizons/
 *.log
 # python and editor leftovers
 __pycache__/

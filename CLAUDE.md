@@ -110,7 +110,19 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (SCALE = 0.25/2^32 deg, 0.0002 mas; `encode`/`decode`). Files: catalog.json (format 2, build_id, groups; written
   last), offsets.npy, core.npy (CORE 31 B), hpm.npy (rows), optional quality.npy (QUALITY 20 B: ruwe, errors f2, corr
   i1 x127, nss, multi_peak) and extras.npy (EXTRAS 10 B: bp/rp mmag, rv, rv_error, teff), each with <group>.json
-  (build_id, n_stars; `group_ok`). Build: ESA files -> parts/<stem>.npy (PART, resumable, build.json) -> `merge`
+  (build_id, n_stars; `group_ok`). Part `xref` (2026-10-17, XREF 12 B: ucac4 = zone*1e6+number, tyc = (t1*20000+t2)*4+t3,
+  hip; `ucac4_name`, `tyc_name`): `build_xref` = `match_ucac4` (+ `records=` -> `choose_pm`: epoch pm, see below) (zones z001..z900 from URL_UCAC4_ZONES, UCAC4_REC 78 B
+  little-endian, J2000 vs ours moved back 16 yr with Gaia pm, cKDTree, <= 1" and 1.5 mag, one Gaia star per UCAC4
+  star) + `tyc_hip` (gaiadr3.tycho2tdsc_merge_best_neighbour / hipparcos2_best_neighbour by source_id range, async,
+  split at the 50k cap; DR3/DR2 have no UCAC4 table, only gaiadr1). Epoch pm (1.3.1): UCAC4_REC full layout
+  (sigra/sigdc mas +128, cepra/cepdc 0.01 yr - 1900, pm 0.1 mas/yr); `epoch_pm` = UCAC4 J2000 taken back to its central
+  epoch with UCAC4's pm, then to Gaia 2016 (errors hypot(sig, Gaia pos err)/interval, >= EPOCH_MIN_YEARS);
+  `choose_pm` replaces where max-axis error < stored (quality pmra/pmdec_error; kind 2 = inf) -> KIND_2P_EPOCH 5
+  (KINDS_2P_PM, gaia_local PM_SOURCE); changes the CORE (repack). CLI `catalog pm-epoch [--dry-run]` (xref numbers),
+  `xref --no-pm-epoch`; catalog.json pm_epoch. Galbraith keeps UCAC5 (1.70 vs 2.32). merge skips groups whose fields are not in PART.
+  add_group("xref") builds locally when no archive. `StarCatalog.names`, frame columns ucac4/tyc/hip; search record
+  star_ucac4/star_tyc/star_hip (end); `report.star_label(r)` -> (name, other names) for report tips, favorites,
+  globe, exports star_name; GUI `local_star_names` -> `favorites.backfill_names`. Build: ESA files -> parts/<stem>.npy (PART, resumable, build.json) -> `merge`
   (memmaps, low memory) -> `xmatch` (UCAC5/4 pm for kind 2, in place). `StarCatalog`: LocalGaia + BrightIndex methods
   (cone with quality/extras columns under Gaia's names, corridor_stars, near_path -> ROWS, high_pm, frame); supplement
   switch filters kind 0. gaia_local hands format-2 folders over (`LocalGaia.__new__`, `open_index`, `status`,
@@ -118,7 +130,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   Gaia's flags + error ellipse locally when the cone has the columns. Zenodo: G 16 only (`ZENODO_STEM`,
   `<stem>_<group>.tar.xz`), other limits are local ESA builds. Upgrade: `staging_dir` (<d>.new) + `swap_in` (old ->
   <d>.old; cleanup lists it). setup `catalog_step` (--groups, --upgrade-catalog), GUI System tab "Star catalog"
-  (`cat_refresh`, `cat_part`, `cat_upgrade_ask` dialog -> `cat_upgrade` = setup --upgrade-catalog --groups P [--delete-old], then `catalog_options()` refreshes the header select; `cat_delete_old`). tests/test_starcat.py.
+  (`cat_refresh`, `cat_part`, `cat_upgrade_ask` dialog -> `cat_upgrade` = setup --upgrade-catalog --groups P [--delete-old], then `catalog_options()` refreshes the header select; `cat_delete_old`; parts: untick -> dialog: `disable_group` (rename to `<part>.npy.off`, OFF) / `remove_group`; `enable_group`, `disabled_groups`, CLI `catalog off|on`). Planets offline: `bodies.kernels_status`, `remove_naif`, CLI `pysyzygos planets add|remove|status` (bodies.main), GUI `planets_refresh` / `planet_kernel`. tests/test_starcat.py.
 - `pysyzygos/gaia_local.py`: (old format, before 1.3.0) builds/reads a local G-limited Gaia DR3 copy from ESA's CDN bulk files (`build`, `status`);
   one `.npy` per source file plus `.cells.npy` (1x1 deg cell index) and `.hpm.npy` (pm > 1500 mas/yr). No healpy.
   Ready-made copies (G <= 16, 18; no bright index) on Zenodo, concept DOI 10.5281/zenodo.23113337 (first version
@@ -233,6 +245,27 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   download (test_pick, test_sizecache) call `offline.use_dir(tmp)`: the copies are relative to the working folder
   and tests run in the data folder. `pysyzygos/sysinfo.py`: `pysyzygos info [--json]`, the System tab's "Data in use"
   (run as a process: SPICE for the kernels' coverage).
+- `pysyzygos/horizon.py` (2026-10-17): OccultWatcher's [User Horizon] format (`parse` -> {station: [(az, alt)]},
+  `check` rules, `altitude` (linear, vertical steps: higher side), `assess` -> behind / near (margin, any direction,
+  line sampled every 0.5 deg), `svg`, `to_text`). sites.py keys horizon, horizon_name, horizon_margin (15),
+  horizon_filter (False). search.handle_star after star_az: record horizon_flag/_alt/_sep_deg (end); filter returns
+  False. report `horizon_text`/`horizon_mark` (⛰ yellow behind, red near) in `alt_cell`; exports altitude text.
+  GUI Site tab expansion (hz_upload: for the form's site, station named like it else the first; hz_set marks
+  unsaved; collect/show_site). parse strips a byte-order mark (OW/Windows files have one). tests/test_horizon.py uses OW's own
+  example stations (never the user's real file: it names the site).
+- `pysyzygos/panorama.py` (2026-10-17): the site's 360-degree photo (equirectangular 2:1; col = az_left + 360 x/W,
+  row = 90 - 180 y/H). `profile` (alpha >= OPAQUE = ground; first row with ~0.3 deg ground below: wires ignored; max
+  per STEP_DEG 0.25 bin), `points` (whole degrees, ceil of the per-degree max, Douglas-Peucker 1 deg), `fit_az_left`
+  (min scatter of differences around their median: constant offsets do not shift it; ~1 deg with whole-degree
+  points), `save` -> horizons/<slug>.jpg (1440x720, sky SKY_FILL) + .json (profile, source), `svg` (north left, two
+  image copies for the wrap, grid, horizon + dashed margin, star ring). sites.py keys horizon_image (relative),
+  horizon_image_az. GUI: Site tab (pano_upload fits az if points exist, hz_az, hz_fit, hz_from, hz_dl, hz_draw),
+  favorites `fav_pano` (site by lat/lon in sites.py; star_alt/star_az, else report.alt_az) -> f_pano. Dependency
+  Pillow (uv.lock). horizons/ gitignored, in cleanup SETTINGS. tests/test_panorama.py (synthetic photo). First use:
+  Seewis observatory (GoPro MAX, transparent-sky PNG): left edge 195.8 deg, 1.2 deg median vs its UserHorizon.
+- GUI header power button: `quit_dialog` -> `restart_app` (os.execv `python -m pysyzygos gui --port P --no-browser`,
+  GUI_ARGS) / `quit_app` (app.shutdown); `_stop_job` first. Report: `alt_cell` + AZ_SWITCH/AZ_JS (checkbox in the
+  Altitude header, its clicks do not sort; localStorage az_deg); `sigma_text`, chance column "33 % · 0.6σ", `chance_bar_svg` (favorites panel f_bar).
 - `pysyzygos/cameras.py`: `SENSORS` (sensor, px w, px h, pixel um, camera names) for the Site tab's "Sensor (cameras)"
   list; sizes = pixels x pixel size (`sensor_mm`); one entry per sensor, cameras searchable in the label.
 - `pysyzygos/occultations.py`: earlier occultations from NASA PDS "Small Bodies Occultations" V4.0 (doi
@@ -432,6 +465,19 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   from `file://`. Map dialog reopen bug fixed 2026-10-02 (the box was cleared on every open, removing Leaflet's panes).
 
 ## Ideas not built yet
+- Double / companion stars from more sources (planned 2026-10-17, then put on the list): Gaia resolves pairs from
+  ~0.4-0.7"; closer ones only show as RUWE, ipd_frac_multi_peak, duplicated_source, NSS (all in the quality part)
+  and three indicators we do not keep yet: ipd_gof_harmonic_amplitude (elongated image), astrometric_excess_noise
+  (+ _sig), phot_bp_rp_excess_factor (blend in the 3.5" colour window). Plan: 1) WDS (+ ORB6 orbits) as a small
+  local data file like data/binaries.json (VizieR B/wds/wds answers: WDS, Disc, Comp, Obs1/2, Nobs, pa1/2, sep1/2,
+  mag1/2, SpType, pm, Notes, RAJ2000/DEJ2000; ~150k pairs; ORB6 table name still to find), matched by position per
+  event (offline, < 1 ms); 2) the three Gaia indicators added to the online check's ARCHIVE_COLS now (same single
+  query), into the quality part at the DR4 rebuild; 3) Gaia NSS orbit parameters (nss_two_body_orbit) on demand in
+  the favorites panel; BUILT 2026-10-17 on demand: `doubles.vizier_check` (VizieR ASU B/wds/wds cone 30" +
+  I/355/gaiadr3 by Source: RUWE, IPDfmp, IPDgofha, epsi, sepsi, E(BP/RP), Dup, NSS; hints), `vizier_text`, GUI
+  favorites button -> entry "vizier" (`favorites.set_field`); ORB6 has no VizieR table under the tried names (WDS
+  Notes 'O' tells an orbit exists); 4) per companion: PA, dG, and where its own shadow falls (separation x distance) relative to
+  the site; 5) later perhaps IOTA / D. Herald's catalogue of doubles discovered by occultations.
 - Catalog additions for the next rebuild (ideally with Gaia DR4, 2026-12-02): compared with Occult's G16 subset (D.
   Herald, 2026-10-16: 77,951,442 stars, 58 B/star, 4.52 GB, zip 2.64 GB; ours 77,952,398): 1) star diameter from
   Gaia FLAME (`radius_flame`, astrophysical_parameters files on ESA's CDN, join by source_id; + a flag "other

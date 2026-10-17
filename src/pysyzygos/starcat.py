@@ -18,6 +18,8 @@ core 2.4 GB, + quality 1.6 GB, + extras 0.8 GB.
     pysyzygos catalog build --dir gaia_dr3_g16 --gmax 16     # from ESA's files (753 GB streamed, ~2 h; resumable)
     pysyzygos catalog fetch --dir gaia_dr3_g16              # ready-made G <= 16 from Zenodo (core + --groups)
     pysyzygos catalog add quality | remove extras           # optional parts, any time (System tab: checkboxes)
+    pysyzygos catalog off extras | on extras                # switch a part off (files kept) / on again
+    pysyzygos catalog xref                                  # build the cross-reference part (UCAC4, TYC, HIP)
     pysyzygos catalog status | xmatch | pack
 
 Layout of a catalog folder:
@@ -31,7 +33,7 @@ Network only for building and downloads; reading needs numpy (and pandas for Dat
 """
 from pysyzygos.version import __version__
 from pysyzygos import urls as U
-import argparse, json, math, os, secrets, shutil, subprocess, sys, tempfile, time
+import argparse, functools, json, math, os, secrets, shutil, subprocess, sys, tempfile, time
 import numpy as np
 
 FORMAT = 2
@@ -44,7 +46,8 @@ G_MMAG_NONE = 0xFFFF
 CORR_NONE = -128
 HIGH_PM_MAS = 1500.0                                           # as gaia_local (the corridor pm pad)
 RUWE_MAX = 1.4
-KIND_MAIN, KIND_RUWE, KIND_2P, KIND_2P_UCAC5, KIND_2P_UCAC4 = 0, 1, 2, 3, 4    # as gaia_local
+KIND_MAIN, KIND_RUWE, KIND_2P, KIND_2P_UCAC5, KIND_2P_UCAC4, KIND_2P_EPOCH = 0, 1, 2, 3, 4, 5    # as gaia_local
+KINDS_2P_PM = (KIND_2P_UCAC5, KIND_2P_UCAC4, KIND_2P_EPOCH)       # 2-parameter stars with a proper motion (not Gaia's)
 FLAG_KIND, FLAG_DUP, FLAG_NSS = 0x07, 0x08, 0x10
 
 CORE = np.dtype([("source_id", "<i8"), ("dra", "<u4"), ("ddec", "<u4"), ("parallax", "<f4"), ("pmra", "<f4"),
@@ -54,10 +57,12 @@ ERR_COLS = ("ra_error", "dec_error", "parallax_error", "pmra_error", "pmdec_erro
 QUALITY = np.dtype([("ruwe", "<f2")] + [(c, "<f2") for c in ERR_COLS] + [(c, "i1") for c in CORR_COLS]
                    + [("nss", "u1"), ("multi_peak", "u1")])
 EXTRAS = np.dtype([("bp", "<u2"), ("rp", "<u2"), ("rv", "<f2"), ("rv_error", "<f2"), ("teff", "<f2")])
-GROUPS = {"quality": QUALITY, "extras": EXTRAS}
+XREF = np.dtype([("ucac4", "<u4"), ("tyc", "<u4"), ("hip", "<u4")])   # 0 = none; see ucac4_name, tyc_name
+GROUPS = {"quality": QUALITY, "extras": EXTRAS, "xref": XREF}
 GROUP_TEXT = {"core": "positions, motions, G, flags (needed)",
               "quality": "RUWE, Gaia's errors and flags (error ellipse, double-star hints without network)",
-              "extras": "BP/RP colour, radial velocity, Teff (for a star-size model later)"}
+              "extras": "BP/RP colour, radial velocity, Teff (for a star-size model later)",
+              "xref": "UCAC4, Tycho-2 and Hipparcos numbers (star names as Occult and OWC show them)"}
 PART = np.dtype(CORE.descr + QUALITY.descr + EXTRAS.descr + [("cell", "<u4")])
 CSV_COLS = ["source_id", "ra", "dec", "parallax", "pmra", "pmdec", "phot_g_mean_mag", "ruwe", *ERR_COLS, *CORR_COLS,
             "non_single_star", "ipd_frac_multi_peak", "duplicated_source", "phot_bp_mean_mag", "phot_rp_mean_mag",
@@ -263,7 +268,7 @@ def merge(out_dir, gmax, groups, part_files, source="", block=4_000_000):
         prog(i)
     offsets = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
     n = int(offsets[-1])
-    names = ["core"] + [g for g in GROUPS if g in groups]
+    names = ["core"] + [g for g in GROUPS if g in groups and set(GROUPS[g].names) <= set(PART.names)]
     dts = dict(core=CORE, **GROUPS)
     tmp = {g: os.path.join(out_dir, f"{g}.npy.tmp") for g in names}
     outs = {g: np.lib.format.open_memmap(tmp[g], mode="w+", dtype=dts[g], shape=(n,)) for g in names}
@@ -373,6 +378,373 @@ def xmatch(out_dir, chunk=50000, log=print, fetch=None):
     return man["pm_xmatch"]
 
 
+# ----------------------------------------------------------------------------------------------- cross-references
+UCAC4_REC = np.dtype([("ra", "<i4"), ("spd", "<i4"), ("magm", "<i2"), ("maga", "<i2"), ("sigmag", "i1"),
+                      ("objt", "i1"), ("cdf", "i1"), ("sigra", "i1"), ("sigdc", "i1"), ("na1", "i1"), ("nu1", "i1"),
+                      ("cu1", "i1"), ("cepra", "<i2"), ("cepdc", "<i2"), ("pmrac", "<i2"), ("pmdc", "<i2"),
+                      ("sigpmr", "i1"), ("sigpmd", "i1"), ("rest", "V48")])   # 78 B (UCAC4 readme; sig*: +128 offset)
+UCAC4_ZONES = 900                                               # 0.2 deg zones from the south pole (UCAC4 doc 3i)
+XREF_RADIUS_ARCSEC = 1.0                                        # nearest UCAC4 star at J2000 within this ...
+XREF_DMAG = 1.5                                                 # ... and its aperture magnitude within this of G
+
+
+def ucac4_id(zone, number):
+    return int(zone) * 1_000_000 + int(number)
+
+
+def ucac4_name(v):
+    """'573-029535' for the stored number (zone x 1e6 + running number), '' for none."""
+    v = int(v)
+    return f"{v // 1_000_000:03d}-{v % 1_000_000:06d}" if v else ""
+
+
+def tyc_id(t1, t2, t3):
+    return (int(t1) * 20000 + int(t2)) * 4 + int(t3)            # TYC1 <= 9537, TYC2 <= 12121, TYC3 1..3: fits u4
+
+
+def tyc_name(v):
+    v = int(v)
+    return f"{v // 4 // 20000}-{v // 4 % 20000}-{v % 4}" if v else ""
+
+
+def star_names(row):
+    """{'ucac4': 'UCAC4 573-029535', 'tyc': 'TYC 1876-1234-1', 'hip': 'HIP 12345'} from an xref row (keys only for
+    the numbers the star has)."""
+    out = {}
+    if int(row["ucac4"]):
+        out["ucac4"] = "UCAC4 " + ucac4_name(row["ucac4"])
+    if int(row["tyc"]):
+        out["tyc"] = "TYC " + tyc_name(row["tyc"])
+    if int(row["hip"]):
+        out["hip"] = f"HIP {int(row['hip'])}"
+    return out
+
+
+def _unit(ra_deg, dec_deg):
+    ra, dec = np.radians(ra_deg), np.radians(dec_deg)
+    return np.stack([np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)], -1)
+
+
+def ucac4_records(zone, fetch=None):
+    """The records (UCAC4_REC) of a UCAC4 zone file, in file order: the running number is index+1. fetch(url) ->
+    bytes stands in for the download (tests)."""
+    if fetch is None:
+        import requests
+        r = None
+        for k in range(4):
+            try:
+                r = requests.get(f"{U.URL_UCAC4_ZONES}z{zone:03d}", timeout=180)
+                r.raise_for_status()
+                break
+            except Exception:
+                if k == 3:
+                    raise
+                time.sleep(5 * (k + 1))
+        blob = r.content
+    else:
+        blob = fetch(f"{U.URL_UCAC4_ZONES}z{zone:03d}")
+    return np.frombuffer(blob, dtype=UCAC4_REC)
+
+
+def ucac4_zone(zone, fetch=None, records=None):
+    """(ra_deg, dec_deg, maga) of a UCAC4 zone file at J2000 (records in file order: the running number is index+1)."""
+    a = ucac4_records(zone, fetch) if records is None else records
+    return a["ra"] / 3.6e6, (a["spd"] - 324000000) / 3.6e6, a["maga"] / 1000.0
+
+
+EPOCH_MIN_YEARS = 8.0                                          # epoch pm only over a longer interval than this
+EPOCH_GAIA_POS_ERR = 2.0                                       # mas, when the catalog has no quality part
+EPOCH_METHOD = ("UCAC4 central-epoch position -> Gaia DR3 2016.0 position, used where its error (over the interval) "
+                "is smaller than the UCAC5/UCAC4 one")
+
+
+def epoch_pm(rec, ra, dec, e_ra=None, e_dec=None):
+    """Proper motion from UCAC4's MEASURED position to Gaia's 2016.0 one, with its errors (mas/yr, per axis). UCAC4's
+    J2000 positions are its central-epoch measurements (cepra/cepdc, ~1998) carried forward with its own, often poor,
+    proper motion, so they are first taken back to the central epochs. Errors: UCAC4's position errors at the central
+    epochs (sigra/sigdc) and Gaia's (e_ra/e_dec, mas) over the interval. rec: UCAC4_REC rows matching ra/dec (deg).
+    Returns (pmra*, pmdec, err_ra, err_dec, ok); ok False without central epochs or below EPOCH_MIN_YEARS."""
+    ra, dec = np.asarray(ra, float), np.asarray(dec, float)
+    e_ra = np.full(len(ra), EPOCH_GAIA_POS_ERR) if e_ra is None else np.nan_to_num(np.asarray(e_ra, float),
+                                                                                    nan=EPOCH_GAIA_POS_ERR)
+    e_dec = np.full(len(ra), EPOCH_GAIA_POS_ERR) if e_dec is None else np.nan_to_num(np.asarray(e_dec, float),
+                                                                                      nan=EPOCH_GAIA_POS_ERR)
+    cra, cde = 1900.0 + rec["cepra"] / 100.0, 1900.0 + rec["cepdc"] / 100.0
+    cosd = np.maximum(np.cos(np.radians(dec)), 1e-6)
+    ra_u, de_u = rec["ra"] / 3.6e6, (rec["spd"] - 324000000) / 3.6e6
+    ra_c = ra_u + rec["pmrac"] / 10.0 * (cra - 2000.0) / 3.6e6 / cosd       # back to the central epochs
+    de_c = de_u + rec["pmdc"] / 10.0 * (cde - 2000.0) / 3.6e6
+    tra, tde = 2016.0 - cra, 2016.0 - cde
+    ok = (rec["cepra"] > 0) & (rec["cepdc"] > 0) & (tra >= EPOCH_MIN_YEARS) & (tde >= EPOCH_MIN_YEARS)
+    tra, tde = np.where(ok, tra, 1.0), np.where(ok, tde, 1.0)
+    dra = ((ra - ra_c + 180.0) % 360.0 - 180.0) * cosd * 3.6e6
+    pmra, pmde = dra / tra, (dec - de_c) * 3.6e6 / tde
+    sra = np.hypot(rec["sigra"].astype(float) + 128.0, e_ra) / tra
+    sde = np.hypot(rec["sigdc"].astype(float) + 128.0, e_dec) / tde
+    return pmra, pmde, sra, sde, ok
+
+
+def choose_pm(d, rows, recs, dry_run=False, log=print):
+    """For the 2-parameter stars rows (catalog d) and their UCAC4 records recs: the epoch proper motion (epoch_pm)
+    replaces the stored one (UCAC5, UCAC4 or none) where its error is smaller (the larger axis error on both sides:
+    the UCAC errors are stored that way, xmatch). The
+    stored errors come from quality.npy (pmra_error/pmdec_error; without it the stored motion is kept, unless the
+    star has none). Written into core.npy (pmra, pmdec, kind KIND_2P_EPOCH) and quality.npy in place unless dry_run.
+    Returns counts: candidates, replaced per old kind ('2', '3', '4'), kept."""
+    rows = np.asarray(rows, np.int64)
+    out = dict(candidates=0, replaced={}, kept=0)
+    if len(rows) == 0:
+        return out
+    order = np.argsort(rows)
+    rows, recs = rows[order], recs[order]
+    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r" if dry_run else "r+")
+    offsets = np.load(os.path.join(d, "offsets.npy"))
+    qpath = os.path.join(d, "quality.npy")
+    q = np.load(qpath, mmap_mode="r" if dry_run else "r+") if os.path.isfile(qpath) else None
+    c = np.array(core[rows])
+    ra, dec = decode(np.searchsorted(offsets, rows, side="right") - 1, c["dra"], c["ddec"])
+    qq = np.array(q[rows]) if q is not None else None
+    pmra, pmde, sra, sde, ok = epoch_pm(recs, ra, dec, None if qq is None else qq["ra_error"],
+                                        None if qq is None else qq["dec_error"])
+    kind = kind_of(c["flags"])
+    if qq is not None:                                         # error of the stored motion (none: infinite)
+        cur = np.maximum(qq["pmra_error"].astype(float), qq["pmdec_error"].astype(float))   # UCAC: the larger one
+        cur = np.where(np.isfinite(cur) & (cur > 0), cur, np.inf)
+    else:                                                      # unknown: keep a stored motion
+        cur = np.zeros(len(rows))
+    cur = np.where(kind == KIND_2P, np.inf, cur)
+    take = ok & (np.maximum(sra, sde) < cur) & (kind != KIND_2P_EPOCH)
+    out["candidates"] = int(ok.sum())
+    out["replaced"] = {str(int(k)): int((take & (kind == k)).sum()) for k in (KIND_2P, KIND_2P_UCAC5, KIND_2P_UCAC4)}
+    out["kept"] = int((ok & ~take).sum())
+    if not dry_run and take.any():
+        r = rows[take]
+        core["pmra"][r], core["pmdec"][r] = pmra[take].astype(np.float32), pmde[take].astype(np.float32)
+        core["flags"][r] = (c["flags"][take] & np.uint8(0xFF ^ FLAG_KIND)) | np.uint8(KIND_2P_EPOCH)
+        core.flush()
+        if q is not None:
+            q["pmra_error"][r], q["pmdec_error"][r] = sra[take], sde[take]
+            q.flush()
+    core = q = None
+    return out
+
+
+def _add_counts(a, b):
+    a["candidates"] += b["candidates"]
+    a["kept"] += b["kept"]
+    for k, v in b["replaced"].items():
+        a["replaced"][k] = a["replaced"].get(k, 0) + v
+    return a
+
+
+def pm_epoch(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, dry_run=False, log=print):
+    """choose_pm for every 2-parameter star of catalog d with a UCAC4 number (xref part): streams the zone files that
+    hold such stars (~9 GB in all, none kept). Recorded in catalog.json (pm_epoch). Returns the counts."""
+    if not group_ok(d, "xref"):
+        sys.exit(f"{d}: the xref part (UCAC4 numbers) is needed first: pysyzygos catalog add xref --dir {d}")
+    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+    two_p = np.where(kind_of(np.asarray(core["flags"])) >= KIND_2P)[0]
+    core = None
+    xref = np.load(os.path.join(d, "xref.npy"), mmap_mode="r")
+    u = np.asarray(xref["ucac4"][two_p]).astype(np.int64)
+    xref = None
+    two_p, u = two_p[u > 0], u[u > 0]
+    zone_of = u // 1_000_000
+    log(f"   epoch proper motions: {len(two_p)} 2-parameter stars with a UCAC4 number"
+        f"{' (dry run: nothing written)' if dry_run else ''}")
+    total, t0 = dict(candidates=0, replaced={}, kept=0), time.time()
+    zones = [z for z in zones if (zone_of == z).any()]
+    for k, z in enumerate(zones, 1):
+        sel = zone_of == z
+        recs = ucac4_records(z, fetch)
+        idx = u[sel] % 1_000_000 - 1
+        good = idx < len(recs)
+        _add_counts(total, choose_pm(d, two_p[sel][good], recs[idx[good]], dry_run, log))
+        if k % 25 == 0 or k == len(zones):
+            el = time.time() - t0
+            log(f"   zone {z}: {k}/{len(zones)}, {sum(total['replaced'].values())} replaced, {total['kept']} kept, "
+                f"{el / 60:.0f} min, ETA {el / k * (len(zones) - k) / 60:.0f} min")
+    if not dry_run:
+        man = _manifest(d)
+        man["pm_epoch"] = dict(total, date=time.strftime("%Y-%m-%d"), min_years=EPOCH_MIN_YEARS, method=EPOCH_METHOD)
+        _write_json(os.path.join(d, "catalog.json"), man)
+    log(f"   epoch proper motions: {sum(total['replaced'].values())} replaced (old kind: {total['replaced']}), "
+        f"{total['kept']} kept their UCAC5/UCAC4 motion (smaller error)")
+    return total
+
+
+def _rows_in_dec(core, offsets, lo, hi):
+    """Row indices of the stars whose cells overlap the declination band lo..hi (deg)."""
+    b0 = max(int(np.floor((lo + 90.0) / CELL)), 0)
+    b1 = min(int(np.floor((hi + 90.0) / CELL)), N_DEC - 1)
+    a, b = int(offsets[b0 * N_RA]), int(offsets[(b1 + 1) * N_RA])
+    return np.arange(a, b, dtype=np.int64)
+
+
+def match_ucac4(d, best_d=None, best_u=None, zones=range(1, UCAC4_ZONES + 1), fetch=None, log=print, records=None):
+    """UCAC4 numbers for the catalog's stars: each zone's J2000 positions against our stars moved back to J2000 with
+    their proper motions (2-parameter stars: their stored motion, else none), the nearest within XREF_RADIUS_ARCSEC
+    and XREF_DMAG of G, each UCAC4 star given to one Gaia star only (the nearest). Returns (best UCAC4 number per row,
+    0 = none; the match distance in arcsec). records: a list that gets (rows, UCAC4 numbers, UCAC4_REC rows) of the
+    matched 2-parameter stars per zone (for choose_pm in the same pass; keep only those still the best at the end)."""
+    from scipy.spatial import cKDTree
+    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+    offsets = np.load(os.path.join(d, "offsets.npy"))
+    n = len(core)
+    best_d = np.full(n, np.inf, np.float32) if best_d is None else best_d
+    best_u = np.zeros(n, np.uint32) if best_u is None else best_u
+    rad = np.radians(XREF_RADIUS_ARCSEC / 3600.0)
+    chord = 2 * np.sin(rad / 2)
+    t0, found = time.time(), 0
+    zones = list(zones)
+    for k, z in enumerate(zones, 1):
+        recs = ucac4_records(z, fetch)
+        ra_u, de_u, mag_u = ucac4_zone(z, records=recs)
+        if len(ra_u) == 0:
+            continue
+        lo, hi = -90.0 + (z - 1) * 0.2, -90.0 + z * 0.2
+        pad = XREF_RADIUS_ARCSEC / 3600.0 + 0.02            # + up to ~70" of motion back to 2000 (fast stars)
+        rows = _rows_in_dec(core, offsets, lo - pad, hi + pad)
+        if len(rows) == 0:
+            continue
+        c = np.asarray(core[rows])
+        cells = np.searchsorted(offsets, rows, side="right") - 1
+        ra, de = decode(cells, c["dra"], c["ddec"])
+        dt = 2000.0 - 2016.0                                 # Gaia DR3 epoch 2016.0 -> J2000 (UCAC4's positions)
+        de2 = de + c["pmdec"].astype(float) * dt / 3.6e6
+        ra2 = ra + c["pmra"].astype(float) * dt / 3.6e6 / np.maximum(np.cos(np.radians(de)), 1e-6)
+        keep = (de2 >= lo - XREF_RADIUS_ARCSEC / 3600.0) & (de2 <= hi + XREF_RADIUS_ARCSEC / 3600.0)
+        rows, ra2, de2, g = rows[keep], ra2[keep], de2[keep], _mag(c["g"][keep])
+        if len(rows) == 0:
+            continue
+        tree = cKDTree(_unit(ra_u, de_u))
+        dist, j = tree.query(_unit(ra2 % 360.0, de2), k=1, distance_upper_bound=chord)
+        ok = np.isfinite(dist)
+        dmag = np.abs(np.where(ok, mag_u[np.minimum(j, len(mag_u) - 1)], 0) - g)
+        ok &= (dmag <= XREF_DMAG) | (np.where(ok, mag_u[np.minimum(j, len(mag_u) - 1)], 20.0) >= 19.999)
+        rr, jj, dd = rows[ok], j[ok], (2 * np.arcsin(dist[ok] / 2) * 206264.806).astype(np.float32)
+        order = np.lexsort((dd, jj))                         # one Gaia star per UCAC4 star: the nearest
+        rr, jj, dd = rr[order], jj[order], dd[order]
+        first = np.concatenate([[True], jj[1:] != jj[:-1]]) if len(jj) else np.zeros(0, bool)
+        rr, jj, dd = rr[first], jj[first], dd[first]
+        better = dd < best_d[rr]
+        best_d[rr[better]] = dd[better]
+        best_u[rr[better]] = z * 1_000_000 + (jj[better] + 1)
+        if records is not None:
+            two_p = kind_of(np.asarray(core["flags"][rr[better]])) >= KIND_2P
+            rb, jb = rr[better][two_p], jj[better][two_p]
+            records.append((rb, z * 1_000_000 + (jb + 1), np.array(recs[jb])))
+        found += int(better.sum())
+        if k % 25 == 0 or k == len(zones):
+            el = time.time() - t0
+            log(f"   UCAC4: zone {z}/{UCAC4_ZONES}, {int((best_u > 0).sum()) / 1e6:.1f} M stars named, "
+                f"{el / 60:.0f} min, ETA {el / k * (len(zones) - k) / 60:.0f} min")
+    return best_u, best_d
+
+
+def _gaia_ids(table, col, lo_id, hi_id, cap=50000, log=print, query=None):
+    """{source_id: original_ext_source_id} from a Gaia DR3 cross-match table, split by source_id range so each
+    asynchronous query stays below the archive's cap for anonymous users."""
+    if query is None:
+        from astroquery.gaia import Gaia                     # imported here: its import contacts the archive
+        query = lambda q: Gaia.launch_job_async(q, verbose=False).get_results().to_pandas()
+    out, todo = {}, [(lo_id, hi_id)]
+    while todo:
+        a, b = todo.pop()
+        df = None
+        for k in range(4):
+            try:
+                df = query(f"SELECT source_id, {col} FROM {table} WHERE source_id BETWEEN {a} AND {b}")
+                break
+            except Exception as e:
+                if k == 3:
+                    raise
+                log(f"   retry ({str(e)[:80]})")
+                time.sleep(10 * (k + 1))
+        if len(df) >= cap and b > a:                          # cut off at the cap: split the range
+            m = (a + b) // 2
+            todo += [(a, m), (m + 1, b)]
+            continue
+        out.update(zip(df["source_id"].astype("int64"), df[col].astype(str)))
+    return out
+
+
+def tyc_hip(log=print, query=None, parts=64):
+    """{source_id: TYC number} and {source_id: HIP number} from Gaia DR3's best-neighbour tables."""
+    top = 2 ** 63 - 1
+    step = top // parts
+    tyc, hip = {}, {}
+    for k in range(parts):
+        a, b = k * step, (top if k == parts - 1 else (k + 1) * step - 1)
+        for sid, v in _gaia_ids("gaiadr3.tycho2tdsc_merge_best_neighbour", "original_ext_source_id", a, b, log=log,
+                                query=query).items():
+            try:
+                t1, t2, t3 = (int(x) for x in v.strip().split("-"))
+                tyc[sid] = tyc_id(t1, t2, t3)
+            except ValueError:
+                pass
+        for sid, v in _gaia_ids("gaiadr3.hipparcos2_best_neighbour", "original_ext_source_id", a, b, log=log,
+                                query=query).items():
+            try:
+                hip[sid] = int(float(v))
+            except ValueError:
+                pass
+        log(f"   Tycho-2 / Hipparcos: {k + 1}/{parts} id ranges, {len(tyc)} TYC, {len(hip)} HIP")
+    return tyc, hip
+
+
+def build_xref(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, query=None, log=print, tyc_parts=64,
+               pm_epoch_wanted=True):
+    """The xref part of catalog d: UCAC4 (match_ucac4) and TYC / HIP (tyc_hip) numbers per row -> xref.npy +
+    xref.json (the core's build id). About 9 GB of UCAC4 zone files are streamed (none kept). pm_epoch_wanted: the
+    same pass also gives the 2-parameter stars the epoch proper motion where it is better (choose_pm; changes the
+    core)."""
+    from pysyzygos import gaia_local as GL
+    man = _manifest(d)
+    log(f"   cross-references for {man['n_stars'] / 1e6:.1f} M stars: UCAC4 (CDS, 900 zone files), TYC and HIP "
+        f"(Gaia archive)")
+    found = []
+    ucac, dist = match_ucac4(d, zones=zones, fetch=fetch, log=log, records=found)
+    tyc, hip = tyc_hip(log=log, query=query, parts=tyc_parts)
+    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+    sid = np.asarray(core["source_id"])
+    core = None
+    order = np.argsort(sid, kind="stable")
+    xref = np.zeros(len(sid), XREF)
+    xref["ucac4"] = ucac
+    for col, m in (("tyc", tyc), ("hip", hip)):
+        if m:
+            ids = np.fromiter(m.keys(), np.int64, len(m))
+            vals = np.fromiter(m.values(), np.int64, len(m))
+            pos = np.searchsorted(sid, ids, sorter=order)
+            pos = np.minimum(pos, len(sid) - 1)
+            hit = sid[order[pos]] == ids
+            xref[col][order[pos[hit]]] = vals[hit]
+    tmp = os.path.join(d, "xref.npy.tmp")
+    np.save(open(tmp, "wb"), xref)
+    GL.replace_file(tmp, os.path.join(d, "xref.npy"))
+    _write_json(os.path.join(d, "xref.json"), dict(group="xref", build_id=man["build_id"], n_stars=man["n_stars"],
+                                                  ucac4=int((xref["ucac4"] > 0).sum()), tyc=int((xref["tyc"] > 0).sum()),
+                                                  hip=int((xref["hip"] > 0).sum()), radius_arcsec=XREF_RADIUS_ARCSEC,
+                                                  dmag=XREF_DMAG, created=time.strftime("%Y-%m-%d %H:%M:%S")))
+    man["groups"] = [g for g in ["core"] + list(GROUPS) if g == "core" or g in man.get("groups", []) or g == "xref"]
+    _write_json(os.path.join(d, "catalog.json"), man)
+    if found and pm_epoch_wanted:                                # epoch proper motions from the same zone files
+        rows = np.concatenate([f[0] for f in found])
+        nums = np.concatenate([f[1] for f in found])
+        recs = np.concatenate([f[2] for f in found])
+        last = ucac[rows] == nums                              # a later zone may have matched the star better
+        counts = choose_pm(d, rows[last], recs[last], log=log)
+        man = _manifest(d)
+        man["pm_epoch"] = dict(counts, date=time.strftime("%Y-%m-%d"), min_years=EPOCH_MIN_YEARS, method=EPOCH_METHOD)
+        _write_json(os.path.join(d, "catalog.json"), man)
+        log(f"   epoch proper motions: {sum(counts['replaced'].values())} replaced (old kind: {counts['replaced']}), "
+            f"{counts['kept']} kept their UCAC5/UCAC4 motion (smaller error)")
+    log(f"   xref: UCAC4 for {int((xref['ucac4'] > 0).sum()) / 1e6:.1f} M stars, TYC {int((xref['tyc'] > 0).sum())}, "
+        f"HIP {int((xref['hip'] > 0).sum())}")
+    return status(d)
+
+
 # ----------------------------------------------------------------------------------------------- folder state
 def _manifest(d):
     with open(os.path.join(d, "catalog.json")) as f:
@@ -426,16 +798,55 @@ def status(d):
     return dict(total=0, done=0, gb=0.0, complete=False, format=FORMAT, groups=[])
 
 
+OFF = ".off"                                                    # a switched-off part: its files renamed, not deleted
+
+
 def remove_group(d, g):
+    """Delete an optional part (also a switched-off one)."""
     if g == "core" or g not in GROUPS:
         raise ValueError(f"only optional parts can be removed: {', '.join(GROUPS)}")
-    for f in (f"{g}.npy", f"{g}.json"):
+    for f in (f"{g}.npy", f"{g}.json", f"{g}.npy{OFF}", f"{g}.json{OFF}"):
         p = os.path.join(d, f)
         if os.path.exists(p):
             os.remove(p)
     man = _manifest(d)
     man["groups"] = [x for x in man.get("groups", []) if x != g]
     _write_json(os.path.join(d, "catalog.json"), man)
+
+
+def disabled_groups(d):
+    """Optional parts switched off (files kept as <part>.npy.off)."""
+    return [g for g in GROUPS if os.path.isfile(os.path.join(d, f"{g}.npy{OFF}"))]
+
+
+def disable_group(d, g):
+    """Switch an optional part off without deleting it: its files are renamed (<part>.npy.off), so it is not used and
+    enable_group brings it back at once. No-op if it is not there."""
+    from pysyzygos import gaia_local as GL
+    if g == "core" or g not in GROUPS:
+        raise ValueError(f"only optional parts can be switched off: {', '.join(GROUPS)}")
+    for f in (f"{g}.npy", f"{g}.json"):
+        p = os.path.join(d, f)
+        if os.path.exists(p):
+            GL.replace_file(p, p + OFF)                         # retried on Windows while a map is open
+    man = _manifest(d)
+    man["groups"] = [x for x in man.get("groups", []) if x != g]
+    _write_json(os.path.join(d, "catalog.json"), man)
+
+
+def enable_group(d, g):
+    """Switch a switched-off part on again (rename back). True if it is in use afterwards."""
+    from pysyzygos import gaia_local as GL
+    for f in (f"{g}.npy", f"{g}.json"):
+        p = os.path.join(d, f)
+        if os.path.exists(p + OFF) and not os.path.exists(p):
+            GL.replace_file(p + OFF, p)
+    if not group_ok(d, g):
+        return False
+    man = _manifest(d)
+    man["groups"] = [x for x in ["core"] + list(GROUPS) if x == "core" or x in man.get("groups", []) or x == g]
+    _write_json(os.path.join(d, "catalog.json"), man)
+    return True
 
 
 # ----------------------------------------------------------------------------------------------- read side
@@ -460,6 +871,7 @@ class StarCatalog:
         self.groups = {g: np.load(os.path.join(d, f"{g}.npy"), mmap_mode="r") for g in GROUPS if group_ok(d, g, self.man)}
         self.quality = self.groups.get("quality")
         self.extras = self.groups.get("extras")
+        self.xref = self.groups.get("xref")
         self.stars = self.core                                   # (BrightIndex users test len(index.stars))
 
     # rows -------------------------------------------------------------------------------------
@@ -505,7 +917,7 @@ class StarCatalog:
         df["ruwe"] = r["ruwe"].astype(np.float64)
         q = np.asarray(self.quality[idx]) if self.quality is not None else None
         df["pos_err"] = np.maximum(q["ra_error"], q["dec_error"]).astype(np.float64) if q is not None else np.nan
-        two_p_pm = np.isin(r["kind"], (KIND_2P_UCAC5, KIND_2P_UCAC4))
+        two_p_pm = np.isin(r["kind"], KINDS_2P_PM)
         df["pm_err"] = (np.where(two_p_pm, np.maximum(q["pmra_error"], q["pmdec_error"]), np.nan).astype(np.float64)
                         if q is not None else np.nan)
         if full:
@@ -519,6 +931,11 @@ class StarCatalog:
                 df["ipd_frac_multi_peak"] = q["multi_peak"].astype(np.int64)
             else:
                 df["non_single_star"] = ((c["flags"] & FLAG_NSS) > 0).astype(np.int64)
+            if self.xref is not None:
+                x = np.asarray(self.xref[idx])
+                df["ucac4"] = [ucac4_name(v) for v in x["ucac4"]]
+                df["tyc"] = [tyc_name(v) for v in x["tyc"]]
+                df["hip"] = [str(int(v)) if v else "" for v in x["hip"]]
             if self.extras is not None:
                 e = np.asarray(self.extras[idx])
                 df["phot_bp_mean_mag"], df["phot_rp_mean_mag"] = _mag(e["bp"]), _mag(e["rp"])
@@ -567,6 +984,19 @@ class StarCatalog:
             h = self.hpm_rows[_mag(self.core["g"][self.hpm_rows]) <= cap + 1e-9]
             idx = np.union1d(idx, h)
         return self.frame(idx).drop_duplicates("source_id").reset_index(drop=True)
+
+    def names(self, source_id, ra_deg, dec_deg, radius_arcsec=60.0):
+        """{'star_ucac4': '573-029535', 'star_tyc': '...', 'star_hip': '...'} of a star found by its source_id near
+        ra/dec (the event's direction: within a minute of arc of Gaia's 2016 place for all but the fastest stars);
+        {} without the xref part or when the star is not found."""
+        if self.xref is None:
+            return {}
+        df = self.cone(ra_deg, dec_deg, radius_arcsec / 3600.0)
+        me = df[df["source_id"].astype("int64") == int(source_id)] if len(df) else df
+        if not len(me):
+            return {}
+        m = me.iloc[0]
+        return dict(star_ucac4=m["ucac4"], star_tyc=m["tyc"], star_hip=m["hip"])
 
     def cone(self, ra_deg, dec_deg, radius_deg, mag_cap=None):
         """As LocalGaia.cone, with all columns there are (frame full=True)."""
@@ -788,7 +1218,18 @@ def add_group(d, g, keep_archive=False):
     if group_ok(d, g):
         print(f"{d}: {g} already there")
         return status(d)
+    if g in disabled_groups(d) and enable_group(d, g):           # switched off earlier: back at once
+        print(f"{d}: {g} switched on again (its files were kept)")
+        return status(d)
     gmax = float(_manifest(d)["gmax"])
+    if g == "xref":                                              # from UCAC4 and Gaia's tables: any catalog can build it
+        if gmax in ZENODO_STEM:
+            try:
+                return fetch(d, gmax, (g,), keep_archive)
+            except SystemExit as e:                              # not published yet (or offline): build it here
+                print(f"   {str(e)[:160]}\n   building it here instead (UCAC4 from CDS, TYC/HIP from the Gaia "
+                      f"archive; about an hour)", flush=True)
+        return build_xref(d)
     if gmax not in ZENODO_STEM:
         sys.exit(f"{d} was built from ESA's files (G <= {gmax:g}); its {g} part comes only with a new build "
                  f"(pysyzygos catalog build writes all parts)")
@@ -822,8 +1263,10 @@ def main(argv=None):
     d0, g0 = GL.default_dir()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--version", action="version", version=f"PySyzygos {__version__}")
-    ap.add_argument("cmd", choices=["build", "fetch", "add", "remove", "status", "xmatch", "pack"])
-    ap.add_argument("group", nargs="?", help="add/remove: quality or extras")
+    ap.add_argument("cmd", choices=["build", "fetch", "add", "remove", "off", "on", "status", "xmatch", "xref",
+                                    "pm-epoch", "pack"])
+    ap.add_argument("group", nargs="?", help="add/remove/off/on: quality or extras (off keeps the files, on uses them "
+                                            "again)")
     ap.add_argument("--dir", default=d0 or "gaia_dr3_g16", help="catalog folder (default: config gaia_local_dir)")
     ap.add_argument("--gmax", type=float, default=None,
                     help="build: faintest G (default: config gaia_local_gmax or 16); fetch: 16 (the ready-made one)")
@@ -835,6 +1278,8 @@ def main(argv=None):
     ap.add_argument("--mirror", help="fetch/add: another folder address with the archives (as env "
                                      "PYSYZYGOS_CATALOG_MIRROR)")
     ap.add_argument("--out", default="release", help="pack: folder for the archives")
+    ap.add_argument("--dry-run", action="store_true", help="pm-epoch: count only, write nothing")
+    ap.add_argument("--no-pm-epoch", action="store_true", help="xref: leave the proper motions as they are")
     a = ap.parse_args(argv)
     groups = [] if a.groups.strip().lower() in ("", "none", "core") else [g.strip() for g in a.groups.split(",")]
     if a.mirror:
@@ -849,8 +1294,17 @@ def main(argv=None):
         add_group(a.dir, a.group, a.keep_archive)
     elif a.cmd == "remove":
         remove_group(a.dir, a.group)
+    elif a.cmd == "off":
+        disable_group(a.dir, a.group)
+    elif a.cmd == "on":
+        if not enable_group(a.dir, a.group):
+            sys.exit(f"{a.dir}: no switched-off {a.group} to switch on (pysyzygos catalog add {a.group} downloads it)")
     elif a.cmd == "xmatch":
         xmatch(a.dir)
+    elif a.cmd == "xref":
+        build_xref(a.dir, log=functools.partial(print, flush=True), pm_epoch_wanted=not a.no_pm_epoch)
+    elif a.cmd == "pm-epoch":
+        pm_epoch(a.dir, dry_run=a.dry_run, log=functools.partial(print, flush=True))
     elif a.cmd == "pack":
         pack(a.dir, a.out)
     print(json.dumps(status(a.dir)))

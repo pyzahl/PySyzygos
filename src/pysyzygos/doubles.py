@@ -201,3 +201,90 @@ def online_fields(records, radius_arcsec, archive):
                            radius_arcsec)
         out.append(fields(comps, float(r["mag"]), r.get("m_ast"), "gaia online", flags))
     return out
+
+
+
+# ---------------------------------------------------------------- VizieR check (on demand: the favorites panel)
+WDS_COLS = ("WDS", "Disc", "Comp", "Obs1", "Obs2", "Nobs", "pa2", "sep2", "mag1", "mag2", "SpType", "Notes", "_r")
+GAIA_COLS = ("RUWE", "IPDfmp", "IPDgofha", "epsi", "sepsi", "E(BP/RP)", "Dup", "NSS")
+
+
+def _vizier(params, timeout=60, fetch=None):
+    """Rows (list of dicts) of a VizieR ASU tab-separated query (urls.URL_VIZIER_ASU)."""
+    import urllib.parse
+    from pysyzygos import net, urls as U
+    url = U.URL_VIZIER_ASU + "?" + urllib.parse.urlencode(params)
+    if fetch is None:
+        with net.urlopen(url, timeout=timeout) as r:
+            text = r.read().decode("utf-8", errors="replace")
+    else:
+        text = fetch(url)
+    lines = [ln for ln in text.splitlines() if ln and not ln.startswith("#")]
+    if len(lines) < 3:
+        return []
+    head = [h.strip() for h in lines[0].split("\t")]
+    out = []
+    for ln in lines[3:]:                                          # (after the header: units and a dashes line)
+        v = [x.strip() for x in ln.split("\t")]
+        if len(v) >= len(head):
+            out.append(dict(zip(head, v)))
+    return out
+
+
+def vizier_check(star_id, ra_deg, dec_deg, radius_arcsec=30.0, fetch=None):
+    """Known pairs and Gaia's binarity signs of a star, from VizieR (needs the network; a few seconds):
+    'wds': the Washington Double Star Catalog's pairs within radius_arcsec (WDS positions are often good to a few
+    arcsec only), each with discoverer code, components, first/last observation, last PA and separation, magnitudes,
+    notes ('O': an orbit in ORB6); 'gaia': Gaia DR3's RUWE, ipd_frac_multi_peak, ipd_gof_harmonic_amplitude,
+    astrometric_excess_noise (+ significance), phot_bp_rp_excess_factor, duplicated_source, non_single_star;
+    'hints': short readings of them. Raises OSError when VizieR cannot be reached."""
+    import time
+    wds = _vizier({"-source": "B/wds/wds", "-c": f"{ra_deg:.6f} {dec_deg:+.6f}", "-c.rs": f"{radius_arcsec:g}",
+                   "-out": ",".join(WDS_COLS), "-sort": "_r", "-out.max": "50"}, fetch=fetch)
+    gaia = _vizier({"-source": "I/355/gaiadr3", "Source": str(int(star_id)), "-out": ",".join(GAIA_COLS),
+                    "-out.max": "1"}, fetch=fetch)
+    g = gaia[0] if gaia else {}
+    f = lambda k: (lambda v: v if v == v else None)(float(g[k])) if str(g.get(k, "")).strip() not in ("", "nan") else None
+    hints = []
+    if (f("RUWE") or 0) >= 1.4:
+        hints.append(f"RUWE {f('RUWE'):.2f}: the single-star solution fits poorly (often an unresolved pair)")
+    if (f("IPDfmp") or 0) > MULTI_PEAK:
+        hints.append(f"two peaks in {f('IPDfmp'):.0f} % of the scans: a close pair (~0.1-1\")")
+    if (f("IPDgofha") or 0) > 0.1:
+        hints.append(f"elongated image (harmonic amplitude {f('IPDgofha'):.2f}): a close pair along one direction?")
+    if (f("sepsi") or 0) > 2:
+        hints.append(f"significant excess noise {f('epsi'):.2f} mas (significance {f('sepsi'):.0f}): "
+                     f"an unresolved companion?")
+    if str(g.get("Dup", "")).strip() in ("1", "True", "true"):
+        hints.append("duplicated source in Gaia")
+    if str(g.get("NSS", "")).strip() not in ("", "0"):
+        hints.append(f"Gaia binary solution (non_single_star {g.get('NSS')})")
+    if (f("E(BP/RP)") or 0) > 1.5:
+        hints.append(f"colour excess {f('E(BP/RP)'):.2f}: light of a neighbour in Gaia's 3.5\" colour window?")
+    for p in wds:
+        if "O" in p.get("Notes", ""):
+            hints.append(f"WDS {p.get('WDS')} {p.get('Disc')} {p.get('Comp')}: an orbit is known (ORB6)")
+    return dict(checked=time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), radius_arcsec=radius_arcsec, wds=wds,
+                gaia=g, hints=hints)
+
+
+def vizier_text(v):
+    """Lines for the favorites panel from vizier_check's result."""
+    if not v:
+        return []
+    lines = [f"VizieR check of {v.get('checked', '?')} (WDS within {v.get('radius_arcsec', 30):g}\", Gaia DR3):"]
+    w = v.get("wds") or []
+    if w:
+        for p in w[:12]:
+            lines.append(f"WDS {p.get('WDS', '')} {p.get('Disc', '')} {p.get('Comp', '')}".rstrip() +
+                         f": {p.get('sep2', '?')}\" at {p.get('pa2', '?')}\u00b0 ({p.get('Obs2', '?')}), "
+                         f"mag {p.get('mag1', '?')} / {p.get('mag2', '?')}, {p.get('Nobs', '?')} obs. "
+                         f"since {p.get('Obs1', '?')}" + (f", notes {p['Notes']}" if p.get("Notes") else "") +
+                         (f" [{float(p['_r']):.0f}\" from the star]" if p.get("_r") else ""))
+    else:
+        lines.append("WDS: no known pair within the radius")
+    g = v.get("gaia") or {}
+    if g:
+        lines.append("Gaia DR3: " + ", ".join(f"{k} {g[k]}" for k in GAIA_COLS if str(g.get(k, "")).strip()))
+    lines += [f"\u2192 {h}" for h in v.get("hints") or []] or ["\u2192 no sign of a companion in these sources"]
+    return lines

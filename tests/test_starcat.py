@@ -153,8 +153,118 @@ fl = doubles.star_flags(near, sid, 10.0)
 assert fl["gaia_nss"] == 1 and abs(fl["gaia_ruwe"] - keep.ruwe[sid]) < 0.01 and fl["star_err_smaa_mas"] > 0, fl
 assert doubles.fields([], 10.0, 15.0, "local", fl)["double_hint"].startswith("Gaia: non-single star")
 
+# the cross-reference part: UCAC4 from made-up zone files (J2000 positions = ours moved back by Gaia's proper
+# motion), TYC / HIP from a stand-in for the Gaia archive; one Gaia star per UCAC4 star; magnitudes must agree
+import struct
+sel = keep[(keep.phot_g_mean_mag < 12) & keep.pmra.notna()].head(6)
+zones = {}
+def j2000(sid):
+    r = keep.loc[sid]
+    de = r.dec + r.pmdec * (-16) / 3.6e6
+    ra = r.ra + r.pmra * (-16) / 3.6e6 / np.cos(np.radians(r.dec))
+    return ra % 360, de
+rec = lambda ra, de, mag: struct.pack("<iihh", int(round(ra * 3.6e6)), int(round((de + 90) * 3.6e6)), int(mag * 1000),
+                                       int(mag * 1000)) + bytes(66)
+want = {}
+for i, xs in enumerate(sel.index):
+    ra, de = j2000(xs)
+    z = int((de + 90) // 0.2) + 1
+    mag = keep.loc[xs].phot_g_mean_mag + (3.0 if i == 5 else 0.3)      # the last one: 3 mag off, no match
+    zones.setdefault(z, []).append((ra, de, mag))
+    if i < 5:
+        want[xs] = (z, len(zones[z]))
+fetch = lambda url: b"".join(rec(*x) for x in sorted(zones.get(int(url[-3:]), []), key=lambda x: x[0]))
+for z, lst in zones.items():                                              # running numbers follow the RA order
+    order = sorted(range(len(lst)), key=lambda k: lst[k][0])
+    for xs, (zz, k) in list(want.items()):
+        if zz == z:
+            want[xs] = (z, order.index(k - 1) + 1)
+tyc_sid, hip_sid = int(sel.index[0]), int(sel.index[1])
+def fake_query(q):
+    lo, hi = (int(x) for x in q.split("BETWEEN")[1].split("AND"))
+    if "tycho2" in q:
+        rows = [(tyc_sid, "1876-1234-1")] if lo <= tyc_sid <= hi else []
+    else:
+        rows = [(hip_sid, "12345")] if lo <= hip_sid <= hi else []
+    return pd.DataFrame(rows, columns=["source_id", "original_ext_source_id"])
+gc.collect() if "gc" in globals() else None
+SC.build_xref(d, zones=sorted(zones), fetch=fetch, query=fake_query, log=lambda *a: None, tyc_parts=4)
+assert "xref" in SC.groups_present(d)
+cat = SC.StarCatalog(d, supplement=True)
+for xs, (z, k) in want.items():
+    nm = cat.names(xs, keep.ra[xs], keep.dec[xs])
+    assert nm["star_ucac4"] == f"{z:03d}-{k:06d}", (xs, nm, z, k)
+assert cat.names(int(sel.index[5]), keep.ra[sel.index[5]], keep.dec[sel.index[5]])["star_ucac4"] == ""   # 3 mag off
+assert cat.names(tyc_sid, keep.ra[tyc_sid], keep.dec[tyc_sid])["star_tyc"] == "1876-1234-1"
+assert cat.names(hip_sid, keep.ra[hip_sid], keep.dec[hip_sid])["star_hip"] == "12345"
+assert SC.tyc_name(SC.tyc_id(9537, 12121, 3)) == "9537-12121-3" and SC.ucac4_name(SC.ucac4_id(900, 999999)) == "900-999999"
+# two Gaia stars at one UCAC4 star: only the nearer one gets it
+a0 = int(sel.index[0]); ra0, de0 = j2000(a0)
+twin = SC.match_ucac4(d, zones=[int((de0 + 90) // 0.2) + 1], fetch=lambda url: rec(ra0, de0, keep.phot_g_mean_mag[a0]),
+                      log=lambda *a: None)[0]
+assert int((twin > 0).sum()) == 1
+# epoch proper motions: UCAC4 records with central epochs 1998.0 at Gaia's position moved back by (-3, -10) mas/yr;
+# a precise one replaces UCAC5 (error 1.2) or gives a star without pm one, an imprecise one (100 mas) keeps UCAC5
+core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+k2 = SC.kind_of(np.asarray(core["flags"]))
+r_none, r_u5a, r_u5b = int(np.where(k2 == SC.KIND_2P)[0][0]), *(int(x) for x in np.where(k2 == SC.KIND_2P_UCAC5)[0][:2])
+offs = np.load(os.path.join(d, "offsets.npy"))
+def ucac_rec(row, sig):
+    c = core[row]
+    ra, de = (float(x[0]) for x in SC.decode(np.searchsorted(offs, [row], side="right") - 1, [c["dra"]], [c["ddec"]]))
+    de_c = de + 10.0 * 18 / 3.6e6                                         # 1998.0: 18 years before, pm (-3, -10)
+    ra_c = ra + 3.0 * 18 / 3.6e6 / np.cos(np.radians(de))
+    # J2000 = central epoch + UCAC4's own (bad) pm (+20, +20) mas/yr x 2 years
+    ra_j, de_j = ra_c + 20.0 * 2 / 3.6e6 / np.cos(np.radians(de)), de_c + 20.0 * 2 / 3.6e6
+    return struct.pack("<iihhbbbbbbbbhhhhbb", int(round(ra_j * 3.6e6)), int(round((de_j + 90) * 3.6e6)), 10000, 10000,
+                       0, 0, 0, sig - 128, sig - 128, 0, 0, 0, 9800, 9800, 200, 200, 0, 0) + bytes(48)
+recs = np.frombuffer(b"".join(ucac_rec(r, s) for r, s in ((r_none, 10), (r_u5a, 10), (r_u5b, 100))), SC.UCAC4_REC)
+pmra_e, pmde_e, sra, sde, ok_e = SC.epoch_pm(recs[:1], *SC.decode(np.searchsorted(offs, [r_none], side="right") - 1,
+                                                                   [core[r_none]["dra"]], [core[r_none]["ddec"]]))
+assert ok_e.all() and abs(pmra_e[0] + 3.0) < 0.01 and abs(pmde_e[0] + 10.0) < 0.01, (pmra_e, pmde_e)   # not +20
+assert abs(sde[0] - np.hypot(10, SC.EPOCH_GAIA_POS_ERR) / 18) < 1e-6
+core = None
+gc.collect() if "gc" in globals() else None
+cnt = SC.choose_pm(d, [r_none, r_u5a, r_u5b], recs, dry_run=True)
+assert cnt == dict(candidates=3, replaced={"2": 1, "3": 1, "4": 0}, kept=1), cnt
+SC.choose_pm(d, [r_none, r_u5a, r_u5b], recs)
+core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+k3 = SC.kind_of(np.asarray(core["flags"][[r_none, r_u5a, r_u5b]]))
+assert list(k3) == [SC.KIND_2P_EPOCH, SC.KIND_2P_EPOCH, SC.KIND_2P_UCAC5], k3
+assert abs(core["pmdec"][r_u5a] + 10.0) < 0.01 and core["pmra"][r_u5b] == 5.0
+core = None
+gc.collect() if "gc" in globals() else None
+assert GL.star_flag(SC.KIND_2P_EPOCH) == "2-param, pm UCAC4 epoch to Gaia"
+assert GL.star_sigma_mas(SC.KIND_2P_EPOCH, 0, 2.0, 0.6, 10.0) == float(np.hypot(2.0, 6.0))
+from pysyzygos import report as RP
+assert RP.star_label(dict(star="1", star_ucac4="573-029535"))[0] == "UCAC4 573-029535"
+cat = None
+
+# switch a part off (files kept) and on again; add_group switches a kept part on without a download
+import gc
+cat = main_only = near = f5 = allrows = None                 # no memory map may stay on a file that is renamed
+gc.collect()
+SC.disable_group(d, "quality")
+assert SC.groups_present(d) == ["core", "extras", "xref"] and SC.disabled_groups(d) == ["quality"]
+assert SC.StarCatalog(d).quality is None and os.path.isfile(os.path.join(d, "quality.npy.off"))
+gc.collect()
+assert "quality" not in json.load(open(os.path.join(d, "catalog.json")))["groups"]
+assert SC.enable_group(d, "quality") and SC.groups_present(d) == ["core", "quality", "extras", "xref"] and not SC.disabled_groups(d)
+SC.disable_group(d, "quality")
+gc.collect()
+SC.add_group(d, "quality")                                   # no download: the kept files are used
+assert SC.groups_present(d) == ["core", "quality", "extras", "xref"]
+assert SC.StarCatalog(d).quality is not None
+gc.collect()
+SC.disable_group(d, "extras")
+SC.remove_group(d, "extras")                                 # delete also removes kept files
+assert not SC.disabled_groups(d) and not any(f.startswith("extras") for f in os.listdir(d))
+SC.ZENODO_STEM[16.0] = "gaia_dr3_g16_v2"
+cat = SC.StarCatalog(d, supplement=True)
+
 # optional parts: remove one; pack; fetch core + parts from 'Zenodo' (stand-ins) into a fresh folder
-SC.remove_group(d, "extras")
+SC.remove_group(d, "extras")                                 # (already gone: no error)
+SC.remove_group(d, "xref")
 assert SC.groups_present(d) == ["core", "quality"] and "phot_bp_mean_mag" not in SC.StarCatalog(d).cone(81, 20, 0.2)
 out = os.path.join(root, "release")
 SC.ZENODO_STEM[16.0] = "gaia_dr3_g16_v2"

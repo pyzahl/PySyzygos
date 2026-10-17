@@ -528,7 +528,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    asteroid data in the cache (list date and age, size data, orbit files), the offline copies (copies of past picks
    and searches), saved picks, pre-screens, planets and moons (the moons' list, NAIF kernels with their range, Horizons
    files in the cache) and the results database; and **offline use**: the pick's asteroid list (JPL
-   SBDB) and the searches' orbit files (JPL Horizons) are cached in memory (`/dev/shm`, lost at a restart). With
+   SBDB) and the searches' orbit files (JPL Horizons) are cached in memory (`/dev/shm`, lost at a restart).
+   **Star catalog**: the parts of the catalog selected in the header (tick to add; untick asks: switch off and keep
+   the files, or delete), or the upgrade of an old-format catalog. **Planets and moons offline**: a checkbox per
+   planet system for its NAIF kernel (tick downloads, untick deletes after asking; without one, positions come from
+   JPL Horizons; `pysyzygos planets add|remove|status`). With
    "Keep copies of orbit downloads for use without network" every download is also kept in the data folder's
    `offline/` (the list compressed, ~34 MB for H < 17; orbit files and size data small); without network a pick or
    search then uses these copies and says how old they are. Plan online, observe offline: a search window run once
@@ -829,6 +833,10 @@ stars, positions within 0.0001 mas, the same events to 1 ms). The parts:
   than the catalog (stars at least 5 mag brighter than the catalog limit are not asked at all).
 * **extras** (10 bytes, 0.8 GB): BP and RP magnitudes, radial velocity, Teff: not used yet (a star-size model is
   planned).
+* **xref** (12 bytes): the star's UCAC4, Tycho-2 and Hipparcos numbers, so results and favorites name a star as
+  Occult and OccultWatcher do ("UCAC4 573-029535"), with the Gaia DR3 number and the others in the hover text.
+  Built here when no ready-made archive is available: `pysyzygos catalog xref` (UCAC4's 900 zone files, ~9 GB,
+  streamed from CDS and matched to our stars at J2000; TYC and HIP from Gaia DR3's cross-match tables).
 
 Parts are switched in the GUI's **System** tab (checkboxes) or with `pysyzygos catalog add|remove`. A part belongs to
 its build (checked by a build id): a ready-made catalog gets its parts from Zenodo; a catalog you built gets them only
@@ -840,7 +848,8 @@ parallax or proper motion: 0.57 M). OWC predicts events on them, so they are in 
 (86288) 1999 UC45 on 2026-09-30 05:28 UT, a G 11.7 star with RUWE 1.65, observed from three California sites. For the
 2-parameter stars the build looks up proper motions in UCAC5 and UCAC4 through the CDS cross-match service, as
 OWC/Occult take them from other catalogs: 294 k from UCAC5, 171 k from UCAC4, 108 k stay without ("NO proper
-motion"). The matching is strict, so a close neighbour cannot be taken by mistake: UCAC5's position (Gaia DR1, 2015)
+motion"). The `xref` part adds a third estimate, from UCAC4's measured position (around 1998) to Gaia's (2016), and
+each star keeps whichever of them has the smallest error. The matching is strict, so a close neighbour cannot be taken by mistake: UCAC5's position (Gaia DR1, 2015)
 must lie within 0.2" of Gaia DR3's and G within 0.5 mag (UCAC4: 0.5" and 1 mag; for (4089) Galbraith's star, a double,
 the companion 2.9" away is rejected). Every event on such a star is flagged **⚑ RUWE 1.65** or **⚑ 2-param** in the
 results, report, favorites and CSV, and the star's position uncertainty is added to the path's sigma lines and chance;
@@ -1090,6 +1099,13 @@ pysyzygos --port 8090 --no-browser
   are shown, and "unsaved changes" while the form differs from `sites.py`. Runs read `sites.py`, so unsaved changes
   to the selected site are saved automatically when you start a run. **Save sites.py** rewrites `sites.py` (comments
   in it are not kept); "Default for command-line runs" sets `default_site`, used when the scripts run without the GUI.
+  **Horizon (optional)**: load OccultWatcher's `UserHorizon.txt` for the site (the same file works in both
+  programs); events whose star is behind it are marked ⛰ yellow, those closer to it than the margin (default 15°) red.
+  A **360° photo** of the site (equirectangular, 2:1, as a 360° camera or a phone's photo sphere saves it, taken level
+  at the telescope) shows the horizon over the real view, and in the favorites panel the star at the event time on it.
+  Set the azimuth at the photo's left edge, or let **Fit to the horizon line** find it. With the sky made transparent
+  (PNG), **Horizon from the photo** reads the horizon line from it, and **UserHorizon.txt** downloads it for
+  OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
 * **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, then **Run pick**; the pick is
   saved for the selected site and window. **Saved picks of this site** lists them (newest window first); the
   selected one's events appear in a sortable table, with the target asteroids marked. **Use for search** sets the

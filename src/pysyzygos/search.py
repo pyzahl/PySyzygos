@@ -26,6 +26,7 @@ from pysyzygos import config
 from pysyzygos.paths import shadow_path, path_sigma3_km, path_error, write_shadow_kml, site_probability
 from pysyzygos import corridor
 from pysyzygos import doubles          # close and double stars at an event
+from pysyzygos import horizon          # the site's own horizon (OccultWatcher [User Horizon])
 from pysyzygos import db               # results database
 from pysyzygos import bodies           # planets and moons as targets (P:Jupiter, M:Io, ...)
 from pysyzygos import binaries         # known asteroid satellites
@@ -1026,7 +1027,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                   calc_s=time.time() - t_start)
     # close and double stars (doubles.py): neighbours whose light stays in the camera image; online check after the run
     rad = float(getattr(config, "companion_radius_arcsec", 4.0))
-    comps, flags = [], {}
+    comps, flags, near = [], {}, None
     if LOCAL is not None:
         years = 2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR
         near = LOCAL.cone(record["star_ra"], record["star_dec"], (rad + 3.0) / 3600.0)
@@ -1078,6 +1079,22 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                   star_flag=gaia_local.star_flag(kind_, ruwe_), ast_sigma1_km=ast_sigma1,
                   star_sigma_mas=s_mas if s_mas else float("nan"), star_sigma_km=s_km if s_km else float("nan"))
     record.update(star_az=az_deg(res['best_et'], star_dir, obs_geo))     # the report's compass direction (exact UT1)
+    names = dict(star_ucac4="", star_tyc="", star_hip="")             # the star's other names (catalog part xref)
+    if near is not None and "ucac4" in near:
+        me = near[near["source_id"].astype("int64") == int(row.source_id)]
+        if len(me):
+            names = dict(star_ucac4=me["ucac4"].iloc[0], star_tyc=me["tyc"].iloc[0], star_hip=me["hip"].iloc[0])
+    record.update(names)
+    # the site's own horizon (horizon.py, OccultWatcher's [User Horizon]): behind it / near it, as a warning
+    site_ = getattr(config, "site", None) or {}
+    hz_flag, hz_alt, hz_sep = horizon.assess(site_.get("horizon") or [], record.get("star_alt"), record.get("star_az"),
+                                             float(site_.get("horizon_margin", 15.0)))
+    record.update(horizon_flag=hz_flag, horizon_alt=float("nan") if hz_alt is None else round(hz_alt, 1),
+                  horizon_sep_deg=float("nan") if hz_sep is None else round(hz_sep, 1))
+    if hz_flag == "behind" and site_.get("horizon_filter"):
+        print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
+              f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there): left out (horizon_filter)")
+        return False
     print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
           + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
              + ")" if record["star_flag"] else ""))

@@ -138,6 +138,17 @@ def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None):
         "" if files else " (no map or preview found to copy)")
 
 
+def set_field(key, name, value, folder=DIR):
+    """Store one extra field in a favorite (e.g. 'vizier': the double-star check). Returns True if found."""
+    items = load(folder)
+    for e in items:
+        if e["key"] == key:
+            e[name] = value
+            _save(items, folder)
+            return True
+    return False
+
+
 def update(key, folder=DIR, **fields):
     """Set status and/or note of a favorite. Returns (ok, message)."""
     items = load(folder)
@@ -286,6 +297,25 @@ def double_text(entry):
     where = {"local": "local catalog", "gaia online": "local catalog and Gaia online"}.get(src, src)
     hint = str(r.get("double_hint") or "")
     return f"{hint} ({where})" if hint and hint != "nan" else f"none known ({where})"
+
+
+def backfill_names(lookup, folder=DIR):
+    """Give favorites saved without them the star's other names (star_ucac4, star_tyc, star_hip; catalog part xref):
+    lookup(record) -> dict of those fields, or None when it cannot be done now (no catalog with that part). Done once
+    per favorite (the record then has star_ucac4, empty for a star without one). Returns the number updated."""
+    items, n = load(folder), 0
+    for e in items:
+        r = e["record"]
+        if "star_ucac4" in r or not str(r.get("star") or "").strip():
+            continue
+        f = lookup(r)
+        if f is None:
+            continue
+        r.update({k: f.get(k, "") for k in ("star_ucac4", "star_tyc", "star_hip")})
+        n += 1
+    if n:
+        _save(items, folder)
+    return n
 
 
 def backfill_globes(map_dir="maps", folder=DIR):
@@ -531,7 +561,10 @@ def event_info(entry):
           ("Solar elong.", f"{elong:.0f}°" if elong is not None else "—"),
           ("Moon elong.", f"{msep:.0f}°" if msep is not None else "—")]
     ra, dec = f("star_ra"), f("star_dec")
-    star = [("Name", f"Gaia DR3 {r.get('star', '')}"), ("G mag", f"{mag:.2f}" if mag is not None else "—")]
+    from pysyzygos.report import star_label
+    name, others = star_label(r)
+    star = [("Name", name or "—")] + ([("Also", others)] if others else []) + \
+           [("G mag", f"{mag:.2f}" if mag is not None else "—")]
     if ra is not None and dec is not None:
         try:
             import warnings
@@ -589,7 +622,8 @@ def title_text(entry):
     if site.get("lat") is not None and site.get("lon") is not None:
         where += f" ({float(site['lat']):.4f}, {float(site['lon']):.4f}" + (
             f", {float(site['ele']):.0f} m)" if site.get("ele") is not None else ")")
-    star = f"Gaia DR3 {r['star']} " if str(r.get("star") or "").strip() else ""
+    from pysyzygos.report import star_label
+    star = f"{star_label(r)[0]} " if str(r.get("star") or "").strip() else ""
     return (f"{(r.get('target_name') or r.get('target_id') or '').strip()} occults {star}around "
             f"{str(r.get('best_utc'))[:19].replace('T', ' ')} UT at {where}")
 

@@ -41,7 +41,8 @@ RUWE_MAX = 1.4
 SUPPLEMENT = "supplement"
 KIND_MAIN, KIND_RUWE, KIND_2P = 0, 1, 2
 KIND_2P_UCAC5, KIND_2P_UCAC4 = 3, 4                   # 2-parameter stars with a proper motion from UCAC5 / UCAC4
-PM_SOURCE = {KIND_2P_UCAC5: "UCAC5", KIND_2P_UCAC4: "UCAC4"}
+KIND_2P_EPOCH = 5                                     # ... from UCAC4's central-epoch position to Gaia's (starcat.pm_epoch)
+PM_SOURCE = {KIND_2P_UCAC5: "UCAC5", KIND_2P_UCAC4: "UCAC4", KIND_2P_EPOCH: "UCAC4 epoch to Gaia"}
 PM_UNKNOWN_MAS_YR = 10.0                               # 1 sigma per axis of an unknown proper motion (stars G 10-16)
 SUPP_DTYPE = np.dtype(DTYPE.descr + [("ruwe", "<f4"), ("ra_error", "<f4"), ("dec_error", "<f4"), ("kind", "u1"),
                                       ("pm_error", "<f4")])  # pm_error: of a cross-matched pm (supplement_pm), mas/yr
@@ -679,7 +680,7 @@ def star_sigma_mas(kind, ruwe, pos_err, pm_err, years):
         return None
     f = lambda x, d: d if x is None or not np.isfinite(float(x)) or float(x) <= 0 else float(x)
     t = max(float(years), 0.0)
-    if k in (KIND_2P, KIND_2P_UCAC5, KIND_2P_UCAC4):
+    if k == KIND_2P or k in PM_SOURCE:
         pm = PM_UNKNOWN_MAS_YR if k == KIND_2P else f(pm_err, PM_UNKNOWN_MAS_YR)
         return float(np.hypot(f(pos_err, 1.0), pm * t))
     if k == KIND_RUWE:

@@ -375,11 +375,51 @@ def build_satellites(out=SAT_FILE, date="2026-10-15", pause=0.5):
     return len(sats)
 
 
+def remove_naif(group, folder="."):
+    """Delete a group's NAIF kernel (and a partial download). True if something was deleted."""
+    f = NAIF_KERNELS.get(group)
+    gone = False
+    for p in ((os.path.join(folder, f[0]), os.path.join(folder, f[0] + ".part")) if f else ()):
+        if os.path.exists(p):
+            os.remove(p)
+            gone = True
+    return gone
+
+
+def kernels_status(folder="."):
+    """[(group, file, size text, present, bytes)] of the optional NAIF kernels."""
+    out = []
+    for g, (fname, size) in NAIF_KERNELS.items():
+        p = os.path.join(folder, fname)
+        out.append((g, fname, size, os.path.isfile(p), os.path.getsize(p) if os.path.isfile(p) else 0))
+    return out
+
+
 def main():
+    """pysyzygos planets [status] | add [system ...] | remove [system ...]: the optional NAIF kernels that make the
+    planets' and moons' positions work offline (without them: JPL Horizons per search). Systems: """ + ", ".join(NAIF_KERNELS)
     import sys
-    if len(sys.argv) >= 2 and sys.argv[1] == "build":
+    a = sys.argv[1:]
+    if a and a[0] == "build":
         n = build_satellites()
         print(f"{n} satellites -> {SAT_FILE}")
+        return 0
+    if a and a[0] in ("add", "remove", "status"):
+        groups = [g.lower() for g in a[1:]] or (list(NAIF_KERNELS) if a[0] != "remove" else [])
+        bad = [g for g in groups if g not in NAIF_KERNELS]
+        if bad:
+            sys.exit(f"unknown system(s) {', '.join(bad)}; choose from {', '.join(NAIF_KERNELS)}")
+        if a[0] == "add":
+            for g in groups:
+                print(f"{g}: {download_naif(g) or 'not downloaded'}", flush=True)
+        elif a[0] == "remove":
+            if not groups:
+                sys.exit("name the system(s) to remove, e.g.: pysyzygos planets remove mars")
+            for g in groups:
+                print(f"{g}: {'removed' if remove_naif(g) else 'not there'}")
+        for g, fname, size, have, n in kernels_status():
+            print(f"  {g:8s} {fname:12s} " + (f"ok, {n / 1e9:.2f} GB (offline)" if have else
+                                               f"not downloaded ({size}): positions from JPL Horizons per search"))
         return 0
     for g, members in GROUPS.items():
         print(f"{g}: {len(members)} targets: {' '.join(members[:12])}{' ...' if len(members) > 12 else ''}")

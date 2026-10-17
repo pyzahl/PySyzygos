@@ -608,6 +608,13 @@ anyway (other orbits; OWC times to 0.1 s).
   573-029535/029536 2.9" apart); OWC (star U029535) put the path over 100 km away. With UCAC5's proper motion
   (-4.0, -13.0 +- 1.7 mas/yr; UCAC4: -5.6, -15.8) the path lies 206 km from the site, 7.4 s earlier, +-27 km (1 sigma)
   from the star; UCAC4's pm gives ~250 km. Fixed by `supplement_pm` and the star uncertainty in the path sigma.
+  Occult's path (listing of 2026-10-17, star UCAC4 573-029535) is parallel to ours, 68.9 km across, a constant
+  44.4 mas in the fundamental plane (rms 40 m): same geometry, other star position. Reproduced to 0.4 mas by Gaia's
+  2016.0 position with the motion from UCAC4's J2000 position to it, (-2.7, -9.1) mas/yr. That J2000 position is
+  UCAC4's 1995.5 measurement carried forward with UCAC4's own motion; from the measurement itself the motion is
+  (-3.3, -10.5) +- (1.0, 2.3), close to the companion's Gaia motion (-3.3, -9.9). UCAC5 (-4.0, -13.0 +- 1.7) has the
+  smaller error and stays (`starcat.pm_epoch`). The pair (WDS AG 112 AB, 2.8", 9.83 / 9.88) leaves every estimate
+  uncertain: the 2.6 mas/yr between UCAC5 and the epoch motion are 28 mas, ~43 km, by 2026.
 - **High-RUWE supplement** (2026-10-10; `ABOUT.md` 2.4): (86288) 1999 UC45 occulted Gaia DR3 2846821043820040832
   (G 11.73, RUWE 1.65) on 2026-09-30 at 05:28:2x UT, observed from three California sites (1.17 s at one,
   https://www.dr-ricknolthenius.com/events/20260930-1999UC45/index.html). The star was not in the local catalog

@@ -97,6 +97,38 @@ def catalog_options(found=None):
             for d, g, ok, _ in found}
 
 
+GUI_ARGS = {}                                                    # the options this GUI was started with (restart)
+
+
+def _stop_job():
+    if Job.proc is not None and Job.proc.returncode is None:
+        try:
+            Job.proc.terminate()
+        except ProcessLookupError:
+            pass
+
+
+def quit_app():
+    """End the program (GUI 'Quit'): stop a running job, then shut the server down."""
+    ui.notify("PySyzygos is quitting: you can close this tab", type="warning", timeout=4000)
+    _stop_job()
+    asyncio.get_event_loop().call_later(1.0, app.shutdown)
+
+
+def restart_app():
+    """Start the same program again in this process (GUI 'Restart'): exec replaces it, with the same command line;
+    the listening socket is closed on exec (Python sockets are not inherited), so the new server takes the port and
+    the open page reconnects by itself."""
+    ui.notify("PySyzygos restarts: this page reconnects in a few seconds", type="info", timeout=6000)
+    _stop_job()
+
+    def again():                                                # same port; no new browser tab: this one reconnects
+        os.environ["PYSYZYGOS_HOME"] = ROOT
+        os.execv(sys.executable, [sys.executable, "-m", "pysyzygos", "gui", "--port", str(GUI_ARGS.get("port", 8080)),
+                                  "--no-browser"])
+    asyncio.get_event_loop().call_later(1.0, again)
+
+
 async def run_process(args, log, env_site=None, on_done=None, env_catalog=None):
     if Job.proc and Job.proc.returncode is None:
         ui.notify("A run is already in progress", type="warning")
@@ -206,6 +238,23 @@ def index():
         sup_chk = ui.checkbox("+ high-RUWE stars", value=SUPPLEMENT["on"]).props("dark dense").classes(
             "text-slate-300")
         ui.button("About", on_click=lambda: about.open()).props("flat dense color=white no-caps")
+        ui.button(icon="power_settings_new", on_click=lambda: quit_dialog()).props(
+            "flat dense round color=white").tooltip("Restart or quit PySyzygos (the program, not only this page)")
+    def quit_dialog():
+        """Restart (the same program again: picks up an update, e.g. after git pull) or quit; for a GUI started from
+        a launcher, where the process is not at hand."""
+        busy = Job.proc is not None and Job.proc.returncode is None
+        with ui.dialog() as qd, ui.card().classes("max-w-md"):
+            ui.label("Restart or quit PySyzygos?").classes("font-semibold")
+            ui.label("Restart: the program starts again (with any update you installed) and this page reconnects "
+                     "by itself. Quit: the program ends; close this browser tab afterwards."
+                     + (" A run is still going: it is stopped." if busy else "")).classes("text-sm")
+            with ui.row():
+                ui.button("Restart", on_click=lambda: (qd.close(), restart_app())).props("color=primary")
+                ui.button("Quit", on_click=lambda: (qd.close(), quit_app())).props("color=negative")
+                ui.button("Cancel", on_click=qd.close).props("flat")
+        qd.open()
+
     with ui.dialog() as about, ui.card().classes("max-w-xl"):
         with ui.row().classes("items-center gap-4 no-wrap"):
             ui.element("img").props('src=/pysyzygos_logo.svg alt=""').classes("w-20 h-20")
@@ -313,6 +362,43 @@ def index():
                         for key, label, default, step in SITE_KEYS:
                             fields[key] = ui.number(label, value=default, step=step)
                     derived = ui.label().classes("text-sm text-slate-600")
+                    with ui.expansion("Horizon (optional): trees, buildings, hills").classes("w-full") as hz_exp:
+                        ui.label("Load OccultWatcher's UserHorizon.txt (the same file works in both programs) for "
+                                 "the site in this form, then save the site: events whose star is behind your horizon "
+                                 "are marked \u26f0 yellow, those closer to it than the margin red, in the results and "
+                                 "favorites. A file with several stations: the one named like the site, else the "
+                                 "first.").classes(
+                            "text-xs text-slate-500")
+                        with ui.row().classes("items-center gap-3"):
+                            ui.upload(label="Load UserHorizon.txt", auto_upload=True,
+                                      on_upload=lambda e: hz_upload(e)).props("accept=.txt flat dense").classes("w-56")
+                            hz_margin = ui.number("Margin (°)", value=15, min=0, max=45, step=1).classes("w-28").tooltip(
+                                "A star closer than this to the horizon line, in any direction, is marked (red); "
+                                "OccultWatcher's default warning threshold is 15°")
+                            hz_filter = ui.checkbox("leave out events behind it").tooltip(
+                                "Otherwise they are kept and marked yellow (as OccultWatcher does)")
+                            ui.button("Remove", on_click=lambda: hz_set(None)).props("flat dense color=negative")
+                        with ui.row().classes("items-center gap-3"):
+                            ui.upload(label="Load a 360° photo", auto_upload=True,
+                                      on_upload=lambda e: pano_upload(e)).props(
+                                "accept=.jpg,.jpeg,.png flat dense").classes("w-56").tooltip(
+                                "Equirectangular (2:1), as a 360° camera or a phone's photo sphere saves it, taken "
+                                "level at the telescope. With the sky made transparent (PNG), the horizon line can be "
+                                "read from it")
+                            hz_az = ui.number("Azimuth at the photo's left edge (°)", value=0, min=0, max=360,
+                                              step=0.5).classes("w-56").on_value_change(lambda e: hz_draw())
+                            hz_fit = ui.button("Fit to the horizon line", on_click=lambda: pano_fit()).props(
+                                "flat dense").tooltip("Turn the photo so that its horizon lies best on the horizon "
+                                                      "points above (needs a photo with transparent sky)")
+                            hz_from = ui.button("Horizon from the photo", on_click=lambda: pano_points()).props(
+                                "flat dense").tooltip("The horizon points from the photo's transparent sky (whole "
+                                                      "degrees, as UserHorizon.txt); replaces the points above")
+                            hz_dl = ui.button("UserHorizon.txt", on_click=lambda: hz_download()).props(
+                                "flat dense").tooltip("Download the horizon as OccultWatcher's UserHorizon.txt")
+                            ui.button("Remove photo", on_click=lambda: pano_set(None)).props(
+                                "flat dense color=negative")
+                        hz_info = ui.label().classes("text-sm text-slate-600")
+                        hz_pic = ui.html("")
 
         # ------------------------------------------------ search
         with ui.tab_panel(t_search):
@@ -551,6 +637,13 @@ def index():
                     ui.label("marker: site")
                 with ui.column().classes("w-full"):
                     f_title = ui.label().classes("text-lg font-semibold")
+                    f_bar = ui.html("").tooltip(
+                        "Across the path at your site: green the shadow, orange out to 1 sigma beyond its edges "
+                        "(the path's uncertainty: orbit and star), black the 3-sigma limits; the blue mark is your "
+                        "site, with its distance from the centre line and the chance that the shadow covers it")
+                    f_pano = ui.html("").classes("w-full").tooltip(
+                        "Your site's 360° photo (Site tab, Horizon): the star at the event time (red ring), the "
+                        "horizon line (white) and the margin (dashed)")
                     f_info = ui.grid(columns=4).classes("w-full gap-x-6 gap-y-1")   # OWC-style event summary
                     with ui.row().classes("w-full no-wrap gap-6 items-start"):
                         f_err = ui.element("img").style("width: 300px; flex: none").tooltip(
@@ -564,6 +657,15 @@ def index():
                                 "Small Bodies Node; Herald, Dunham et al.; doi:10.26033/ehqs-jp27). Reference only: the "
                                 "prediction uses the size above. Event quality: astrometry only < limits on size < "
                                 "reliable size < better than shape models")
+                            with ui.row().classes("items-center gap-2"):
+                                ui.button("Double-star check (VizieR)", on_click=lambda: fav_vizier()).props(
+                                    "outline dense").tooltip(
+                                    "Ask VizieR (needs the network, a few seconds) for known pairs at this star (the "
+                                    "Washington Double Star Catalog, WDS: discoverer, separation, position angle, "
+                                    "magnitudes, last observed; 'O' = orbit in ORB6) and Gaia DR3's signs of a "
+                                    "companion the local catalog does not keep (elongated image, position wobble, "
+                                    "colour-window excess). Kept with the favorite")
+                            f_viz = ui.label().classes("text-sm text-slate-700 whitespace-pre-line")
                             f_added = ui.label().classes("text-xs text-slate-500")
                             with ui.row().classes("items-end gap-4"):
                                 f_status = ui.select(list(favorites.STATUSES), label="Status").classes("w-40")
@@ -635,6 +737,12 @@ def index():
                 ui.label("(the one selected in the header)").classes("text-xs text-slate-500")
             cat_box = ui.column().classes("w-full gap-1")
             ui.separator()
+            ui.label("Planets and moons offline").classes("font-semibold")
+            ui.label("NAIF's kernels of the planet systems: with one, the positions of that planet and its moons come "
+                     "from your computer; without, from JPL Horizons per search (needs the network). Uranus: Horizons "
+                     "only (NAIF splits it into very large files).").classes("text-xs text-slate-500")
+            planets_box = ui.column().classes("w-full gap-0")
+            ui.separator()
             ui.label("Offline use").classes("font-semibold")
             ui.label("The pick's asteroid list (JPL SBDB) and the searches' orbit files (JPL Horizons) are cached in "
                      f"{config.cache_path}, which is lost when the computer restarts where it is /dev/shm. With copies "
@@ -670,6 +778,11 @@ def index():
             else:
                 fields[key].value = s.get(key, default)
         is_default.value = name == state.get("default", default_site)
+        hz_margin.value = s.get("horizon_margin", 15)
+        hz_filter.value = bool(s.get("horizon_filter", False))
+        HZ["image"] = s.get("horizon_image") if s.get("horizon_image") and os.path.isfile(s["horizon_image"]) else None
+        hz_az.value = float(s.get("horizon_image_az", 0.0))
+        hz_set([tuple(p) for p in s.get("horizon") or []] or None, s.get("horizon_name", ""))
         site_title.text = f"Site: {name}"
         try:
             load_pick()
@@ -683,9 +796,100 @@ def index():
         m.set_center((s["lat"], s["lon"]))
         update_derived()
 
+    HZ = dict(pts=None, name="", image=None)                     # the horizon in the form (horizon.py, panorama.py)
+
+    def hz_draw():
+        from pysyzygos import horizon, panorama
+        pts, img = HZ["pts"], HZ["image"]
+        prof = panorama.load_meta(img).get("profile") if img else None
+        hz_fit.set_visibility(bool(img and prof and pts))
+        hz_from.set_visibility(bool(img and prof))
+        hz_dl.set_visibility(bool(pts))
+        if img:
+            hz_pic.content = panorama.svg(img, float(hz_az.value or 0), pts, float(hz_margin.value or 15), width=900)
+        else:
+            hz_pic.content = horizon.svg(pts, width=540, height=110) if pts else ""
+        txt = (f"{HZ['name'] or 'horizon'}: {len(pts)} points, highest {max(h for _, h in pts)}°" if pts
+               else "no horizon: a flat horizon is assumed")
+        hz_info.text = txt + (f" · photo {os.path.basename(img)}" if img else "") + " (saved with the site)"
+        try:
+            update_derived()                                         # marks "unsaved changes"
+        except NameError:                                            # while the page is built
+            pass
+
+    def hz_set(pts, name=""):
+        HZ["pts"], HZ["name"] = (pts, name) if pts else (None, "")
+        hz_draw()
+
+    def pano_set(img):
+        HZ["image"] = img
+        hz_draw()
+
+    async def pano_upload(e):
+        from pysyzygos import panorama
+        data = await e.file.read()
+        e.sender.reset()
+        try:
+            img, meta = await run.io_bound(panorama.save, data, state["name"], source=e.file.name)
+        except Exception as ex:
+            ui.notify(f"Not loaded: {ex}", type="warning", timeout=8000)
+            return
+        HZ["image"] = img
+        if meta.get("profile") and HZ["pts"]:
+            pano_fit()
+        hz_draw()
+        ui.notify(f"Photo set for site {state['name']}" + ("" if meta.get("profile") else
+                  " (no transparent sky: set the azimuth at its left edge by hand)") + ": save the site to keep it",
+                  type="positive", timeout=8000)
+
+    def pano_fit():
+        from pysyzygos import panorama
+        prof = panorama.load_meta(HZ["image"]).get("profile") if HZ["image"] else None
+        if not (prof and HZ["pts"]):
+            return
+        az0, d = panorama.fit_az_left(prof, HZ["pts"])
+        hz_az.value = az0
+        ui.notify(f"Azimuth at the left edge {az0:g}° (photo and horizon points differ by {d:.1f}° in the median)",
+                  type="info", timeout=8000)
+
+    def pano_points():
+        from pysyzygos import panorama
+        prof = panorama.load_meta(HZ["image"]).get("profile") if HZ["image"] else None
+        if prof:
+            hz_set(panorama.points(prof, float(hz_az.value or 0)), f"{state['name']} (from the photo)")
+
+    def hz_download():
+        from pysyzygos import horizon
+        if HZ["pts"]:
+            ui.download(horizon.to_text(HZ["name"] or state["name"], HZ["pts"]).encode(), "UserHorizon.txt")
+
+    async def hz_upload(e):
+        from pysyzygos import horizon
+        text = (await e.file.read()).decode("utf-8-sig", errors="replace")
+        e.sender.reset()                                             # the same file can be loaded again
+        try:
+            stations = horizon.parse(text)
+        except horizon.HorizonError as ex:
+            ui.notify(f"Not loaded: {ex}", type="warning", timeout=8000)
+            return
+        site = state["name"]
+        names = list(stations)
+        key = lambda x: "".join(ch for ch in x.lower() if ch.isalnum())
+        pick = next((n for n in names if key(n) == key(site)), None) or \
+            next((n for n in names if key(site) and key(site) in key(n)), None) or names[0]
+        hz_set(stations[pick], pick)
+        more = f" (of {len(names)} stations in the file: {', '.join(names)})" if len(names) > 1 else ""
+        ui.notify(f"Horizon '{pick}' set for site {site}{more}: save the site to keep it", type="positive",
+                  timeout=8000)
+
     def collect():
         s = dict(lat=float(lat.value or 0), lon=float(lon.value or 0), ele=float(ele.value or 0),
                  name=desc.value or state["name"])
+        if HZ["pts"]:
+            s.update(horizon=[list(p) for p in HZ["pts"]], horizon_name=HZ["name"],
+                     horizon_margin=float(hz_margin.value or 15), horizon_filter=bool(hz_filter.value))
+        if HZ["image"]:
+            s.update(horizon_image=HZ["image"].replace(os.sep, "/"), horizon_image_az=float(hz_az.value or 0))
         if ele_ref.value == "ellipsoid":
             s["ele_ref"] = "ellipsoid"                            # else above sea level: geoid_m added when saved
         if (mpc.value or "").strip():
@@ -949,6 +1153,7 @@ def index():
         ui.notify(f"sites.py saved (default site: {state.get('default', default_site)})", type="positive")
         unsaved.text = ""
 
+    hz_margin.on_value_change(lambda e: hz_draw())
     sel.on_value_change(lambda e: (show_site(e.value), save_ui_state(site=e.value, catalog=cat_sel.value))
                         if e.value in sites else None)
     def catalog_limit(*_):                                        # the catalog's limit caps the star limits
@@ -1261,6 +1466,30 @@ def index():
 
     fav_cur = {"key": None}
 
+    async def fav_vizier():
+        from pysyzygos import doubles as D_
+        e = next((x for x in favorites.load() if x["key"] == fav_cur["key"]), None)
+        if not e:
+            ui.notify("Click a favorite first", type="warning")
+            return
+        r = e["record"]
+        try:
+            sid = int(str(r.get("star")).split(".")[0])
+            ra, dec = float(r["star_ra"]), float(r["star_dec"])
+        except (KeyError, TypeError, ValueError):
+            ui.notify("This favorite has no star position", type="warning")
+            return
+        f_viz.text = "asking VizieR ..."
+        try:
+            v = await run.io_bound(D_.vizier_check, sid, ra, dec)
+        except OSError as ex:
+            f_viz.text = ""
+            ui.notify(f"VizieR not reachable: {str(ex)[:120]}", type="warning")
+            return
+        favorites.set_field(e["key"], "vizier", v)
+        f_viz.text = "\n".join(D_.vizier_text(v))
+        ui.notify(f"{len(v['wds'])} WDS pair(s), {len(v['hints'])} sign(s)", type="positive")
+
     def load_favs(select=None):
         """Rebuild the favorites page (report table) and show it; keep or set the selected favorite."""
         favorites.write_page()
@@ -1275,6 +1504,31 @@ def index():
 
     def current_fav():
         return next((e for e in favorites.load() if e["key"] == fav_cur["key"]), None)
+
+    def fav_pano(e):
+        """The site's photo with the star at the event, or None (the favorite's site found in sites.py by position)."""
+        from pysyzygos import panorama, report as R_
+        site, r = e.get("site") or {}, e["record"]
+        try:
+            lat, lon = float(site["lat"]), float(site["lon"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        s = next((v for v in sites.values() if abs(float(v.get("lat", 99)) - lat) < 2e-4
+                  and abs(float(v.get("lon", 999)) - lon) < 2e-4 and v.get("horizon_image")), None)
+        if not s or not os.path.isfile(s["horizon_image"]):
+            return None
+        f = lambda k: (lambda v: v if v == v else None)(float(r[k])) if str(r.get(k) or "").strip() not in (
+            "", "nan") else None
+        alt, az = f("star_alt"), f("star_az")
+        if az is None and alt is not None and f("star_ra") is not None:
+            try:
+                alt, az = R_.alt_az(f("star_ra"), f("star_dec"), r.get("best_utc"), lat, lon)
+            except Exception:
+                az = None
+        hi = 70 if alt is None else min(90, max(70, int(alt // 10 + 2) * 10))
+        return panorama.svg(s["horizon_image"], float(s.get("horizon_image_az", 0)), s.get("horizon"),
+                            s.get("horizon_margin", 15), star=(az, alt), alt_range=(-10, hi), width=1100,
+                            label=None if alt is None else f"star {alt:.0f}°")
 
     def show_fav(*_):
         e = current_fav()
@@ -1293,12 +1547,24 @@ def index():
                         with ui.row().classes("gap-1 no-wrap text-base"):
                             ui.label(f"{k}:").classes("text-slate-500 whitespace-nowrap")
                             ui.label(str(v)).classes("text-slate-800 min-w-0 break-words")
+        rr = e["record"]
+        num_ = lambda k: (lambda v: v if v == v else None)(float(rr[k])) if str(rr.get(k) or "").strip() not in (
+            "", "nan") else None
+        from pysyzygos import report as R_
+        bar = R_.chance_bar_svg(num_("min_distance"), num_("r_km"), num_("path_sigma1_km"), num_("p_site"))
+        f_bar.content = bar or ""
+        f_bar.set_visibility(bar is not None)
+        pano = fav_pano(e)
+        f_pano.content = pano or ""
+        f_pano.set_visibility(pano is not None)
         err = favorites.error_svg(e)
         f_err.set_visibility(err is not None)
         if err:
             import base64
             f_err.props(f'src="data:image/svg+xml;base64,{base64.b64encode(err.encode()).decode()}" alt="Error ellipses"')
         f_occ.text = occultations.text(e["record"].get("target_id", ""))
+        from pysyzygos import doubles as D_
+        f_viz.text = "\n".join(D_.vizier_text(e.get("vizier")))
         f_added.text = f"added {e.get('added', '')[:16].replace('T', ' ')} UT"
         f_status.value, f_note.value = e.get("status", "planned"), e.get("note", "")
         f_img.set_visibility("svg" in files)
@@ -1444,12 +1710,16 @@ def index():
                 ready = float(st["gmax"]) in starcat.ZENODO_STEM
                 ui.checkbox(f"core ({starcat.group_bytes(d, 'core') / 1e9:.1f} GB): {starcat.GROUP_TEXT['core']}",
                             value=True).props("dense disable")
+                off = starcat.disabled_groups(d)
                 for g in starcat.GROUPS:
                     have = g in st["groups"]
                     size = starcat.group_bytes(d, g) / 1e9 if have else None
-                    label = f"{g}" + (f" ({size:.1f} GB)" if have else "") + f": {starcat.GROUP_TEXT[g]}"
+                    off_gb = (os.path.getsize(os.path.join(d, f"{g}.npy{starcat.OFF}")) / 1e9 if g in off else None)
+                    label = (f"{g}" + (f" ({size:.1f} GB)" if have else
+                                       f" (switched off, files kept: {off_gb:.1f} GB)" if g in off else "")
+                             + f": {starcat.GROUP_TEXT[g]}")
                     cb = ui.checkbox(label, value=have).props("dense")
-                    if not have and not ready:
+                    if not have and not ready and g not in off and g != "xref":   # xref: built here if needed
                         cb.set_enabled(False)
                         cb.tooltip("This catalog was built from ESA's files: a part comes only with a new build "
                                    "(pysyzygos catalog build writes all parts)")
@@ -1475,15 +1745,84 @@ def index():
                     ui.label(f"{old}: the catalog before the upgrade").classes("text-sm text-slate-600")
                     ui.button("Delete", on_click=lambda o=old: cat_delete_old(o)).props("flat dense color=negative")
 
+    def planets_refresh(*_):
+        from pysyzygos import bodies
+        planets_box.clear()
+        with planets_box:
+            for g, fname, size, have, n in bodies.kernels_status(ROOT):
+                label = f"{g.capitalize()} system ({fname}, " + (f"{n / 1e9:.2f} GB)" if have else f"{size})")
+                cb = ui.checkbox(label, value=have).props("dense")
+                cb.on_value_change(lambda e, g=g, fname=fname: planet_kernel(g, fname, e.value))
+
+    async def planet_kernel(g, fname, on):
+        from pysyzygos import bodies
+        if on:
+            ui.notify(f"Downloading {fname} from NAIF (see the log; large files take a while)")
+            await run_process(PYSYZYGOS + ["planets", "add", g], log)
+            planets_refresh()
+            await sys_info_refresh()
+            return
+
+        async def go(delete):
+            dlg.close()
+            if delete:
+                await run.io_bound(bodies.remove_naif, g, ROOT)
+                ui.notify(f"{fname} deleted: {g.capitalize()} positions now from JPL Horizons", type="positive")
+            planets_refresh()
+            await sys_info_refresh()
+
+        with ui.dialog().props("persistent") as dlg, ui.card().classes("max-w-lg"):
+            ui.label(f"Delete {fname}?").classes("font-semibold")
+            ui.label(f"Searches of the {g.capitalize()} system then take the positions from JPL Horizons (needs the "
+                     f"network). Ticking it again downloads the file anew from NAIF.").classes("text-sm")
+            with ui.row():
+                ui.button("Delete", on_click=lambda: go(True)).props("color=negative")
+                ui.button("Cancel", on_click=lambda: go(False)).props("flat")
+        dlg.open()
+
     async def cat_part(d, g, on):
         if on:
-            ui.notify(f"Downloading the catalog part '{g}' (see the log)")
-            await run_process(PYSYZYGOS + ["catalog", "add", g, "--dir", d], log)
-        else:
-            await run.io_bound(starcat.remove_group, d, g)
-            ui.notify(f"Removed the catalog part '{g}'", type="positive")
-        cat_refresh()
-        await sys_info_refresh()
+            if g in starcat.disabled_groups(d):                     # switched off earlier: back at once
+                ok = await run.io_bound(starcat.enable_group, d, g)
+                ui.notify(f"The catalog part '{g}' is switched on again" if ok else
+                          f"The kept files of '{g}' do not fit this catalog: download it again", type="positive"
+                          if ok else "warning")
+            else:
+                ui.notify(f"Downloading the catalog part '{g}' (see the log)")
+                await run_process(PYSYZYGOS + ["catalog", "add", g, "--dir", d], log)
+            cat_refresh()
+            await sys_info_refresh()
+            return
+        size = starcat.group_bytes(d, g) / 1e9
+        built = float(starcat.status(d)["gmax"]) not in starcat.ZENODO_STEM
+        back = ("It can come back only with a new build of this catalog from ESA's files (about 2 h)." if built else
+                "It can come back with a download (from Zenodo or a mirror).")
+
+        async def done(how):
+            dlg.close()
+            try:
+                if how == "off":
+                    await run.io_bound(starcat.disable_group, d, g)
+                    ui.notify(f"The catalog part '{g}' is switched off; its files are kept", type="positive")
+                elif how == "delete":
+                    await run.io_bound(starcat.remove_group, d, g)
+                    ui.notify(f"The catalog part '{g}' is deleted ({size:.1f} GB freed)", type="positive")
+            except OSError as e:                                # Windows: the file is in use (a run, the GUI)
+                ui.notify(f"Not possible now: {str(e)[:160]}. Restart the GUI with no run going, then try again.",
+                          type="warning", timeout=10000)
+            cat_refresh()                                       # cancel: the checkbox shows the part again
+            await sys_info_refresh()
+
+        with ui.dialog().props("persistent") as dlg, ui.card().classes("max-w-xl"):
+            ui.label(f"Stop using the catalog part '{g}' ({size:.1f} GB)?").classes("font-semibold")
+            ui.label(f"{starcat.GROUP_TEXT[g]}.").classes("text-sm")
+            ui.label("Switch off: it is no longer used, its files stay (ticking it again switches it back on at "
+                     f"once). Delete: frees {size:.1f} GB. {back}").classes("text-sm text-slate-600")
+            with ui.row():
+                ui.button("Switch off, keep the files", on_click=lambda: done("off")).props("color=primary")
+                ui.button("Delete", on_click=lambda: done("delete")).props("flat color=negative")
+                ui.button("Cancel", on_click=lambda: done("cancel")).props("flat")
+        dlg.open()
 
     def cat_upgrade_ask(name, parts, delete_old):
         """What the upgrade will do (source, time, disk), then run it."""
@@ -1575,6 +1914,7 @@ def index():
     off_chk.on_value_change(sys_toggle)
     sys_refresh()
     cat_refresh()
+    planets_refresh()
     cat_sel.on_value_change(cat_refresh)
     tabs.on_value_change(lambda e: sys_info_refresh() if e.value in (t_sys, "System") else None)
 
@@ -1742,6 +2082,30 @@ def index():
         await run_process(args, log, env_site=state["name"], on_done=done, env_catalog=cat_sel.value)
 
 
+def local_star_names(config):
+    """lookup(record) for favorites.backfill_names: the star's UCAC4 / TYC / HIP names from the local catalog's xref
+    part; None for every record when the catalog has no such part."""
+    from pysyzygos import gaia_local
+    state = {}
+
+    def lookup(r):
+        if "cat" not in state:
+            try:
+                c = gaia_local.LocalGaia(config.gaia_local_dir)
+                state["cat"] = c if getattr(c, "xref", None) is not None else None
+            except Exception:
+                state["cat"] = None
+        c = state["cat"]
+        if c is None:
+            return None
+        try:
+            return c.names(int(str(r.get("star")).split(".")[0]), float(r["star_ra"]), float(r["star_dec"])) or \
+                dict(star_ucac4="", star_tyc="", star_hip="")
+        except (KeyError, TypeError, ValueError):
+            return None
+    return lookup
+
+
 def local_double_check(config):
     """check(record) for favorites.backfill_doubles: the close/double-star check (doubles.py) from the local catalog,
     without SPICE; None for every record when no complete catalog is there."""
@@ -1809,6 +2173,7 @@ def main():
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
+    GUI_ARGS.update(port=a.port)
     print(f"PySyzygos {__version__}, data folder: {home.describe()}")
     from pysyzygos import config
     os.makedirs(config.map_dir, exist_ok=True)
@@ -1821,6 +2186,7 @@ def main():
     favorites.backfill_phys(lambda t: sbdb.get_full(t, config.cache_path))
     favorites.backfill_globes(config.map_dir)                   # globe plots of later searches for older favorites
     favorites.backfill_doubles(local_double_check(config))      # close/double stars for favorites added before
+    favorites.backfill_names(local_star_names(config))          # UCAC4 / TYC / HIP names (catalog part xref)
     favorites.backfill_timezones(geo.timezone)                  # site time zones (online, once per site)
     favorites.backfill_event()                                  # OWC-style event data for older favorites (Horizons)
     import threading                                            # error ellipses (Horizons, one Gaia job): may be slow

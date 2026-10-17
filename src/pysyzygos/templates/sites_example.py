@@ -18,6 +18,10 @@
 #             the camera field drawn in the event preview.
 #   identity  mpc_code: the site's official Minor Planet Center observatory code, if it has one (e.g. "695" for
 #             Kitt Peak); shown in the report header. The GUI fills it in when you pick an MPC observatory.
+#   horizon   (set in the GUI, Site tab, "Horizon") horizon: [[az, alt], ...] whole degrees as OccultWatcher's
+#             UserHorizon.txt, horizon_name, horizon_margin (deg, default 15: stars closer are marked), horizon_filter
+#             (True: leave out events behind it); horizon_image (360-degree photo, horizons/<site>.jpg) and
+#             horizon_image_az (azimuth at the photo's left edge, deg).
 
 sites = {
     "nyc": dict(lat=40.7128, lon=-74.0060, ele=10, name="New York City Hall (example)",

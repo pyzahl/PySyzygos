@@ -720,8 +720,11 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
     sig = (sigma3_km or 0) / 3
     corr = corrections or {}
     name = str(record.get("target_name") or target).strip()
-    title = f"{name} occults Gaia DR3 {record['star']} on {utc(et)[:10]} from {hm(t0)} to {hm(t1)} UT"
-    left = ["Star:",
+    from pysyzygos.report import star_label
+    star_name, star_others = star_label(record)
+    title = f"{name} occults {star_name} on {utc(et)[:10]} from {hm(t0)} to {hm(t1)} UT"
+    left = ["Star:" + (f" {star_name}" if star_name.startswith("UCAC4") else ""),
+            *([f" {star_others}"] if star_others else []),
             f" G {float(record['mag']):.2f}",
             f" RA  = {_hms(ra_d)} (J2000, as used)",
             f" Dec = {_hms(dec_d, True)}",
@@ -772,7 +775,7 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
     if page != "square":
         short = name.split("(")[0].strip()
         short = " ".join(short.split()[1:]) if short.split()[0].isdigit() and len(short.split()) > 1 else short
-        system = system_data(spice, et, target, star_dir, short or name, f"Gaia DR3 {record['star']}")
+        system = system_data(spice, et, target, star_dir, short or name, star_name)
     return dict(R=R, basis=basis, sun_dir=sun / np.linalg.norm(sun), paths=paths, axis=axis, site=site, style=style,
                 title=title, columns=(left, mid, right), inset=inset, page=page, system=system,
                 minute_label=lambda t: utc(t)[14:16],

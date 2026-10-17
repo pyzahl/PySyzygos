@@ -19,7 +19,9 @@ import time, json, datetime
 from pysyzygos import screen as pysyzygos_screen, astrometry as pysyzygos_astrometry
 ns = dict(np=np, pd=pd, os=os, time=time, json=json, datetime=datetime.datetime, screen=pysyzygos_screen, astrometry=pysyzygos_astrometry, config=Cfg, corridor=C, u=types.SimpleNamespace(rad=None, km=None))
 from pysyzygos import doubles as pysyzygos_doubles
+from pysyzygos import horizon as pysyzygos_horizon
 ns.update(doubles=pysyzygos_doubles, RUN_RECORDS=[], LOCAL=None)       # close/double star check (no local catalog here)
+ns.update(horizon=pysyzygos_horizon)                                   # the site's own horizon (none here)
 from pysyzygos.paths import site_probability
 ns.update(site_probability=site_probability)                         # chance at the site (pure function)
 from pysyzygos import db as pysyzygos_db                                  # results database in a temporary folder

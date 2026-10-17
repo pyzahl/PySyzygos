@@ -7,6 +7,53 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.3.1] "Beyond Horizons" - 2026-10-17
 
 ### Added
+- **Your site's 360° photo** (Site tab, Horizon): an equirectangular photo (2:1, a 360° camera or a phone's photo
+  sphere) shows the horizon line and the margin over the real view, and the favorites panel shows the star at the
+  event time on it. The azimuth reference is set by hand or fitted to the horizon points; with the sky made
+  transparent (PNG), the horizon line is read from the photo (`panorama.py`) and can be downloaded as
+  `UserHorizon.txt` for OccultWatcher. Kept as a small copy in `horizons/` (private). New dependency: Pillow.
+- **UserHorizon.txt**: the horizon now belongs to the site in the form (the "Station in the file" select is gone; a
+  file with several stations: the one named like the site); files saved with a byte-order mark (Windows editors,
+  OccultWatcher's own) load, which failed before.
+- **Better proper motions for 2-parameter stars** (`pysyzygos catalog pm-epoch`, and in the same pass as the `xref`
+  part): a third estimate, from UCAC4's measured position (its central epoch, ~1998, with its error) to Gaia's 2016.0
+  one; each star keeps the one with the smallest error among UCAC5, UCAC4 and this (new kind 5, "2-param, pm UCAC4
+  epoch to Gaia"). UCAC4's own motions are often worse than they claim (test zone: 23 % beyond 3 sigma), so most of
+  them are replaced. Found with (4089) Galbraith: Occult's path, 69 km from ours, uses a motion from UCAC4's J2000
+  position, which carries UCAC4's own motion's error.
+- **Double-star check (VizieR)**, a button in the favorites panel: the Washington Double Star Catalog's pairs at the
+  star (discoverer, separation, position angle, magnitudes, first/last observed, notes; "O" = orbit in ORB6) and
+  Gaia DR3's signs of a companion the local catalog does not keep (elongated image `ipd_gof_harmonic_amplitude`,
+  position wobble `astrometric_excess_noise` and its significance, colour-window excess, plus RUWE, multi-peak,
+  duplicated, NSS), with short readings; kept with the favorite. (4089) Galbraith's star: WDS AG 112 AB, 2.8",
+  9.83 / 9.88 mag, observed since 1902; Gaia: two peaks in 41 % of scans, elongated, 19.8 mas excess noise.
+- **Restart / Quit** (power button in the GUI header): for a GUI started from a launcher, no process to hunt for.
+  Restart starts the same program again (with an installed update) and the page reconnects; Quit ends it. A
+  running job is stopped first.
+- **Azimuth in degrees**: a checkbox "az°" in the Altitude column's header shows the star's azimuth ("55° az 117°")
+  instead of the compass direction ("55° SE"), in the results and favorites tables; remembered in the browser.
+- **Your own horizon** (Site tab, "Horizon (optional)"): load OccultWatcher's `UserHorizon.txt` (`horizon.py`: its
+  format and rules, several stations per file); a profile shows it; events whose star is behind it are marked ⛰
+  yellow, those closer to it than the margin (default 15°, OccultWatcher's threshold) red, in the results, favorites
+  and CSV; optionally events behind it are left out. Record fields `horizon_flag`, `horizon_alt`, `horizon_sep_deg`.
+- **Chance with sigma**: the Chance column adds the site's distance from the centre line in units of the path's 1σ
+  ("33 % · 0.6σ"); the favorites panel shows a bar across the path at the site (green the shadow, orange 1σ beyond
+  its edges, black ticks at 3σ, a blue mark for the site with km, σ and chance).
+- **Star names: catalog part `xref`** (`pysyzygos catalog xref`, or tick it in the System tab): each star's UCAC4,
+  Tycho-2 and Hipparcos numbers. UCAC4 from its 900 zone files (CDS, streamed, none kept): our stars moved back to
+  J2000 with Gaia's proper motions, the nearest UCAC4 star within 1" and 1.5 mag, one Gaia star per UCAC4 star (so
+  a double like (4089) Galbraith's gets 573-029535 and 573-029536 right); TYC and HIP from Gaia DR3's
+  best-neighbour tables. The search stores them with each event (`star_ucac4`, `star_tyc`, `star_hip`, end of the
+  record); results, favorites, the Globe page and the CSV name the star "UCAC4 573-029535" instead of the long Gaia
+  number, with Gaia DR3, TYC and HIP in the hover text and the event summary. Older favorites are filled in at GUI
+  start.
+- **System tab, catalog parts**: unticking a part asks first: **switch off, keep the files** (renamed
+  `<part>.npy.off`, back at once when ticked again, no download) or **delete** (frees the space; the dialog says
+  whether it can come back by download or only by a new build). Command line: `pysyzygos catalog off|on <part>`.
+  (Before, unticking deleted the part at once.)
+- **System tab, planets and moons offline**: a checkbox per planet system for its NAIF kernel (Jupiter, Saturn,
+  Neptune, Pluto, Mars, with file and size): tick downloads it, untick deletes it after asking (positions then from
+  JPL Horizons). Command line: `pysyzygos planets [status] | add [system ...] | remove system ...`.
 - **Whole-Earth view on an A4 page** (`globe_page = "A4"`, default; `"square"` keeps the view alone): two panels
   below the view, from the event's own values: the geometry at true scale (Earth, target, Sun, Jupiter, Saturn, AU)
   and the light paths (AU along the star's direction, sideways offsets in mas): the star's bent ray, the target on
