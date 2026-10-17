@@ -20,6 +20,7 @@ during an occultation. Up to version 0.18 it was called PyOccult.
   - [2.2 Fundamental (Besselian) plane, frames and time scales: besselian_offsets](#22-fundamental-besselian-plane-frames-and-time-scales-besselian_offsets)
   - [2.3 Star magnitude cap and corridor width: plan_corridor](#23-star-magnitude-cap-and-corridor-width-plan_corridor)
   - [2.4 Star catalog: pysyzygos/starcat.py](#24-star-catalog-pysyzygosstarcatpy)
+    - [2.4.1 Proper motions: sources and the choice per star](#241-proper-motions-sources-and-the-choice-per-star)
   - [2.5 Candidate scan: find_candidates](#25-candidate-scan-find_candidates)
   - [2.6 Exact closest approach: star_test](#26-exact-closest-approach-star_test)
   - [2.7 Checks before logging: handle_star](#27-checks-before-logging-handle_star)
@@ -173,21 +174,8 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   (env `PYSYZYGOS_SUPPLEMENT`, else config `gaia_supplement`, default on) keeps or drops them. Events on such stars
   carry `star_kind`, `star_ruwe`, `star_flag` ("RUWE 1.65", "2-param") at the end of the record and the pick's events,
   shown as ⚑ after the star magnitude.
-  **2-parameter stars have no proper motion in Gaia DR3**, so their 2026 position can be 0.1-0.3" off, 100-400 km at
-  main-belt distances ((4089) Galbraith, 2026-10-13: a false "hit"). `xmatch` gives them proper motions from UCAC5
-  (Zacharias et al. 2017: pm from Gaia DR1 and UCAC; matched by its Gaia DR1 2015.0 position within 0.2" of the DR3
-  2016.0 one and G within 0.5 mag), else UCAC4 (its J2000 position moved to 2016 within 0.5", magnitude within 1),
-  through CDS XMatch (kinds 3, 4; Gaia's position kept; the UCAC errors as the proper-motion errors). Of 573,735:
-  294,496 UCAC5, 171,094 UCAC4, 108,145 none (kind 2). Third source (1.3.1, `starcat.pm_epoch`, in the same pass
-  as the `xref` part): the motion from UCAC4's MEASURED position (its central epochs, ~1990-2004, with its position
-  errors) to Gaia's 2016.0 one, over ~18 years; kind 5 wherever its error (larger axis) is smaller than the UCAC5/
-  UCAC4 one, and for stars without any. UCAC4's J2000 positions are not measurements: they are the central-epoch
-  ones carried forward with UCAC4's own proper motion, so a motion derived from them (J2000 -> Gaia) inherits that
-  motion's error. Test zone 573: UCAC5 and epoch values agree within their errors (median 0.8 sigma), UCAC4's own
-  motions do not (median 2 sigma, 23 % beyond 3 sigma), so the epoch motion replaces nearly all UCAC4 ones and about
-  half the UCAC5 ones. `gaia_local.star_sigma_mas`: the star's 1-sigma position at
-  the event date (2-parameter: position + pm error or 10 mas/yr per axis, times the years; high RUWE: Gaia's errors x
-  RUWE), in km at the asteroid combined with the orbit's sigma. Found with (86288) 1999 UC45, 2026-09-30: its G 11.73
+  **2-parameter stars have no proper motion in Gaia DR3**: where theirs comes from, and how the best one is chosen,
+  is in [2.4.1](#241-proper-motions-sources-and-the-choice-per-star). Found with (86288) 1999 UC45, 2026-09-30: its G 11.73
   target (RUWE 1.65), observed by three stations, was not in the first local catalog, so the event was not
   predictable.
 - **The earlier format** (`pysyzygos/gaia_local.py`, PySyzygos before 1.3.0; still read): one `.npy` per source file
@@ -196,6 +184,79 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   and `status` hand a format-2 folder over to `starcat.StarCatalog`, so the search, pick, pre-screens and previews do
   not care which format a catalog has. `pysyzygos setup --upgrade-catalog` installs the new one next to an old one and
   swaps it in.
+
+### 2.4.1 Proper motions: sources and the choice per star
+
+A star's position at the event is its Gaia DR3 position (epoch 2016.0) moved by its proper motion over the years
+since (~10.8 years for an event in late 2026); parallax and, for fast nearby stars, the radial velocity are applied
+too (2.2, `corridor.propagate_exact`). An error of 1 mas/yr in the proper motion moves the star by ~11 mas by 2026,
+about 15-20 km on the ground for a main-belt asteroid (1 mas = 0.725 km x its distance in AU). So the proper motion is as
+important as the position itself, and for the stars without a Gaia proper motion it is the largest error of the
+whole prediction.
+
+**Which stars get which proper motion** (kind = bits 0-2 of the core's `flags`, shown as ⚑ after the magnitude):
+
+| Kind | Stars (G <= 16) | Proper motion | Its error (1 sigma) |
+|---|---|---|---|
+| 0 | 5/6-parameter, RUWE < 1.4 (~70 M) | Gaia DR3; for G < 13 corrected for the bright stars' frame spin (Cantat-Gaudin & Brandt 2021, `astrometry.gaia_pm_bias`) | Gaia's (quality part / online check), typically 0.02-0.1 mas/yr |
+| 1 | 5/6-parameter, RUWE >= 1.4 (7.38 M; often unresolved doubles) | Gaia DR3 (as kind 0) | Gaia's x RUWE (Gaia underestimates them for such stars) |
+| 3 | 2-parameter, matched in UCAC5 | UCAC5 | UCAC5's e_pmRA / e_pmDE (the larger one) |
+| 4 | 2-parameter, not in UCAC5, matched in UCAC4 | UCAC4's own | UCAC4's e_pmRA / e_pmDE (the larger one) |
+| 5 | 2-parameter, with a UCAC4 measurement (1.3.1) | from UCAC4's measured position to Gaia's (below) | position errors / interval |
+| 2 | 2-parameter, none of the above | none: the 2016.0 position is used | 10 mas/yr per axis assumed (`PM_UNKNOWN_MAS_YR`) |
+
+**The three sources for 2-parameter stars** (573,735 stars to G 16; Gaia DR3 solved only their position, mostly
+because the source is a close double, very bright or has too few observations):
+
+1. **UCAC5** (Zacharias, Finch & Frouard 2017, AJ 153, 166; VizieR I/340): UCAC's CCD positions (epochs ~1998-2004)
+   re-reduced against Gaia DR1, combined with Gaia DR1's 2015.0 positions: a ~15-year baseline. Matched through
+   CDS XMatch by the Gaia DR1 position UCAC5 lists: within 0.2" of the DR3 one and G within 0.5 mag, so a close
+   neighbour cannot be taken by mistake (`gaia_local.pick_ucac5`). 294,496 stars.
+2. **UCAC4** (Zacharias et al. 2013, AJ 145, 44; VizieR I/322A): its own proper motions, from its CCD positions
+   combined with earlier catalogues of older epochs. Matched
+   by its J2000 position moved with its motion to 2016: within 0.5" and 1 mag (`gaia_local.pick_ucac4`). Used for
+   the stars UCAC5 does not have: 171,094.
+3. **Epoch proper motion** (1.3.1, `starcat.epoch_pm`): the motion between UCAC4's MEASURED position and Gaia DR3's,
+   typically over 15-20 years. UCAC4's catalogue position is given for J2000, but it is not a measurement: it is the
+   position at the star's central epochs (`cepra`/`cepdc` in the zone files, typically 1997-2001) carried to J2000
+   with UCAC4's own proper motion. So it is first taken back to those epochs, then
+
+       pm = (Gaia 2016.0 position - UCAC4 central-epoch position) / (2016.0 - central epoch)    (per axis)
+       error = sqrt(sigma_UCAC4(central epoch)^2 + sigma_Gaia(2016)^2) / (2016.0 - central epoch)
+
+   with UCAC4's position errors at the central epochs (`sigra`/`sigdc`, typically 15-60 mas) and Gaia's
+   (`ra_error`/`dec_error`). Used only over at least 8 years (`EPOCH_MIN_YEARS`). The UCAC4 star is the one the
+   `xref` part names for the Gaia star (2.4: within 1" and 1.5 mag at J2000, one Gaia star per UCAC4 star).
+   428,251 2-parameter stars have such a UCAC4 measurement.
+
+**The choice** (`starcat.choose_pm`, run with the `xref` part or by `pysyzygos catalog pm-epoch`): each star keeps the
+estimate with the smallest error, compared as the larger of the two axis errors (UCAC5's and UCAC4's are stored
+that way). A star with none so far takes the epoch motion whenever it exists. The estimates are not averaged: UCAC5
+and the epoch motion both rest on UCAC's CCD positions, so they are not independent. The chosen motion and its
+errors go into the core (`pmra`, `pmdec`, kind) and the quality part (`pmra_error`, `pmdec_error`); Gaia's 2016.0
+position is always kept. Checked on one UCAC4 zone (573, 492 stars): UCAC5 and epoch motions agree within their
+quoted errors (median difference 0.8 sigma), so both error estimates are realistic; UCAC4's own motions do not
+(median 2 sigma, 23 % beyond 3 sigma: their errors are too small), so the epoch motion replaces nearly all of them,
+and about half of the UCAC5 ones where it is the more precise. The counts of the published catalog are in its
+`catalog.json` (`pm_xmatch`, `pm_epoch`).
+
+**What the prediction does with the error**: `gaia_local.star_sigma_mas` gives the star's 1-sigma position at the
+event, sqrt(position error^2 + (pm error x years since 2016)^2); in km at the asteroid it is combined with the
+orbit's sigma into the path's sigma lines and the chance at the site, and the report shows a red **⚠ star ±… km**
+where it is larger than the asteroid.
+
+**Compared with other programs**: Occult takes, for a star without a Gaia proper motion, the motion from UCAC4's
+J2000 position to Gaia's (UCAC4 as the reference epoch, as D. Herald described it); with (4089) Galbraith's star (UCAC4 573-029535) that reproduces
+Occult's star position to 0.4 mas (VERIFICATION.md). That motion carries UCAC4's own proper motion's error over the
+years between the central epoch and 2000; the epoch motion above avoids it.
+
+**Limits**: most 2-parameter stars are close doubles. For them every estimate describes a photocentre that moves
+with the pair's orbit, and UCAC (seeing-limited, ~1-2") may have measured the blend while Gaia measured one
+component. (4089) Galbraith's star (WDS AG 112 AB, 2.8", nearly equal): its two best estimates, UCAC5 (-4.0, -13.0
++- 1.7) and the epoch motion (-3.3, -10.5 +- 1.0/2.3), differ by 2.6 mas/yr, ~43 km on the ground by 2026, more
+than either's quoted error; UCAC4's own (-5.6, -15.8) is 5.4 mas/yr from the epoch motion. Such events should be compared with other
+predictions; the double-star check in the favorites panel (VizieR: WDS and Gaia's binarity indicators) shows what is
+known about the pair. Gaia DR4 (expected December 2026) will give proper motions for most of these stars.
 
 ### 2.5 Candidate scan: `find_candidates`
 

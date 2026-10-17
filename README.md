@@ -849,7 +849,8 @@ parallax or proper motion: 0.57 M). OWC predicts events on them, so they are in 
 2-parameter stars the build looks up proper motions in UCAC5 and UCAC4 through the CDS cross-match service, as
 OWC/Occult take them from other catalogs: 294 k from UCAC5, 171 k from UCAC4, 108 k stay without ("NO proper
 motion"). The `xref` part adds a third estimate, from UCAC4's measured position (around 1998) to Gaia's (2016), and
-each star keeps whichever of them has the smallest error. The matching is strict, so a close neighbour cannot be taken by mistake: UCAC5's position (Gaia DR1, 2015)
+each star keeps whichever of them has the smallest error (sources, errors and the choice: ABOUT.md
+[2.4.1](ABOUT.md#241-proper-motions-sources-and-the-choice-per-star)). The matching is strict, so a close neighbour cannot be taken by mistake: UCAC5's position (Gaia DR1, 2015)
 must lie within 0.2" of Gaia DR3's and G within 0.5 mag (UCAC4: 0.5" and 1 mag; for (4089) Galbraith's star, a double,
 the companion 2.9" away is rejected). Every event on such a star is flagged **⚑ RUWE 1.65** or **⚑ 2-param** in the
 results, report, favorites and CSV, and the star's position uncertainty is added to the path's sigma lines and chance;
