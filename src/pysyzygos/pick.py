@@ -52,11 +52,18 @@ def fetch_sbdb(hmax, cache, max_age_s=None):
         if usable and time.time() - fetched < max_age_s:
             return blob["fields"], blob["data"], fetched
         stale = blob if usable else None
+    from pysyzygos import offline
+    copy = offline.sbdb_fallback(want)                           # the cache emptied (e.g. /dev/shm after a restart):
+    if (copy and copy.get("full_prec") and set(SBDB_FIELDS) <= set(copy.get("fields", []))   # a fresh offline copy
+            and time.time() - (copy.get("fetched") or 0) < max_age_s):                       # instead of 100 MB again
+        print(f"asteroid list from the offline copy of {time.strftime('%Y-%m-%d', time.gmtime(copy['fetched']))} "
+              f"(the cache had none, e.g. after a restart)", file=sys.stderr)
+        _write_cache(cache, copy)
+        return copy["fields"], copy["data"], copy["fetched"]
     q = dict(fields=",".join(SBDB_FIELDS), **{"sb-kind": "a", "sb-ns": "n", "full-prec": "true"})
     if hmax is not None:
         q["sb-cdata"] = json.dumps({"AND": [f"H|LT|{hmax}"]})
     print(f"Downloading SBDB ({'all numbered' if hmax is None else f'H < {hmax}'}, full precision) ...", file=sys.stderr)
-    from pysyzygos import offline
     try:
         with net.urlopen(SBDB_URL + "?" + urllib.parse.urlencode(q), timeout=1200) as r:
             blob = json.load(r)
@@ -71,12 +78,17 @@ def fetch_sbdb(hmax, cache, max_age_s=None):
         return old["fields"], old["data"], old.get("fetched")
     blob["hmax"], blob["fetched"], blob["full_prec"] = want, time.time(), True
     offline.keep_sbdb(blob)                                      # a compressed copy for offline use, if switched on
-    if cache:
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(cache)), suffix=".tmp")
-        with os.fdopen(fd, "w") as f:
-            json.dump(blob, f)
-        os.replace(tmp, cache)
+    _write_cache(cache, blob)
     return blob["fields"], blob["data"], blob["fetched"]
+
+
+def _write_cache(cache, blob):
+    if not cache:
+        return
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(cache)), suffix=".tmp")
+    with os.fdopen(fd, "w") as f:
+        json.dump(blob, f)
+    os.replace(tmp, cache)
 
 
 def to_float(x, default=float("nan")):

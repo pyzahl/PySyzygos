@@ -35,11 +35,28 @@ def max_age_s(max_age_days=None):
 
 
 def load(cache_path=None):
+    path = cache_file(cache_path)
+    if not os.path.isfile(path):                              # the cache emptied (e.g. /dev/shm after a restart):
+        _restore_from_offline(path)                           # the offline copy, if there is one
     try:
-        with open(cache_file(cache_path)) as f:
+        with open(path) as f:
             return json.load(f)
     except (OSError, ValueError):
         return {}
+
+
+def _restore_from_offline(path):
+    """Copy the offline copy of the size data (offline.PHYS) into the empty cache; entries keep their dates, so stale
+    ones are fetched again as usual. Never raises."""
+    try:
+        from pysyzygos import offline
+        if os.path.isfile(offline.PHYS):
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+            os.close(fd)
+            shutil.copyfile(offline.PHYS, tmp)
+            os.replace(tmp, path)
+    except Exception:
+        pass
 
 
 def get(number, cache_path=None, max_age_days=None):

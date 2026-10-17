@@ -22,6 +22,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   with all of them. The header's catalog list updates afterwards.
 
 ### Changed
+- **After a restart the pick does not download the asteroid list again** when offline copies are on (System tab):
+  an empty cache (Linux keeps it in memory, `/dev/shm`) is filled from the offline copy if that is younger than
+  `sbdb_max_age_days`; the size data likewise.
 - **Search start-up 7 s faster**: `import astroquery.gaia` contacted the Gaia archive at every start (status
   messages, 7.2 s; offline: until a timeout); it is now imported only where the old "windows" mode queries the
   archive. Missing orbit files are downloaded two at a time before pass 1 (JPL Horizons answers 503 to more; such

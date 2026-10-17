@@ -34,8 +34,30 @@ e = O.phys_fallback("433")                                                   # n
 assert e["phys"]["diameter"]["value"] == "16.84" and e["phys"]["H"]["value"] == "10.4"
 assert O.phys_fallback("12345") is None
 
+# an empty cache (e.g. /dev/shm after a restart) is filled from a fresh offline copy, without a download
+import time
+from pysyzygos import pick as P, sbdb as SB
+P.net.urlopen = lambda *a, **k: (_ for _ in ()).throw(AssertionError("no download expected"))
+fresh = dict(blob, fields=P.SBDB_FIELDS, data=[[""] * len(P.SBDB_FIELDS)] * 3, fetched=time.time() - 86400)
+assert O.keep_sbdb(fresh)
+cache_file = os.path.join(cache, "PySyzygos_sbdb_cache.json")
+fields, data, fetched = P.fetch_sbdb(17.0, cache_file)
+assert len(data) == 3 and abs(fetched - fresh["fetched"]) < 1 and os.path.isfile(cache_file), "restored, not downloaded"
+assert P.fetch_sbdb(17.0, cache_file)[1] == data                         # then from the cache itself
+os.remove(cache_file)
+O.keep_sbdb(dict(fresh, fetched=time.time() - 40 * 86400))               # an old copy is not used: a download
+try:
+    P.fetch_sbdb(17.0, cache_file)
+    raise SystemExit("an expired offline copy was used instead of a download")
+except AssertionError:
+    pass
+# the size data: the cache file is restored from the offline copy when missing
+phys_cache = os.path.join(cache, SB.FILE)
+assert not os.path.exists(phys_cache) and SB.load(cache)["3200"]["phys"]["diameter"]["value"] == "6.25"
+assert os.path.isfile(phys_cache)
+
 st = O.status()
-assert st["enabled"] and st["sbdb"]["count"] == 2 and st["orbits"] == 3 and "2 asteroids (H < 17)" in O.status_text(st)
+assert st["enabled"] and st["sbdb"]["count"] == 3 and st["orbits"] == 3 and "3 asteroids (H < 17)" in O.status_text(st)
 O.set_enabled(False)
 assert not O.enabled() and os.path.isfile(O.SBDB)                           # off keeps the copies
 O.remove()

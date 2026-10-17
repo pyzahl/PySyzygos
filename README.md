@@ -41,7 +41,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Web interface (GUI)](#web-interface-gui)
 - [Planets and moons](#planets-and-moons)
 - [Report: event list, maps and previews](#report-event-list-maps-and-previews)
-- [GUI Step by Step in Screenshots](#gui-step-by-step-in-screenshots)
+- [GUI step by step, with screenshots](GETTING_STARTED.md) (Getting started: from the install to a first prediction)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
@@ -538,7 +538,7 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    cache* also the asteroid list and size data (`pysyzygos cleanup --orbits` / `--cache`; the offline copies stay).
 
 Settings changed in the GUI apply to that run only; `pysyzygos_config.py` is not changed. Details: "Web interface
-(GUI)" below; screenshots of every tab: "GUI Step by Step in Screenshots" at the end.
+(GUI)" below; a walk-through with screenshots: [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ### The core command-line tools
 

@@ -127,13 +127,18 @@ In the **Favorites** tab, **click a row**. Below the table you get:
 
 Each favorite keeps its own copy of map and preview, so later searches do not change them.
 
-**That's it.** Next time: `uv run pysyzygos`, and run a new pick when your window has passed.
-
 <img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/441cb3fe-b8e5-497a-8540-edcf5f1b7d01" />
 
 <img width="2292" height="1963" alt="image" src="https://github.com/user-attachments/assets/85cef7b2-f6d3-4590-ad08-1a1b29f1460b" />
 
-More details and the exact path can be reviewed checking the "Path Verification:" box on top. Then click on a event (click any part of the row, on the date for example, just not on a link!). Scroll down to the "Path verification area" and explore! Step by Step button computes and displays all calculation details. You can also run a automated cross check to compare a Geodetic path with Occult.exe path export data.
+**All the details of the computation:** tick **Path verification** at the top of the Favorites tab, then click an
+event (anywhere in its row, e.g. on the date, just not on a link) and scroll down to the section "Path
+verification". **Step by step** computes and shows every step for this event: the star from the Gaia catalog through
+each correction, the asteroid, the shadow's geometry and the points on the ground. There you can also cross-check
+the path automatically against a path listing exported from Occult.
+
+**That's it.** Next time: `uv run pysyzygos`, and run a new pick when your window has passed.
+
 
 ---
 
@@ -150,7 +155,9 @@ PySyzygos works from local copies of the data it needs. The first time, it has t
 **Where the downloads are kept:** in a cache folder: on Linux in memory (`/dev/shm`, emptied when you restart the
 computer), on macOS and Windows in the system's temporary folder (emptied from time to time). After a restart the
 first pick and search are therefore slow again. To keep them for good, and to work without internet (e.g. at a
-remote observing site): **System** tab, tick **Keep copies of orbit downloads for use without network**.
+remote observing site): **System** tab, tick **Keep copies of orbit downloads for use without network**. After a
+restart the pick then takes the asteroid list from that copy (while it is younger than 30 days) instead of
+downloading it again.
 
 **Speeding up picks:** for windows you use often, a **pre-screen** does the site-independent part of the pick once
 (Pick tab, **Pre-screens** panel): later picks then take seconds. See "Pick" in the [README](README.md).
