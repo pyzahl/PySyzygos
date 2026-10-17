@@ -159,8 +159,13 @@ remote observing site): **System** tab, tick **Keep copies of orbit downloads fo
 restart the pick then takes the asteroid list from that copy (while it is younger than 30 days) instead of
 downloading it again.
 
-**Speeding up picks:** for windows you use often, a **pre-screen** does the site-independent part of the pick once
-(Pick tab, **Pre-screens** panel): later picks then take seconds. See "Pick" in the [README](README.md).
+**Speeding up picks:** a **pre-screen** (Pick tab, **Pre-screens** panel) does the site-independent part of the pick
+once for a window; picks within it then take seconds instead of minutes. Building one takes about as long as a few
+full picks (an hour or two for a month), so it pays off when you pick more than once: for several sites (home, a
+dark-sky spot, travel), when you try other settings (camera, star limit, reach), or for weekly picks within a month.
+If you only pick once per window for one site, just run the pick. Tips: build it overnight (it can be stopped and
+resumed); rebuild it after a few weeks, as it uses the orbits of its build day; "whole Earth" serves any site and trip
+(about 1 GB per month). See "Pick" in the [README](README.md).
 
 ## If something goes wrong
 
