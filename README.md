@@ -510,7 +510,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    path listing for the same event, as in VERIFICATION.md section 3. *Compute our path (fresh)* runs the search for
    this event only, with today's orbit from JPL, and keeps the path and the orbit files with the favorite (so a later
    comparison uses the same orbit). Paste Occult's listing (or load its .txt), optionally its plot header (orbit
-   JPL#, star RA/Dec, diameter), and *Compare*: a report pops up (sample points, across and along the track, the fit in
+   JPL#, star RA/Dec, diameter), and *Compare*. Other path tables work too: only the centre line's longitude,
+   latitude and UT are needed. A table with a header row naming them (CSV, tab, semicolon or spaces; any extra
+   columns) is read by those names; values may be decimal or degrees-minutes-seconds (spaces, colons or ° ′ ″, signs
+   or N/S/E/W), times hh:mm:ss, ISO date-times or decimal hours. Missing star altitudes are computed, missing path
+   limits leave out the width check. Then a report pops up (sample points, across and along the track, the fit in
    the fundamental plane, a one-line result; Markdown and CSV kept in `favorites/<event>/pathcheck/`). *Export our
    path* gives our path in Occult's layout for a comparison the other way; *Keep in owc_refs* copies a comparison to
    `owc_refs/occult_paths/` (private) with an index line. *Step by step* shows, in a section below, the event from

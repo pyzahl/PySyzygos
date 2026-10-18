@@ -224,7 +224,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   map_dir/results_db/hits in pathcheck/run), path.npz of the favorite's star, the target's SPK files copied (a later
   compare uses the same orbit), meta.json (version, SBDB orbit id, run_utc). `compare`: parse_listing (Occult layout,
   sign apart), parse_header (JPL#, RA/Dec, Dia), shadow_path at Occult's times, plane offsets via spkcpo per point,
-  fit_plane (const; + rotation), markdown -> compare_<UTC stamp>.md/.csv. `export`: shadow_path at 1.45 s in Occult's
+  fit_plane (const; + rotation), markdown -> compare_<UTC stamp>.md/.csv. Input tolerant (2026-10-17): `_table_rows` (header names: `_find_cols` lon/lat/time/
+  alt, centre preferred, limits/sun avoided; `angle`, `ut_time` per field) else `_occult_row` (9 numbers required:
+  lon/lat d m s + UT; alt/az/sun and limits optional); compare computes a missing star_alt (SPICE), date or nearest
+  day to best_utc, w_occ NaN without limits. Old and new parser identical on the Phaethon/Galbraith listings. `export`: shadow_path at 1.45 s in Occult's
   layout (fmt_dms/fmt_ut). `steps`: star catalog -> each correction (amounts) -> direction used (checked against the
   search's), asteroid geo/bary/lt/own deflection, Besselian elements (ICRF axes and of date via erfa.pnm06a/gst06a,
   d, mu) at touch-down/centre/leaving (bisection on the centre line, minimize for the centre), geodetic points ->

@@ -73,4 +73,34 @@ meta = dict(target_name="9999 Test", best_utc="2019-07-29T11:12:00", version="t"
 md = P.markdown(meta, title, h, pts, st, fit0, 1.449, 10.8, 6.25)
 assert "**Different orbit solutions**" in md and "| Orbit | JPL#1016 |" in md and "**Result:**" in md
 assert md.count("\n| ") >= len(P.sample_rows(pts)) + 4
+
+# tolerant import: only the centre's longitude, latitude and time are needed; extra columns are ignored
+LON, LAT, SEC = -(15 + 40 / 60 + 42 / 3600), -(44 + 19 / 60 + 9 / 3600), 11 * 3600 + 3 * 60 + 39.82
+def one(text, n=1, alt=None, date=None):
+    rows, _ = P.parse_listing(text)
+    assert len(rows) == n, (text[:60], len(rows))
+    r = rows[0]
+    assert abs(r["lon"] - LON) < 2e-5 and abs(r["lat"] - LAT) < 2e-5 and abs(r["sec"] - SEC) < 0.02, (r, text[:60])
+    assert r["star_alt"] == alt and r.get("date") == date, r
+    return rows
+# CSV: other columns before and between, the limits' columns not taken for the centre
+one("Nr,Limit 1 Lon,Limit 1 Lat,Center Longitude,Center Latitude,UT,Star Alt,Sun Alt,Remark\n"
+    f"1,-15.70,-44.15,{LON:.6f},{LAT:.6f},11:03:39.82,4,21,ok\n", alt=4.0)
+# semicolon, decimal commas (a German spreadsheet), decimal hours
+one("Zeit (UT);Breite (lat);Länge (lon);Dauer\n"
+    f"{SEC / 3600:.7f}".replace(".", ",") + f";{LAT:.6f};{LON:.6f};3,2\n".replace(".", ","))
+# tabs, degrees-minutes-seconds with symbols and hemisphere letters, ISO date-time with the date
+one("time\tlatitude\tlongitude\taltitude of star\n"
+    "2019-07-29T11:03:39.82Z\t44°19'09\"S\t15°40'42\"W\t39\n", alt=39.0, date="2019-07-29")
+# spaces with a header row (one token per column); a units row and a note are skipped
+one("lon lat utc alt\n deg deg hms deg\n" f"{LON:.6f} {LAT:.6f} 11:03:39.82 12\n# end\n", alt=12.0)
+# Occult's layout cut down to the centre and time (no alt/az, no limits), and with extra columns at the end
+cut = "   - 15 40 42   -44 19  9   11  3 39.82\n"
+r = one(cut)[0]
+assert r["l1"] is None and r["sun_alt"] is None
+one("   - 15 40 42   -44 19  9   11  3 39.82    4   348    21   ....  0.49  x\n", alt=4.0)
+# not a path: no rows (a sentence with numbers, a short table without names)
+assert P.parse_listing("Uncertainty in time = +/- 0 secs\n1 2 3\n")[0] == []
+assert P.angle("−0 59 6") < 0 and abs(P.angle("15d40m42s") - 15.678333) < 1e-5
+assert P.ut_time("2019 Jul 29 11:03:39")[1] == "2019-07-29" and P.ut_time("11h03m39.8s")[0] == 39819.8
 print("PATHCHECK TESTS PASSED")

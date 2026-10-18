@@ -32,40 +32,160 @@ def dms(tok):
     return -v if neg else v
 
 
+def _occult_row(line):
+    """One row of Occult's own layouts, or None: centre longitude, latitude (d m s each) and UT (h m s) are required;
+    star altitude/azimuth and Sun altitude, then the limits (8 longitude/latitude pairs by time, or 4 latitudes by
+    longitude) are taken when present and plausible. Signs may stand apart ("- 9 57 38"); extra columns are ignored."""
+    t = line.split()
+    merged, i = [], 0
+    while i < len(t):
+        if t[i] in ("-", "+") and i + 1 < len(t):
+            merged.append(t[i].replace("+", "") + t[i + 1]); i += 2
+        else:
+            merged.append(t[i]); i += 1
+    num = [x for x in merged if re.fullmatch(r"[-+]?\d+(\.\d+)?", x)]
+    lead = 0
+    while lead < len(merged) and re.fullmatch(r"[-+]?\d+(\.\d+)?", merged[lead]):
+        lead += 1
+    if lead < 9:
+        return None
+    v = merged[:lead]
+    try:
+        f = [float(x) for x in v]
+    except ValueError:
+        return None
+    if not (abs(f[0]) <= 360 and 0 <= f[1] < 60 and 0 <= f[2] < 60 and abs(f[3]) <= 90 and 0 <= f[4] < 60
+            and 0 <= f[5] < 60 and 0 <= f[6] < 48 and 0 <= f[7] < 60 and 0 <= f[8] < 61):
+        return None
+    row = dict(lon=dms(v[0:3]), lat=dms(v[3:6]), sec=f[6] * 3600 + f[7] * 60 + f[8], star_alt=None, star_az=None,
+               sun_alt=None, l1=None, l2=None, e1=None, e2=None)
+    rest = v[9:]
+    if len(rest) >= 3 and -90 <= float(rest[0]) <= 90 and 0 <= float(rest[1]) <= 360 and -90 <= float(rest[2]) <= 90 \
+            and all(re.fullmatch(r"[-+]?\d+", x) for x in rest[:3]):
+        row.update(star_alt=float(rest[0]), star_az=float(rest[1]), sun_alt=float(rest[2]))
+        rest = rest[3:]
+    try:
+        if len(rest) >= 24:                                  # by time: each limit as a (longitude, latitude) pair
+            lim = [dms(rest[3 * k: 3 * k + 3]) for k in range(8)]
+            row.update(l1=(lim[0], lim[1]), l2=(lim[2], lim[3]), e1=(lim[4], lim[5]), e2=(lim[6], lim[7]))
+        elif len(rest) >= 6:                                 # by longitude: the limits as latitudes at this longitude
+            lim = [dms(rest[3 * k: 3 * k + 3]) for k in range(len(rest) // 3)][:4]
+            pairs = [(row["lon"], la) for la in lim]
+            row.update(l1=pairs[0], l2=pairs[1], e1=pairs[2] if len(pairs) > 2 else None,
+                       e2=pairs[3] if len(pairs) > 3 else None)
+    except (ValueError, IndexError):
+        pass
+    return row
+
+
+def angle(text):
+    """Degrees from one field: '-15.6783', '15 40 42', '-15:40:42.5', '15°40'42"W', 'W 15 40 42', '15d40m42s', a
+    Unicode minus; S and W (letters) negative. ValueError if it is not an angle."""
+    t = str(text).strip().replace("−", "-")
+    if not t:
+        raise ValueError("empty")
+    letters = re.findall(r"[A-Za-z]", re.sub(r"(?<=\d)[dms](?=\d|\s|$)", " ", t))
+    if len(letters) > 1 or (letters and letters[0].upper() not in "NSEW"):
+        raise ValueError(t)
+    neg = bool(re.match(r"^\s*[A-Za-z]?\s*-", t)) or (letters and letters[0].upper() in "SW")
+    nums = re.findall(r"\d+(?:[.,]\d+)?", t)
+    if not 1 <= len(nums) <= 3:
+        raise ValueError(t)
+    v = sum(float(n.replace(",", ".")) / 60.0 ** k for k, n in enumerate(nums))
+    return -v if neg else v
+
+
+def ut_time(text):
+    """(seconds of the day, 'YYYY-MM-DD' or None) from one field: '11:03:39.82', '11 3 39.82', '11h03m39.8s',
+    '2019-07-29T11:03:39.82Z', '2019 Jul 29 11:03:39', or decimal hours ('11.0611'). ValueError otherwise."""
+    t = str(text).strip()
+    date = None
+    m = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", t)
+    if m:
+        date = f"{int(m[1]):04d}-{int(m[2]):02d}-{int(m[3]):02d}"
+        t = t[m.end():]
+    else:
+        m = re.search(r"(\d{4})\s+([A-Za-z]{3})[a-z]*\s+(\d{1,2})", t)
+        if m and m[2].title() in calendar.month_abbr:
+            date = f"{int(m[1]):04d}-{list(calendar.month_abbr).index(m[2].title()):02d}-{int(m[3]):02d}"
+            t = t[m.end():]
+    nums = re.findall(r"\d+(?:[.,]\d+)?", t)
+    f = [float(n.replace(",", ".")) for n in nums]
+    if len(f) >= 3 and f[0] < 48 and f[1] < 60 and f[2] < 61:
+        return f[0] * 3600 + f[1] * 60 + f[2], date
+    if len(f) == 2 and f[0] < 48 and f[1] < 60:
+        return f[0] * 3600 + f[1] * 60, date
+    if len(f) == 1 and re.search(r"[.,]", nums[0]) and f[0] < 48:
+        return f[0] * 3600.0, date                           # decimal hours
+    raise ValueError(text)
+
+
+_COL = dict(lon=r"lon|λ|lambda", lat=r"lat|φ|phi", time=r"^\W*(u\.?\s?t\.?c?|time|zeit|epoch|date.?time)\b",
+            alt=r"alt|elev|höhe")
+
+
+def _find_cols(fields):
+    """Column indices of longitude, latitude, time and the star's altitude from a header row (names), preferring a
+    centre/centre-line column where there are several; None where not found."""
+    low = [f.strip().lower() for f in fields]
+    def pick(key, avoid=r"limit|edge|error|sigma|sun|moon"):
+        cand = [i for i, f in enumerate(low) if re.search(_COL[key], f) and not re.search(avoid, f)]
+        cent = [i for i in cand if re.search(r"cent|center|centre|mitte", low[i])]
+        return (cent or cand or [None])[0]
+    cols = dict(lon=pick("lon"), lat=pick("lat"), time=pick("time", r"limit|edge|error|sigma|dur|length"),
+                alt=pick("alt", r"limit|edge|error|sigma|sun|moon|crn|elevation.?model|height|ellip"))
+    return cols if None not in (cols["lon"], cols["lat"], cols["time"]) else None
+
+
+def _table_rows(text):
+    """Rows of a table with a header row naming longitude, latitude and time (CSV, tab, semicolon or spaces; any extra
+    columns); None when no such header is found."""
+    lines = text.splitlines()
+    for k, line in enumerate(lines):
+        delim = next((d for d in ("\t", ";", ",") if line.count(d) >= 2), None)
+        fields = line.split(delim) if delim else line.split()
+        cols = _find_cols(fields)
+        if not cols:
+            continue
+        rows = []
+        for data in lines[k + 1:]:
+            if not data.strip():
+                continue
+            f = [x.strip().strip('"') for x in (data.split(delim) if delim else data.split())]
+            if not delim and len(f) != len(fields):
+                continue                                     # spaces: only rows with one token per column
+            try:
+                lon, lat = angle(f[cols["lon"]]), angle(f[cols["lat"]])
+                sec, date = ut_time(f[cols["time"]])
+            except (ValueError, IndexError):
+                continue
+            if not (-360 <= lon <= 360 and -90 <= lat <= 90):
+                continue
+            alt = None
+            if cols["alt"] is not None:
+                try:
+                    alt = float(f[cols["alt"]].replace(",", "."))
+                except (ValueError, IndexError):
+                    alt = None
+            rows.append(dict(lon=lon, lat=lat, sec=sec, date=date, star_alt=alt, star_az=None, sun_alt=None,
+                             l1=None, l2=None, e1=None, e2=None))
+        if rows:
+            return rows
+    return None
+
+
 def parse_listing(text):
-    """Rows of an Occult path listing (centre, UT, star alt/az, Sun alt, path limits 1/2, error limits 1/2): list of
-    dicts lon, lat, sec (UT seconds of the day), star_alt, star_az, sun_alt, l1, l2, e1, e2 (lon, lat pairs). Two
-    layouts: by time (the limits as longitude/latitude pairs) and by longitude (whole degrees; the limits as latitudes
-    at that longitude, "Path Limits: Latitude Latitude"). Signs
-    stand apart for short degrees ("- 9 57 38"); header and other lines are skipped. Also returns the title line."""
-    rows, title = [], ""
-    for line in text.splitlines():
-        if not title and line.strip().lower().startswith("occultation of"):
-            title = line.strip()
-        t = line.split()
-        merged, i = [], 0
-        while i < len(t):
-            if t[i] == "-" and i + 1 < len(t):
-                merged.append("-" + t[i + 1]); i += 2
-            else:
-                merged.append(t[i]); i += 1
-        if len(merged) < 20 or not re.fullmatch(r"-?\d+", merged[0]):
-            continue
-        nums = sum(1 for x in merged if re.fullmatch(r"-?\d+(\.\d+)?", x))
-        try:
-            lon, lat = dms(merged[0:3]), dms(merged[3:6])
-            h, m, s = int(merged[6]), int(merged[7]), float(merged[8])
-            star_alt, star_az, sun_alt = float(merged[9]), float(merged[10]), float(merged[11])
-            if nums >= 36:                                   # by time: each limit as a (longitude, latitude) pair
-                lim = [dms(merged[12 + 3 * k: 15 + 3 * k]) for k in range(8)]
-                l1, l2, e1, e2 = (lim[0], lim[1]), (lim[2], lim[3]), (lim[4], lim[5]), (lim[6], lim[7])
-            else:                                            # by longitude: the limits as latitudes at this longitude
-                lim = [dms(merged[12 + 3 * k: 15 + 3 * k]) for k in range(4)]
-                l1, l2, e1, e2 = ((lon, la) for la in lim)
-        except (ValueError, IndexError):
-            continue
-        rows.append(dict(lon=lon, lat=lat, sec=h * 3600 + m * 60 + s, star_alt=star_alt, star_az=star_az,
-                         sun_alt=sun_alt, l1=l1, l2=l2, e1=e1, e2=e2))
+    """Rows of a path listing: list of dicts lon, lat (deg), sec (UT seconds of the day; 'date' when the listing
+    gives one), star_alt (None if not given), star_az, sun_alt, l1, l2, e1, e2 ((lon, lat) of the path and error
+    limits, None if not given). Only the centre line's longitude, latitude and time are needed; everything else is
+    optional and extra columns are ignored. Read as (1) a table whose header row names longitude, latitude and time
+    (CSV, tab, semicolon or spaces; decimal or d m s values, N/S/E/W, ISO times), else (2) Occult's own layouts: by
+    time (limits as longitude/latitude pairs) or by longitude (limits as latitudes), signs standing apart for short
+    degrees ("- 9 57 38"). Also returns the title line ("Occultation of ...")."""
+    title = next((ln.strip() for ln in text.splitlines() if ln.strip().lower().startswith("occultation of")), "")
+    rows = _table_rows(text)
+    if rows is None:
+        rows = [r for r in (_occult_row(ln) for ln in text.splitlines()) if r]
     return rows, title
 
 
@@ -362,7 +482,8 @@ def compare(out, listing_text, header_text=""):
     from pysyzygos import paths
     rows, title = parse_listing(listing_text)
     if not rows:
-        raise SystemExit("no rows recognised in the listing (Occult's 'predicted path' table is expected)")
+        raise SystemExit("no path rows recognised: Occult's path listing, or a table whose header row names longitude, "
+                         "latitude and time (UT) is expected")
     header = parse_header(header_text + "\n" + listing_text)
     spice, z, tid = _load(out)
     meta = json.load(open(os.path.join(out, "meta.json")))
@@ -376,9 +497,15 @@ def compare(out, listing_text, header_text=""):
         g = lambda k: (p[k][0][1], p[k][0][2]) if p[k] else None
         return g("center"), g("edge_plus"), g("edge_minus")
 
+    try:
+        best_et = spice.str2et(str(z["best_utc"]).replace("T", " ").rstrip("Z") + " UTC")
+    except Exception:
+        best_et = et0 + 43200.0
     points = []
     for r in rows:
-        et = et0 + r["sec"]
+        et = (spice.str2et(r["date"] + " 00:00:00 UTC") if r.get("date") else et0) + r["sec"]
+        if not r.get("date"):                                # times only: the day nearest our event (midnight)
+            et += 86400.0 * round((best_et - et) / 86400.0)
         c0, ep, em = ours(et)
         c1, _, _ = ours(et + 0.5)
         if c0 is None or c1 is None:
@@ -389,14 +516,20 @@ def compare(out, listing_text, header_text=""):
         u = v / speed
         n = np.cross(P / np.linalg.norm(P), u)
         d = Q - P
-        w_occ = float(np.linalg.norm(_ecef(*r["l1"]) - _ecef(*r["l2"])))
+        w_occ = float(np.linalg.norm(_ecef(*r["l1"]) - _ecef(*r["l2"]))) if r.get("l1") and r.get("l2") else float("nan")
+        star_alt = r.get("star_alt")
+        if star_alt is None:                                 # not in the listing: the star's altitude at the point
+            lo_, la_ = math.radians(r["lon"]), math.radians(r["lat"])
+            up = np.array([math.cos(la_) * math.cos(lo_), math.cos(la_) * math.sin(lo_), math.sin(la_)])
+            s_itrf = spice.pxform("J2000", "ITRF93", et) @ np.asarray(star_dir, float)
+            star_alt = math.degrees(math.asin(max(-1.0, min(1.0, float(up @ s_itrf) / np.linalg.norm(s_itrf)))))
         w_our = float(np.linalg.norm(_ecef(*ep) - _ecef(*em))) if ep and em else float("nan")
         # the fundamental plane: Occult's point minus the shadow axis as that point sees it (light time from the point)
         rel = np.asarray(spice.spkcpo(tid, et, "J2000", "OBSERVER", "CN", Q, "399", "ITRF93")[0][:3])
         a0 = np.asarray(spice.spkpos(tid, et - 0.5, "J2000", "CN", "399")[0])
         a1 = np.asarray(spice.spkpos(tid, et + 0.5, "J2000", "CN", "399")[0])
         rot = spice.pxform("ITRF93", "J2000", et) @ np.cross([0.0, 0.0, 1.0], Q)
-        points.append(dict(utc=r["sec"], lat=float(r["lat"]), star_alt=r["star_alt"], across=float(d @ n), along=float(d @ u),
+        points.append(dict(utc=(et - et0) % 86400.0, lat=float(r["lat"]), star_alt=star_alt, across=float(d @ n), along=float(d @ u),
                            dt=float(d @ u) / speed, dist=float(np.linalg.norm(d)), w_occ=w_occ, w_our=w_our,
                            px=float(-(rel @ x_ax)), py=float(-(rel @ y_ax)),
                            dvx=float(-((a1 - a0) @ x_ax)), dvy=float(-((a1 - a0) @ y_ax)),

@@ -12,6 +12,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   event time on it. The azimuth reference is set by hand or fitted to the horizon points; with the sky made
   transparent (PNG), the horizon line is read from the photo (`panorama.py`) and can be downloaded as
   `UserHorizon.txt` for OccultWatcher. Kept as a small copy in `horizons/` (private). New dependency: Pillow.
+- **Path comparison input** (`pathcheck.parse_listing`): any path table works, not only Occult's exact layout:
+  only the centre's longitude, latitude and UT are needed, other columns are ignored. Tables with a header row are
+  read by column names (CSV, tab, semicolon, spaces; decimal or d m s, ° ′ ″, N/S/E/W, decimal commas; hh:mm:ss, ISO
+  date-times, decimal hours); Occult's layouts also without the limit or altitude columns. A missing star altitude
+  is computed, times near midnight go to the event's day. Occult's own listings read exactly as before.
 - **UserHorizon.txt**: the horizon now belongs to the site in the form (the "Station in the file" select is gone; a
   file with several stations: the one named like the site); files saved with a byte-order mark (Windows editors,
   OccultWatcher's own) load, which failed before.
