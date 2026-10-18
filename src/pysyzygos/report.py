@@ -433,7 +433,9 @@ def moon_text(e):
 # ---------------------------------------------------------------- HTML
 
 CSS = """
-.azsw{font-size:.8rem;font-weight:normal;color:var(--muted);margin-left:6px;white-space:nowrap;cursor:pointer}
+.azsw{display:block;font-size:.75rem;font-weight:normal;text-transform:none;color:var(--muted);white-space:nowrap;
+ cursor:pointer;margin-top:2px}
+td.mag{white-space:normal;min-width:4.2em} td.evtime .tz{font-size:.8rem;color:var(--muted)}
 .azsw input{vertical-align:middle;margin:0 2px 0 0;cursor:pointer}.favbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px}
 :root{--bg:#f6f7f9;--card:#fff;--ink:#16202b;--muted:#5d6b7a;--line:#e1e5ea;--head:#eef1f5;--accent:#1f6feb;
 --in-bg:#dff5e6;--in-ink:#14653a;--near-bg:#fdf0d2;--near-ink:#7a5200}
@@ -573,12 +575,14 @@ cells.forEach(function(c){c.dataset.ut=c.textContent;});
 function zoned(c,tz){var o={year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',
   second:'2-digit',hour12:false,timeZoneName:'short'};if(tz)o.timeZone=tz;var p={};
   try{new Intl.DateTimeFormat('en-US',o).formatToParts(new Date(c.dataset.utc)).forEach(function(x){p[x.type]=x.value;});}
-  catch(e){return c.dataset.ut;}
-  return p.year+'-'+M[+p.month-1]+'-'+('0'+p.day).slice(-2)+' '+(p.hour==='24'?'00':p.hour)+':'+p.minute+':'+p.second+
-    ' '+(p.timeZoneName||'');}
-function show(mode){cells.forEach(function(c){c.textContent=mode==='local'?zoned(c,null):
-  mode==='site'?(c.dataset.tz?zoned(c,c.dataset.tz)+' ('+c.dataset.tz.split('/').pop().replace(/_/g,' ')+')':
-  c.dataset.ut+' UT (site zone unknown)'):c.dataset.ut;});
+  catch(e){return [c.dataset.ut,''];}
+  return [p.year+'-'+M[+p.month-1]+'-'+('0'+p.day).slice(-2)+' '+(p.hour==='24'?'00':p.hour)+':'+p.minute+':'+p.second,
+    p.timeZoneName||''];}
+function put(c,v){c.textContent=v[0];if(v[1]){c.appendChild(document.createElement('br'));   // the zone below: narrower
+  var z=document.createElement('span');z.className='tz';z.textContent=v[1];c.appendChild(z);}}
+function show(mode){cells.forEach(function(c){put(c,mode==='local'?zoned(c,null):
+  mode==='site'?(c.dataset.tz?(function(v){return [v[0],v[1]+' ('+c.dataset.tz.split('/').pop().replace(/_/g,' ')+')'];})(
+  zoned(c,c.dataset.tz)):[c.dataset.ut,'UT (site zone unknown)']):[c.dataset.ut,'']);});
   if(head)head.firstChild.textContent={ut:'Event time (UT)',local:'Event time (local)',site:'Event time (site)'}[mode];
   try{localStorage.setItem('fav_time',mode);}catch(e){}}
 if(tsel){try{var m=localStorage.getItem('fav_time');if(m)tsel.value=m;}catch(e){}
@@ -872,7 +876,7 @@ def html_row_body(e):
         f'{esc(contact_text(e["utc"]))}</td>'
         f'<td title="{esc(e.get("r_utc") or "")} UTC">{contact_text(e.get("r_utc"))}</td>'
         f'<td class="num" data-s="{s(dur)}">{dur_txt}</td>'
-        f'<td class="num" data-s="{s(e["mag"])}">{fmt(e["mag"])}{star_mark(e)}{twilight_mark(e)}</td>'
+        f'<td class="num mag" data-s="{s(e["mag"])}">{fmt(e["mag"])}{star_mark(e)}{twilight_mark(e)}</td>'
         f'{alt_cell(e, alt_tip)}'
         f'<td data-s="{s(moon["sep"], 1) if moon else ""}" title="{moon_tip}">{esc(moon_text(e))}</td>'
         f"{shadow_cell(e)}" + chance_cell(e) + f"{map_cell(e)}</tr>")
@@ -924,7 +928,7 @@ def html_row(e):
         + (f' class="evtime" data-utc="{(e["when"] + timedelta(milliseconds=500)).strftime("%Y-%m-%dT%H:%M:%SZ")}" '
            f'data-tz="{esc((e.get("site") or {}).get("tz") or "")}"' if f else "")
         + f'>{esc(fmt_time(e["when"]))}</td>'
-        f'<td class="num" data-s="{s(e["mag"])}" title="{mag_tip}">'
+        f'<td class="num mag" data-s="{s(e["mag"])}" title="{mag_tip}">'
         + (f'<a href="{esc(VIZIER_GAIA)}{urllib.parse.quote(str(e["star"]))}" target="_blank" rel="noopener" '
            f'title="{esc(e.get("star_name") or "Gaia DR3 " + str(e["star"]))}'
            f'{esc(" (" + e["star_tip"] + ")") if e.get("star_tip") else ""}: Gaia DR3 in VizieR. {mag_tip}">'

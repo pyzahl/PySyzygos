@@ -308,7 +308,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   CSV export) with report dedupe + mag sort; favorite_rows from favorites.load(). Written to
   cache_path/pysyzygos_exports, utf-8-sig. Keep event_shown in step with report.html_row / html_row_body.
 - `pysyzygos/stellarium.py` (2026-10-08): Stellarium Remote Control plugin (`URL_STELLARIUM_API`, port 8090, HTTP POST
-  form fields via `net.urlopen`): location/setlocationfields (if KSTARS_OPT set_location) -> main/time (time = JD
+  form fields via `net.urlopen`): location/setlocationfields (if KSTARS_OPT set_location) + stelproperty/set StelCore.currentTimeZone = the
+  site's IANA zone (GUI `site_timezone`: favorites' site tz, else geo.timezone, cached; verified live) -> main/time (time = JD
   UT, timerate=0) -> main/view (j2000=[x,y,z]) -> main/fov. Never raises. GUI route `/api/stellarium/show`; report
   `.stbtn` shown whenever served over http (no status check: blind try, toast). Verified with a running Stellarium.
 - `pysyzygos/favorites.py`: favorites in `favorites/` (private, gitignored): `favorites.json` (entry = hits_log record,

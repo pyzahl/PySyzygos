@@ -2250,8 +2250,24 @@ def main():
     @app.get("/api/stellarium/show")
     def stellarium_show(ra: float, dec: float, utc: str, fov: float = 2.0, lat: float = None, lon: float = None,
                         ele: float = 0.0):
-        ok, msg = stellarium.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"])
+        tz = site_timezone(lat, lon) if KSTARS_OPT["set_location"] and lat is not None and lon is not None else None
+        ok, msg = stellarium.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"], tz=tz)
         return {"ok": ok, "msg": msg}
+
+    TZ_CACHE = {}
+
+    def site_timezone(lat, lon):
+        """IANA time zone at a site: from a favorite at the same place (looked up before), else Open-Meteo once."""
+        key = (round(float(lat), 3), round(float(lon), 3))
+        if key not in TZ_CACHE:
+            tz = next((e["site"]["tz"] for e in favorites.load() if (e.get("site") or {}).get("tz")
+                       and abs(float(e["site"].get("lat", 99)) - lat) < 1e-3
+                       and abs(float(e["site"].get("lon", 999)) - lon) < 1e-3), None)
+            tz = tz or geo.timezone(lat, lon)
+            if not tz:
+                return None                                  # offline: try again next time
+            TZ_CACHE[key] = tz
+        return TZ_CACHE[key]
     app.add_static_file(local_file=os.path.join(ROOT, "hits_report.html"), url_path="/out/hits_report.html",
                         strict=False, max_cache_age=0)
     app.add_static_file(local_file=os.path.join(ROOT, "bodies_report.html"), url_path="/out/bodies_report.html",

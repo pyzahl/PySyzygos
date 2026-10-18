@@ -88,6 +88,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   neighbours go beyond the catalog; an old-format catalog; no quality part; high-RUWE stars switched off).
 
 ### Fixed
+- **Stellarium showed the computer's time zone** after moving to the site (a site set by coordinates has no time
+  zone in Stellarium): the link now also sets Stellarium's clock to the site's zone (`StelCore.currentTimeZone`, e.g.
+  Europe/Zurich with summer time; from the favorites, else looked up once). The instant was right before too.
+- **Favorites / results table wider than the window**: the site time's zone, the star warnings and the az° switch
+  wrap onto a second line, so all columns fit again.
 - Runs started by the GUI hung when setup asked a question: they inherited the terminal the GUI was started from,
   and the question (no line end) never reached the GUI log (seen with "Install the new catalog": it waited after
   "... then swapped in" until Enter was pressed in that terminal). GUI runs now get an empty input, so setup takes

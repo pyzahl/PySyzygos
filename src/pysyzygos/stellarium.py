@@ -36,9 +36,13 @@ def j2000_vector(ra_deg, dec_deg):
     return [math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)]
 
 
-def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_location=True, name="PySyzygos site"):
+def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_location=True, name="PySyzygos site",
+         tz=None):
     """Centre Stellarium on (ra, dec) (J2000 degrees) at the UTC time utc (ISO), clock stopped, field fov_deg; with
-    set_location and the site lat/lon also move Stellarium's location there. Returns (ok, message); never raises."""
+    set_location and the site lat/lon also move Stellarium's location there and, with tz (IANA name, e.g.
+    "Europe/Zurich"), its clock's time zone (StelCore.currentTimeZone; a custom location has none, so Stellarium would
+    keep showing the computer's zone: the instant is right either way, the time is given as a Julian Day in UT).
+    Returns (ok, message); never raises."""
     try:
         t = datetime.fromisoformat(str(utc).strip().rstrip("Z")[:19]).replace(tzinfo=timezone.utc)
         ra_deg, dec_deg, fov_deg = float(ra_deg), float(dec_deg), max(0.01, min(float(fov_deg), 180.0))
@@ -51,6 +55,10 @@ def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_loc
         if not ok:
             return False, f"Stellarium not reachable ({out}): Remote Control plugin running on port 8090?"
         note = "; Stellarium location set to the site"
+        if tz:
+            ok, out = _post("stelproperty/set", id="StelCore.currentTimeZone", value=str(tz))
+            note += f", its clock to {tz}" if ok and out.lower().startswith("ok") else \
+                f" (its time zone not set: {out[:80]})"
     ok, out = _post("main/time", time=f"{julian_day(t):.8f}", timerate="0")
     if not ok:
         return False, f"Stellarium not reachable ({out}): Remote Control plugin running on port 8090?"
