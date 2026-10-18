@@ -128,6 +128,9 @@ In the **Favorites** tab, **click a row**. Below the table you get:
 
 Each favorite keeps its own copy of map and preview, so later searches do not change them.
 
+<img width="1906" height="1671" alt="image" src="https://github.com/user-attachments/assets/85e57582-7a79-433f-88a3-82d889f9cf24" />
+
+
 <img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/441cb3fe-b8e5-497a-8540-edcf5f1b7d01" />
 
 <img width="2292" height="1963" alt="image" src="https://github.com/user-attachments/assets/85cef7b2-f6d3-4590-ad08-1a1b29f1460b" />
