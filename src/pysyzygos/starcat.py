@@ -74,8 +74,8 @@ ZENODO_STEM = {16.0: "gaia_dr3_g16_v2"}                        # archives <stem>
 # the published archives (build d242c96ed70f63b3, 2026-10-16): size and SHA-256, so a mirror's copy is checked without
 # Zenodo; a newer build on Zenodo (another checksum there) is taken from Zenodo's .sha256 instead
 ARCHIVE_SHA256 = {
-    "gaia_dr3_g16_v2_core.tar.xz": (2034082136, "6d1dfc8e4cba430ed0e4f840a8f0a23e648ceac1b82868b56990932fd618ece4"),
-    "gaia_dr3_g16_v2_quality.tar.xz": (None, "55e82c33b2f0882515801f47d53785b18608c17ab448bd1e25519f5dda13142b"),
+    "gaia_dr3_g16_v2_core.tar.xz": (2035404320, "f1fe5accc8fdddb2bbeda689551f6b8e79cce2ac2a71d51c40a84ee4c1e75e5f"),  # 1.3.1
+    "gaia_dr3_g16_v2_quality.tar.xz": (None, "46d11d3a7f6fc717b27e71fe3ed4378dba907656b69e9d1cc2f44024273bc278"),
     "gaia_dr3_g16_v2_extras.tar.xz": (None, "1262480f747c207fc868727e6f110da63f62d64f3f57a96dc91ad87a9f38ba10"),
 }
 

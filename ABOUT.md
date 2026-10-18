@@ -236,9 +236,11 @@ and the epoch motion both rest on UCAC's CCD positions, so they are not independ
 errors go into the core (`pmra`, `pmdec`, kind) and the quality part (`pmra_error`, `pmdec_error`); Gaia's 2016.0
 position is always kept. Checked on one UCAC4 zone (573, 492 stars): UCAC5 and epoch motions agree within their
 quoted errors (median difference 0.8 sigma), so both error estimates are realistic; UCAC4's own motions do not
-(median 2 sigma, 23 % beyond 3 sigma: their errors are too small), so the epoch motion replaces nearly all of them,
-and about half of the UCAC5 ones where it is the more precise. The counts of the published catalog are in its
-`catalog.json` (`pm_xmatch`, `pm_epoch`).
+(median 2 sigma, 23 % beyond 3 sigma: their errors are too small). Over the whole catalog (2026-10-17, G <= 16) the
+epoch motion replaced 354,695 of the 428,251 it was computed for: 220,082 UCAC5, 122,440 UCAC4 and 12,173 stars
+without any; 73,556 kept their UCAC5/UCAC4 motion. The 573,735 2-parameter stars now have: epoch motion 354,695
+(kind 5), UCAC5 74,414 (kind 3), UCAC4 48,654 (kind 4), none 95,972 (kind 2). The counts are in the catalog's
+`catalog.json` (`pm_xmatch`: before; `pm_epoch`: the replacements).
 
 **What the prediction does with the error**: `gaia_local.star_sigma_mas` gives the star's 1-sigma position at the
 event, sqrt(position error^2 + (pm error x years since 2016)^2); in km at the asteroid it is combined with the

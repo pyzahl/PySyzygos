@@ -62,11 +62,14 @@ them at the top right.
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
 
-Options: Add custom horizon Altitude cut off by Azimuth and 360 photo.
+Optional, under **Horizon**: your own horizon (trees, buildings, hills) as OccultWatcher's `UserHorizon.txt`, and a
+360° photo of the site, on which the horizon line is drawn; events whose star is behind it are marked.
 
 <img width="1890" height="1731" alt="image" src="https://github.com/user-attachments/assets/a8a6e041-bccc-4bff-bbc4-f83ee9f3809b" />
 
-Site 360 demo photo, credit it: "Photo: Domob, Wikimedia Commons, CC BY-SA 4.0".
+*Demo photo: [Spherical panorama Blue Bridge St James Park](https://commons.wikimedia.org/wiki/File:Spherical_panorama_Blue_Bridge_St_James_Park_20250522.jpg)
+by Domob, Wikimedia Commons, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); sky made transparent
+and horizon drawn by PySyzygos.*
 
 ## 3. Pick: which asteroids pass in front of a star for you?
 
