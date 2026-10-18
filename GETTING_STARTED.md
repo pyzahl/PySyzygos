@@ -62,10 +62,11 @@ them at the top right.
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
 
+Options: Add custom horizon Altitude cut off by Azimuth and 360 photo.
 
-<img width="2247" height="1263" alt="image" src="https://github.com/user-attachments/assets/d7bac3e0-8c6b-4b3f-94bb-e0d18f402c06" />
+<img width="1890" height="1731" alt="image" src="https://github.com/user-attachments/assets/a8a6e041-bccc-4bff-bbc4-f83ee9f3809b" />
 
-
+Site 360 demo photo, credit it: "Photo: Domob, Wikimedia Commons, CC BY-SA 4.0".
 
 ## 3. Pick: which asteroids pass in front of a star for you?
 
