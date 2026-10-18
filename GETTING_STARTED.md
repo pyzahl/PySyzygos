@@ -68,8 +68,8 @@ Optional, under **Horizon**: your own horizon (trees, buildings, hills) as Occul
 <img width="1890" height="1731" alt="image" src="https://github.com/user-attachments/assets/a8a6e041-bccc-4bff-bbc4-f83ee9f3809b" />
 
 *Demo photo: [Spherical panorama Blue Bridge St James Park](https://commons.wikimedia.org/wiki/File:Spherical_panorama_Blue_Bridge_St_James_Park_20250522.jpg)
-by Domob, Wikimedia Commons, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); sky made transparent
-and horizon drawn by PySyzygos.*
+by Domob, Wikimedia Commons, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); horizon line drawn by
+PySyzygos.*
 
 ## 3. Pick: which asteroids pass in front of a star for you?
 
