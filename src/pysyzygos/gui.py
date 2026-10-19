@@ -2087,15 +2087,28 @@ def index():
 
 
 def local_star_names(config):
-    """lookup(record) for favorites.backfill_names: the star's UCAC4 / TYC / HIP names from the local catalog's xref
-    part; None for every record when the catalog has no such part."""
-    from pysyzygos import gaia_local
+    """lookup(record) for favorites.backfill_names: the star's UCAC4 / TYC / HIP names from a local catalog with the
+    xref part: the one selected in the GUI header, else the config's, else any other; None for every record when no
+    catalog has it."""
+    from pysyzygos import gaia_local, starcat
     state = {}
+
+    def with_xref():
+        names = [load_ui_state().get("catalog"), config.gaia_local_dir] + sorted(
+            f for f in os.listdir(ROOT) if f.startswith("gaia_dr3_") and not f.endswith((".old", ".new")))
+        for n in names:
+            d = os.path.join(ROOT, n) if n else None
+            try:
+                if d and starcat.is_format2(d) and starcat.group_ok(d, "xref"):
+                    return gaia_local.LocalGaia(d)
+            except Exception:
+                continue
+        return None
 
     def lookup(r):
         if "cat" not in state:
             try:
-                c = gaia_local.LocalGaia(config.gaia_local_dir)
+                c = with_xref()
                 state["cat"] = c if getattr(c, "xref", None) is not None else None
             except Exception:
                 state["cat"] = None
@@ -2200,7 +2213,7 @@ def main():
 
     @app.get("/api/favorites/keys")
     def favorites_keys():
-        return {"keys": favorites.keys()}
+        return {"keys": favorites.keys(), "edited": favorites.edited()}
 
     @app.get("/api/favorites/update")
     def favorites_update(keys: str, status: str):

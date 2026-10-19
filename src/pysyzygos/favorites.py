@@ -102,6 +102,32 @@ def keys(folder=DIR):
     return [e["key"] for e in load(folder)]
 
 
+def pm_text(r):
+    """'-4.00, -13.00 ± 1.70 mas/yr (UCAC5)' (pmRA·cosDec, pmDec) from the record; older records: the source alone
+    (from star_kind), or "Gaia DR3"."""
+    from pysyzygos.gaia_local import pm_source
+    src = (r.get("star_pm_source") or "").strip() or pm_source(r.get("star_kind") or 0) or "Gaia DR3"
+    def num(k):
+        try:
+            v = float(r.get(k))
+            return v if v == v else None
+        except (TypeError, ValueError):
+            return None
+    a, d, e = num("star_pmra"), num("star_pmdec"), num("star_pm_err")
+    if src == "none":
+        return "none (2-parameter star: its 2016.0 position is used)"
+    if a is None or d is None:
+        return src
+    return f"{a:+.2f}, {d:+.2f}" + (f" \u00b1 {e:.2f}" if e is not None and e > 0 else "") + f" mas/yr ({src})"
+
+
+def edited(folder=DIR):
+    """Keys of the favorites changed from their defaults (a note, or a status other than "planned"): removing those
+    from the results page asks first."""
+    return [e["key"] for e in load(folder) if str(e.get("note") or "").strip() or
+            (e.get("status") or STATUSES[0]) != STATUSES[0]]
+
+
 def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None):
     """Add an event (record: a hits_log row as a dict; run: the run summary of its search, or None; sbdb: the
     asteroid's size-cache entry from sbdb, kept with the favorite). Copies its KML and preview from map_dir.
@@ -587,8 +613,9 @@ def event_info(entry):
         ruwe = f("star_ruwe")                                     # a supplement star: RUWE from the local supplement
     sflag = (r.get("star_flag") or "").strip()
     star += [("RUWE", f"{ruwe:.2f}" + (" \u2691 (supplement: position less certain)" if sflag.startswith("RUWE") else "")
-              if ruwe is not None else ("2-parameter source \u2691 (no proper motion)" if sflag
+              if ruwe is not None else ("2-parameter source \u2691 (see proper motion)" if sflag
                                         else "< 1.4 (local catalog)")),
+             ("Proper motion", pm_text(r)),
              ("Close/double", double_text(entry) or "not checked yet")]
     dist = f("dist_au")
     mas = (2 * rad / (dist * 1.495978707e8) * 206264806.2) if rad and dist else None

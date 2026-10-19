@@ -28,7 +28,10 @@ assert open(os.path.join(fav, e["files"]["svg"])).read() == "<svg/>"        # th
 ok, msg = F.add(F.find_record(log, "19714", "2026-10-04T06:38:06"), None, maps, fav)
 assert ok and "no map or preview" in msg, msg
 assert F.keys(fav) == ["19714_20261004T0638", "17834_20261003T0253"], "newest first"
+assert F.edited(fav) == []                                                    # new ones: planned, no note
 assert F.update("17834_20261003T0253", fav, status="observed", note="clear, positive")[0]
+assert F.edited(fav) == ["17834_20261003T0253"]                               # removing it from the results asks
+assert F.update("19714_20261004T0638", fav, note="  ")[0] and F.edited(fav) == ["17834_20261003T0253"]   # blank note
 assert not F.update("17834_20261003T0253", fav, status="bogus")[0]
 assert F.load(fav)[1]["status"] == "observed" and F.load(fav)[1]["note"] == "clear, positive"
 assert F.remove("17834_20261003T0253", fav)[0] and not F.remove("17834_20261003T0253", fav)[0]
@@ -135,4 +138,9 @@ e2 = next(x for x in F.load(fav) if x["key"] == "369152_20261012T0458")
 assert e2["record"]["shadow_from_utc"] == "~2026-10-12T04:59" and abs(float(e2["record"]["m_combined"]) - 8.05) < 0.01
 assert dict(dict(F.event_info(e2))["Event"])["From"] == "≈ 04:59 UT"
 assert F.backfill_event(lambda tid, utc: calls.append(tid), fav) == 0 and len(calls) == n, "once per favorite"
+# the star's proper motion and its source (record fields since 1.3.1; older records: from star_kind)
+assert F.pm_text(dict(star_pmra=-4.0, star_pmdec=-13.0, star_pm_err=1.7, star_pm_source="UCAC5")) == \
+    "-4.00, -13.00 \u00b1 1.70 mas/yr (UCAC5)"
+assert F.pm_text(dict(star_kind="5")) == "UCAC4 epoch to Gaia" and F.pm_text({}) == "Gaia DR3"
+assert F.pm_text(dict(star_kind="2")).startswith("none")
 print("FAVORITES TESTS PASSED")

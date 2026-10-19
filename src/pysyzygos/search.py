@@ -1079,6 +1079,10 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                   star_flag=gaia_local.star_flag(kind_, ruwe_), ast_sigma1_km=ast_sigma1,
                   star_sigma_mas=s_mas if s_mas else float("nan"), star_sigma_km=s_km if s_km else float("nan"))
     record.update(star_az=az_deg(res['best_et'], star_dir, obs_geo))     # the report's compass direction (exact UT1)
+    pm_e = getattr(row, "pm_err", float("nan"))                         # the catalog's proper motion and its source
+    record.update(star_pmra=float(getattr(row, "pmra", float("nan"))), star_pmdec=float(getattr(row, "pmdec", float("nan"))),
+                  star_pm_err=float(pm_e) if pm_e is not None else float("nan"),
+                  star_pm_source=gaia_local.pm_source(kind_))
     names = dict(star_ucac4="", star_tyc="", star_hip="")             # the star's other names (catalog part xref)
     if near is not None and "ucac4" in near:
         me = near[near["source_id"].astype("int64") == int(row.source_id)]

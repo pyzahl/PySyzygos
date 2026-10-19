@@ -744,7 +744,10 @@ def steps(out, folder_key=None):
           f"| parallax | {plx:.4f} mas |", f"| pmRA·cosDec, pmDec | {float(r0.pmra):.4f}, {float(r0.pmdec):.4f} mas/yr |",
           f"| radial velocity | {rv:.3f} km/s" + (" (from data/gaia_dr3_rv_fast.npy)" if rv else " (not used: below the threshold or none)") + " |",
           f"| kind, RUWE | {int(getattr(r0, 'star_kind', 0) or 0)} (0 = 5/6-parameter astrometry, RUWE < 1.4), "
-          f"{ruwe_text} |", "",
+          f"{ruwe_text} |",
+          f"| proper motion from | {gaia_local.pm_source(getattr(r0, 'star_kind', 0) or 0)}"
+          + (f" (± {float(r0.pm_err):.2f} mas/yr)" if getattr(r0, "pm_err", None) is not None
+             and float(r0.pm_err) == float(r0.pm_err) else "") + " |", "",
           "| Step | RA | Dec | Shift of the position by this step (RA·cosDec, Dec; mas, not mas/yr) |", "|---|---|---|---|"]
     prev = cat
     years = (et_c - spice.str2et("2016-01-01 12:00:00 TDB")) / (365.25 * 86400.0)

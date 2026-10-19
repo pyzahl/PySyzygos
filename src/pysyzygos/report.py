@@ -525,14 +525,22 @@ function pyoToast(msg,stay){var t=document.getElementById('pyotoast');if(!t){t=d
 
 FAV_JS = """<script>
 (function(){var bs=document.querySelectorAll('.favbtn');if(!bs.length||location.protocol==='file:')return;
+var ON='In the favorites: click to remove it again',OFF='Add to the favorites (with its map and preview)';
+function tell(){try{if(parent&&parent!==window&&parent.emitEvent)parent.emitEvent('fav_changed','');}catch(e){}}
+function mark(b,on){b.textContent=on?'★':'☆';b.title=on?ON:OFF;}
 fetch('/api/favorites/keys').then(function(r){return r.json();}).then(function(j){
- var have=new Set(j.keys||[]);
- bs.forEach(function(b){b.hidden=false;var on=have.has(b.dataset.key);b.textContent=on?'★':'☆';
-  b.title=on?'In the favorites (GUI tab Favorites)':'Add to the favorites (with its map and preview)';
-  b.addEventListener('click',function(){if(b.textContent==='★'){pyoToast('Already a favorite: manage it in the GUI tab Favorites');return;}
+ var have=new Set(j.keys||[]),edited=new Set(j.edited||[]);        // edited: a note or a status set
+ bs.forEach(function(b){b.hidden=false;mark(b,have.has(b.dataset.key));
+  b.addEventListener('click',function(){
+   if(b.textContent==='★'){                    // a favorite: remove it again (asked first only if you edited it)
+    if(edited.has(b.dataset.key)&&!confirm('Remove this event from the favorites?\\nIts status and note are '+
+      'deleted with it.'))return;
+    fetch('/api/favorites/remove?'+new URLSearchParams({keys:b.dataset.key})).then(function(r){return r.json();})
+     .then(function(j){if(j.ok){mark(b,false);tell();}pyoToast(j.msg,!j.ok);})
+     .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});return;}
    var q=new URLSearchParams({tid:b.dataset.tid,utc:b.dataset.utc});
    fetch('/api/favorites/add?'+q).then(function(r){return r.json();}).then(function(j){
-    if(j.ok){b.textContent='★';b.title='In the favorites (GUI tab Favorites)';}pyoToast(j.msg,!j.ok);})
+    if(j.ok){mark(b,true);tell();}pyoToast(j.msg,!j.ok);})
    .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});});});}).catch(function(){});})();
 </script>"""
 
@@ -798,9 +806,15 @@ def star_flag_tip(flag):
         return (f"Gaia {flag} (>= 1.4): the star's astrometry fits a single star poorly, often an unresolved double; its "
                 f"position, and so the shadow path, is less certain than usual. From the high-RUWE supplement of the "
                 f"local catalog.")
-    return ("Gaia 2-parameter source: position only, no parallax or proper motion; its position at the event date is "
-            "off by its unknown motion since 2016 (typically 0.05-0.2\"), so the shadow path is less certain. From the "
-            "supplement of the local catalog.")
+    if "pm " in flag:                                            # a proper motion from another catalog
+        src = flag.split("pm ", 1)[1]
+        how = ("from UCAC4's measured position (around 1998) to Gaia's (2016)" if "epoch" in src else f"from {src}")
+        return (f"Gaia 2-parameter source: Gaia measured its position only, no parallax or proper motion. Its proper "
+                f"motion here is {how}, less precise than Gaia's (sources and the choice: ABOUT.md 2.4.1), so the "
+                f"shadow path is less certain than usual.")
+    return ("Gaia 2-parameter source: position only, no parallax or proper motion, and none found in UCAC5 or UCAC4; "
+            "its position at the event date is off by its unknown motion since 2016 (typically 0.05-0.2\"), so the "
+            "shadow path is less certain.")
 
 
 def star_uncertain(e):

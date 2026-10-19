@@ -7,6 +7,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.3.1] "Beyond Horizons" - 2026-10-17
 
 ### Added
+- **Which proper motion a star has**: new record fields `star_pmra`, `star_pmdec`, `star_pm_err`, `star_pm_source`
+  (Gaia DR3, UCAC5, UCAC4, UCAC4 epoch to Gaia, none); the favorites panel shows a "Proper motion" row, the ⚑ flag's
+  hover text and the path verification's step-by-step name the source.
+- **The ☆ in the results toggles**: a filled ★ removes the event from the favorites again (it asks first only when
+  you gave the favorite a note or a status other than "planned"); the Favorites tab follows at once.
 - **Your site's 360° photo** (Site tab, Horizon): an equirectangular photo (2:1, a 360° camera or a phone's photo
   sphere) shows the horizon line and the margin over the real view, and the favorites panel shows the star at the
   event time on it. The azimuth reference is set by hand or fitted to the horizon points; with the sky made

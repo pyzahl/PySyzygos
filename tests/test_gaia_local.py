@@ -235,4 +235,6 @@ try:
 except RuntimeError as e:
     assert "no Gaia source files" in str(e), e
 requests.get = real_get
+assert [L.pm_source(k) for k in (0, 1, 2, 3, 4, 5)] == ["Gaia DR3", "Gaia DR3", "none", "UCAC5", "UCAC4",
+                                                        "UCAC4 epoch to Gaia"]
 print("GAIA LOCAL TESTS PASSED")

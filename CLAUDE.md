@@ -119,7 +119,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (sigra/sigdc mas +128, cepra/cepdc 0.01 yr - 1900, pm 0.1 mas/yr); `epoch_pm` = UCAC4 J2000 taken back to its central
   epoch with UCAC4's pm, then to Gaia 2016 (errors hypot(sig, Gaia pos err)/interval, >= EPOCH_MIN_YEARS);
   `choose_pm` replaces where max-axis error < stored (quality pmra/pmdec_error; kind 2 = inf) -> KIND_2P_EPOCH 5
-  (KINDS_2P_PM, gaia_local PM_SOURCE); changes the CORE (repack). CLI `catalog pm-epoch [--dry-run]` (xref numbers),
+  (KINDS_2P_PM, gaia_local PM_SOURCE); changes the CORE (repack). Record fields star_pmra/star_pmdec/star_pm_err/star_pm_source (end;
+  `gaia_local.pm_source(kind)`), favorites `pm_text` row "Proper motion", report `star_flag_tip` names the source. CLI `catalog pm-epoch [--dry-run]` (xref numbers),
   `xref --no-pm-epoch`; catalog.json pm_epoch. Galbraith keeps UCAC5 (1.70 vs 2.32). merge skips groups whose fields are not in PART.
   add_group("xref") builds locally when no archive. `StarCatalog.names`, frame columns ucac4/tyc/hip; search record
   star_ucac4/star_tyc/star_hip (end); `report.star_label(r)` -> (name, other names) for report tips, favorites,

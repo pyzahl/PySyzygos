@@ -669,6 +669,17 @@ def star_flag(kind, ruwe=None):
     return f"2-param, pm {PM_SOURCE[k]}" if k in PM_SOURCE else ""
 
 
+def pm_source(kind):
+    """Where the star's proper motion comes from, by its kind: 'Gaia DR3' (5/6-parameter stars, also high RUWE),
+    'UCAC5', 'UCAC4', 'UCAC4 epoch to Gaia' (2-parameter stars: ABOUT.md 2.4.1), or 'none' (2-parameter star
+    without any; its 2016.0 position is used)."""
+    try:
+        k = int(kind)
+    except (TypeError, ValueError):
+        return ""
+    return "none" if k == KIND_2P else PM_SOURCE.get(k, "Gaia DR3")
+
+
 def star_sigma_mas(kind, ruwe, pos_err, pm_err, years):
     """1-sigma position uncertainty (mas, per axis) of a supplement star `years` after Gaia's 2016.0, or None for a
     main-catalog star (its Gaia errors are tiny; the online check adds them). 2-parameter star: position error and the
