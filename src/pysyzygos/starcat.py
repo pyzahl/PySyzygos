@@ -71,6 +71,11 @@ CSV_COLS = ["source_id", "ra", "dec", "parallax", "pmra", "pmdec", "phot_g_mean_
 ROWS = np.dtype([("source_id", "<i8"), ("ra", "<f8"), ("dec", "<f8"), ("parallax", "<f4"), ("pmra", "<f4"),
                  ("pmdec", "<f4"), ("phot_g_mean_mag", "<f4"), ("ruwe", "<f4"), ("kind", "u1")])
 ZENODO_STEM = {16.0: "gaia_dr3_g16_v2"}                        # archives <stem>_<group>.tar.xz on the catalog record
+# the catalog's DATA version: <format>.<update>; 2.0 = format 2 as published with 1.3.0, 2.1 = with the epoch proper
+# motions of the 2-parameter stars (1.3.1). Mirror folders are named after it (catalog_v2.1/). Published: LATEST.
+DATA_LATEST = {16.0: "2.1"}
+DATA_TEXT = {"1": "the old format (before 1.3.0)", "2.0": "format 2 as published with 1.3.0",
+             "2.1": "with the epoch proper motions of the 2-parameter stars (1.3.1)"}
 # the published archives (build d242c96ed70f63b3, 2026-10-16): size and SHA-256, so a mirror's copy is checked without
 # Zenodo; a newer build on Zenodo (another checksum there) is taken from Zenodo's .sha256 instead
 ARCHIVE_SHA256 = {
@@ -592,6 +597,7 @@ def pm_epoch(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, dry_run=False, log=
                 f"{el / 60:.0f} min, ETA {el / k * (len(zones) - k) / 60:.0f} min")
     if not dry_run:
         man = _manifest(d)
+        man["data_version"] = "2.1"
         man["pm_epoch"] = dict(total, date=time.strftime("%Y-%m-%d"), min_years=EPOCH_MIN_YEARS, method=EPOCH_METHOD)
         _write_json(os.path.join(d, "catalog.json"), man)
     log(f"   epoch proper motions: {sum(total['replaced'].values())} replaced (old kind: {total['replaced']}), "
@@ -762,6 +768,7 @@ def build_xref(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, query=None, log=p
         last = ucac[rows] == nums                              # a later zone may have matched the star better
         counts = choose_pm(d, rows[last], recs[last], log=log)
         man = _manifest(d)
+        man["data_version"] = "2.1"
         man["pm_epoch"] = dict(counts, date=time.strftime("%Y-%m-%d"), min_years=EPOCH_MIN_YEARS, method=EPOCH_METHOD)
         _write_json(os.path.join(d, "catalog.json"), man)
         log(f"   epoch proper motions: {sum(counts['replaced'].values())} replaced (old kind: {counts['replaced']}), "
@@ -769,6 +776,59 @@ def build_xref(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, query=None, log=p
     log(f"   xref: UCAC4 for {int((xref['ucac4'] > 0).sum()) / 1e6:.1f} M stars, TYC {int((xref['tyc'] > 0).sum())}, "
         f"HIP {int((xref['hip'] > 0).sum())}")
     return status(d)
+
+
+# ----------------------------------------------------------------------------------------------- data version
+def data_version(d):
+    """'2.1' / '2.0' for a format-2 catalog (catalog.json 'data_version', else '2.1' when it has the epoch proper
+    motions, pm_epoch), '1' for the old format, '' when d holds no catalog."""
+    if is_format2(d):
+        man = _manifest(d)
+        return str(man.get("data_version") or ("2.1" if man.get("pm_epoch") else "2.0"))
+    try:
+        from pysyzygos import gaia_local as GL
+        return "1" if GL.status(d).get("complete") else ""
+    except Exception:
+        return ""
+
+
+def update_available(d):
+    """The newer published data version for format-2 catalog d (a ready-made limit), or None."""
+    if not is_format2(d):
+        return None
+    latest = DATA_LATEST.get(float(_manifest(d)["gmax"]))
+    v = data_version(d)
+    return latest if latest and tuple(map(int, v.split("."))) < tuple(map(int, latest.split("."))) else None
+
+
+def update(d, keep_archive=False, log=print, files=None, mirror_list=None):
+    """Bring format-2 catalog d to the published data version: the core and the parts that changed are downloaded
+    into <d>.new (with the parts d has, and xref), unchanged parts (extras) are copied over, then <d>.new is swapped in
+    (the old one -> <d>.old, returned). A partial <d>.new resumes. files / mirror_list: as fetch (tests)."""
+    from pysyzygos import gaia_local as GL
+    new = staging_dir(d)
+    gmax = float(_manifest(d)["gmax"])
+    have = groups_present(d)[1:]
+    want = sorted(set(have) | {"xref"})
+    copy = [g for g in want if g in UNCHANGED.get(DATA_LATEST.get(gmax), ()) and g in have]
+    log(f"   update {d} to data version {DATA_LATEST.get(gmax)}: download core + {', '.join(g for g in want if g not in copy)}"
+        + (f", keep {', '.join(copy)}" if copy else ""))
+    if not is_format2(new):
+        fetch(new, gmax, [g for g in want if g not in copy], keep_archive, files=files, mirror_list=mirror_list)
+    for g in copy:
+        if not group_ok(new, g):
+            for f in _group_files(g):
+                shutil.copy2(os.path.join(d, f), os.path.join(new, f + ".tmp"))
+                GL.replace_file(os.path.join(new, f + ".tmp"), os.path.join(new, f))
+            man = _manifest(new)
+            man["groups"] = sorted(set(man.get("groups", [])) | {g})
+            _write_json(os.path.join(new, "catalog.json"), man)
+    if not group_ok(new, "xref") or (copy and not all(group_ok(new, g) for g in copy)):
+        raise RuntimeError(f"{new} is not complete: run the update again to resume")
+    return swap_in(d)
+
+
+UNCHANGED = {"2.1": ("extras",)}                              # parts the same as in the previous data version
 
 
 # ----------------------------------------------------------------------------------------------- folder state

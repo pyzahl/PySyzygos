@@ -319,4 +319,31 @@ json.dump(dict(gmax=16.0, ruwe_max=1.4, files=[]), open(os.path.join(old, "catal
 shutil.copytree(d, SC.staging_dir(old))
 assert SC.swap_in(old) == old + ".old" and SC.is_format2(old) and not os.path.exists(SC.staging_dir(old))
 assert os.path.isfile(os.path.join(old + ".old", "catalog.json"))
+
+# data versions and the update 2.0 -> 2.1: the core and the changed parts from the mirror into <d>.new, extras (the
+# same in both) copied over, then swapped in
+def fake_part(dd, g):
+    m = json.load(open(os.path.join(dd, "catalog.json")))
+    np.save(os.path.join(dd, f"{g}.npy"), np.zeros(m["n_stars"], SC.GROUPS[g]))
+    json.dump(dict(group=g, build_id=m["build_id"], n_stars=m["n_stars"]), open(os.path.join(dd, f"{g}.json"), "w"))
+def set_version(dd, v):
+    m = json.load(open(os.path.join(dd, "catalog.json")))
+    m.pop("pm_epoch", None); m.pop("data_version", None)
+    if v:
+        m["data_version"] = v
+    json.dump(m, open(os.path.join(dd, "catalog.json"), "w"))
+d21 = os.path.join(root, "v21", "gaia_dr3_g16"); shutil.copytree(d, d21)
+set_version(d21, "2.1"); fake_part(d21, "xref")
+out21 = os.path.join(root, "release21")
+SC.pack(d21, out21, groups=["core", "quality", "xref"])
+d20 = os.path.join(root, "v20", "gaia_dr3_g16"); shutil.copytree(d, d20)
+set_version(d20, None); fake_part(d20, "extras")
+assert SC.data_version(d20) == "2.0" and SC.update_available(d20) == "2.1" and SC.update_available(d21) is None
+assert SC.data_version(os.path.join(root, "nothing")) == ""
+SC.ARCHIVE_SHA256.clear()
+gc.collect()
+prev = SC.update(d20, log=lambda *a: None, files={}, mirror_list=["file://" + out21 + "/"])
+assert prev == d20 + ".old" and SC.data_version(d20) == "2.1" and SC.update_available(d20) is None
+assert SC.groups_present(d20) == ["core", "quality", "extras", "xref"], SC.groups_present(d20)
+assert SC.data_version(prev) == "2.0" and not os.path.exists(SC.staging_dir(d20))
 print("STARCAT TESTS PASSED")

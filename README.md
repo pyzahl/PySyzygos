@@ -386,7 +386,8 @@ All options of `pysyzygos setup` (also `pysyzygos setup --help`):
 | `--source auto\|zenodo\|esa` | where the catalog comes from: `auto` asks (Enter = Zenodo) for G 16 and builds other limits, `zenodo` the ready-made G 16, `esa` a build from ESA's files (any limit, about 2 h) |
 | `--groups LIST` | the catalog's optional parts: `quality`, `extras` (comma-separated), `all` or `none`; default: asked in a terminal, else `quality`. On an installed catalog it adds (Zenodo) or removes parts to match |
 | `--upgrade-catalog` | replace a catalog of the old format (before 1.3.0) by the new one: installed next to it (`<folder>.new`), swapped in, the old one moved to `<folder>.old` (setup asks to delete it) |
-| `--delete-old` | with `--upgrade-catalog`: delete the old catalog once the new one is complete and swapped in, without asking |
+| `--update-catalog` | bring a new-format catalog to the newest published data version (2.0 -> 2.1): the changed parts downloaded next to it, then swapped in |
+| `--delete-old` | with `--upgrade-catalog` / `--update-catalog`: delete the old catalog once the new one is complete and swapped in, without asking |
 | `--keep-archive` | keep the downloaded Zenodo `.tar.xz` files (deleted after unpacking otherwise) |
 | `--workers N` | parallel downloads for an ESA build (default 6) |
 | `--no-gaia` | kernels (and site) only, no catalog |
@@ -866,6 +867,13 @@ your site, compare with other predictions before observing. Switch: GUI header *
 one per run with `PYSYZYGOS_CATALOG=gaia_dr3_g18 pysyzygos search` (the pick follows it too), or in the GUI header;
 `pysyzygos setup --status` lists the catalogs it finds. Stars fainter than `gaia_local_gmax` are not searched, whatever
 `MAG_MIN` says. A half-built catalog is not listed; rerun the same command, it resumes.
+
+**Catalog versions.** The System tab and the header's catalog list show each catalog's data version: **v2.1**
+(the current one, from PySyzygos 1.3.1: better proper motions for the 2-parameter stars, ABOUT.md 2.4.1, and the
+star-name part xref), **v2.0** (as published with 1.3.0), or "old format". When a newer version is published, the
+System tab says so and offers **Update to 2.1** (`pysyzygos setup --update-catalog`, add `--delete-old`): only the
+parts that changed are downloaded (core, quality and xref, about 3.3 GB), unchanged ones are copied, next to the
+installed catalog, which is then swapped. `pysyzygos setup --status` shows the version too.
 
 **Catalogs of the old format** (PySyzygos before 1.3.0: per-file `.npy` stars, a separate high-RUWE supplement and a
 bright-star index for the pick) keep working, marked "old format" in the GUI. To change to the new one, run

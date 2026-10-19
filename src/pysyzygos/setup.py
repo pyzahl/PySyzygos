@@ -254,7 +254,10 @@ def show_status(d=None):
     st = gaia.status(d)
     if starcat.is_format2(d):
         pmx = st.get("pm_xmatch") or {}
-        print(f"  star catalog {d:18s}  G <= {st['gmax']:g}, {st['n_stars'] / 1e6:.1f} M stars, {st['gb']:.1f} GB; "
+        newer = starcat.update_available(d)
+        print(f"  star catalog {d:18s}  data version {starcat.data_version(d)}"
+              + (f" (update: {newer}, pysyzygos setup --update-catalog)" if newer else "")
+              + f", G <= {st['gmax']:g}, {st['n_stars'] / 1e6:.1f} M stars, {st['gb']:.1f} GB; "
               f"parts: {', '.join(st['groups'])}" + (f"; 2-param stars with pm {pmx['ucac5'] + pmx['ucac4']} of "
                                                        f"{pmx['two_param']}" if pmx else ""))
         _list_catalogs(d)
@@ -286,7 +289,11 @@ def _list_catalogs(d):
     if len(found) > 1 or (found and found[0][0] != d):
         print("  catalogs found (choose with gaia_local_dir, or PYSYZYGOS_CATALOG=<folder> for one run):")
         for f, g, ok, gb in found:
-            print(f"    {f:18s} G <= {g:g}, {gb:.1f} GB" + ("" if ok else ", INCOMPLETE") + ("   <- in use" if f == d else ""))
+            v = starcat.data_version(f) if ok else ""
+            print(f"    {f:18s} G <= {g:g}, {gb:.1f} GB" + ("" if ok else ", INCOMPLETE")
+                  + (", old format" if v == "1" else f", data version {v}" if v else "")
+                  + (f" (update: {starcat.update_available(f)})" if v and v != "1" and starcat.update_available(f)
+                     else "") + ("   <- in use" if f == d else ""))
 
 
 def supplement_step(d, gmax, want, sup_gmax, workers, ask, source="auto"):
@@ -486,7 +493,20 @@ def catalog_step(a):
     src = None
     try:
         if starcat.is_format2(d):
-            print(f"2. star catalog G <= {st['gmax']:g} in {d}: complete ({', '.join(st['groups'])}; {st['gb']:.1f} GB)")
+            print(f"2. star catalog G <= {st['gmax']:g} in {d}: complete, data version {starcat.data_version(d)} "
+                  f"({', '.join(st['groups'])}; {st['gb']:.1f} GB)")
+            newer = starcat.update_available(d)
+            if newer and (a.update_catalog or (tty and input(
+                    f"   data version {newer} is published ({starcat.DATA_TEXT.get(newer, '')}): [u]pdate now, or "
+                    f"[Enter] later: ").strip().lower().startswith("u"))):
+                old = starcat.update(d, a.keep_archive)
+                print(f"   ok: {d} is now data version {starcat.data_version(d)}; the previous one is in {old}")
+                if a.delete_old or (tty and input(f"   delete {old}? [Enter] yes, [k]eep: ").strip().lower() != "k"):
+                    shutil.rmtree(old)
+                    print(f"   deleted {old}")
+                st = gaia.status(d)
+            elif newer:
+                print(f"   data version {newer} is published: pysyzygos setup --update-catalog (or the System tab)")
             for g in [g for g in (groups or []) if g not in st["groups"]]:
                 starcat.add_group(d, g, a.keep_archive)
             for g in [g for g in st["groups"][1:] if groups is not None and g not in groups]:
@@ -580,8 +600,12 @@ def main():
     ap.add_argument("--upgrade-catalog", action="store_true",
                     help="replace an old-format catalog (before 1.3.0) by the new one: installed next to it "
                          "(<folder>.new), then swapped in; the old one goes to <folder>.old")
+    ap.add_argument("--update-catalog", action="store_true",
+                    help="bring an installed new-format catalog (G <= 16, ready-made) to the newest published data "
+                         "version (e.g. 2.0 -> 2.1: the epoch proper motions and the star names): the parts that "
+                         "changed are downloaded into <folder>.new, then swapped in")
     ap.add_argument("--delete-old", action="store_true",
-                    help="with --upgrade-catalog: delete the old catalog once the new one is complete and swapped in "
+                    help="with --upgrade-catalog / --update-catalog: delete the old catalog once the new one is complete and swapped in "
                          "(otherwise asked in a terminal, kept without one)")
     ap.add_argument("--supplement", action="store_true",
                     help="also install the catalog's high-RUWE supplement: the stars the catalog leaves out (Gaia "

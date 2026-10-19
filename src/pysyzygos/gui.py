@@ -91,7 +91,8 @@ def catalog_options(found=None):
     ones marked)."""
     from pysyzygos import gaia_local
     found = gaia_local.find_catalogs(ROOT) if found is None else found
-    return {d: f"{d} (G \u2264 {g:g}" + ("" if starcat.is_format2(os.path.join(ROOT, d)) else ", old format") + ")"
+    return {d: f"{d} (G \u2264 {g:g}, " + (f"v{starcat.data_version(os.path.join(ROOT, d))}"
+                                          if starcat.is_format2(os.path.join(ROOT, d)) else "old format") + ")"
             + ("" if ok else f", incomplete {gaia_local.status(os.path.join(ROOT, d))['done']}"
                              f"/{gaia_local.status(os.path.join(ROOT, d))['total']}")
             for d, g, ok, _ in found}
@@ -1705,8 +1706,18 @@ def index():
                 return
             if starcat.is_format2(d):
                 st = starcat.status(d)
-                ui.label(f"{cat_sel.value}: G \u2264 {st['gmax']:g}, {st['n_stars'] / 1e6:.1f} M stars, "
-                         f"{st['gb']:.1f} GB (format 2)").classes("text-sm text-slate-700")
+                v, newer = starcat.data_version(d), starcat.update_available(d)
+                ui.label(f"{cat_sel.value}: data version {v} ({starcat.DATA_TEXT.get(v, '')}), G \u2264 "
+                         f"{st['gmax']:g}, {st['n_stars'] / 1e6:.1f} M stars, {st['gb']:.1f} GB"
+                         + ("" if newer else " \u2014 the latest")).classes("text-sm text-slate-700")
+                if newer:
+                    with ui.row().classes("items-center gap-3"):
+                        ui.label(f"Data version {newer} is published: {starcat.DATA_TEXT.get(newer, '')}, and the "
+                                 f"star names (xref). The parts that changed are downloaded next to this one and "
+                                 f"swapped in.").classes("text-sm text-amber-800")
+                        upd_del = ui.checkbox("delete the previous version afterwards", value=True).props("dense")
+                        ui.button(f"Update to {newer}", on_click=lambda: cat_update(cat_sel.value, upd_del.value)
+                                  ).props("color=primary dense")
                 ready = float(st["gmax"]) in starcat.ZENODO_STEM
                 ui.checkbox(f"core ({starcat.group_bytes(d, 'core') / 1e9:.1f} GB): {starcat.GROUP_TEXT['core']}",
                             value=True).props("dense disable")
@@ -1826,6 +1837,24 @@ def index():
                 ui.button("Delete", on_click=lambda: done("delete")).props("flat color=negative")
                 ui.button("Cancel", on_click=lambda: done("cancel")).props("flat")
         dlg.open()
+
+    async def cat_update(name, delete_old=True):
+        """Bring a format-2 catalog to the newest published data version (setup --update-catalog)."""
+        ui.notify("Updating the catalog: see the log for its progress")
+        await run_process(PYSYZYGOS + ["setup", "--update-catalog", "--no-geoip", "--dir", name]
+                          + (["--delete-old"] if delete_old else []), log)
+        d = os.path.join(ROOT, name)
+        if starcat.is_format2(d) and not starcat.update_available(d):
+            ui.notify(f"{name} is now data version {starcat.data_version(d)}. The page reloads in 5 s.",
+                      type="positive", timeout=5000)
+            save_ui_state(catalog=name, site=state["name"])
+            ui.timer(5.0, ui.navigate.reload, once=True)
+        else:
+            ui.notify("The update is not finished (see the log); run it again to resume", type="warning")
+        opts = catalog_options()
+        cat_sel.set_options(opts, value=cat_sel.value if cat_sel.value in opts else None)
+        cat_refresh()
+        await sys_info_refresh()
 
     def cat_upgrade_ask(name, parts, delete_old):
         """What the upgrade will do (source, time, disk), then run it."""

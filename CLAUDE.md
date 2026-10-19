@@ -131,7 +131,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `has_supplement`); old-format folders keep the old code. `doubles.star_flags` (shared with the online check) gives
   Gaia's flags + error ellipse locally when the cone has the columns. Zenodo: G 16 only (`ZENODO_STEM`,
   `<stem>_<group>.tar.xz`), other limits are local ESA builds. Upgrade: `staging_dir` (<d>.new) + `swap_in` (old ->
-  <d>.old; cleanup lists it). setup `catalog_step` (--groups, --upgrade-catalog), GUI System tab "Star catalog"
+  <d>.old; cleanup lists it). Data versions (2026-10-19): `data_version(d)` (catalog.json data_version, else 2.1 if
+  pm_epoch, else 2.0; old format "1"), DATA_LATEST {16: "2.1"}, DATA_TEXT, `update_available`, `update(d)` (fetch
+  core + changed parts + xref into .new, copy UNCHANGED parts (extras: same build id), swap_in); setup
+  `--update-catalog` (asked in a tty), GUI System tab `cat_update` button, header labels "(G <= 16, v2.1)". setup `catalog_step` (--groups, --upgrade-catalog), GUI System tab "Star catalog"
   (`cat_refresh`, `cat_part`, `cat_upgrade_ask` dialog -> `cat_upgrade` = setup --upgrade-catalog --groups P [--delete-old], then `catalog_options()` refreshes the header select; `cat_delete_old`; parts: untick -> dialog: `disable_group` (rename to `<part>.npy.off`, OFF) / `remove_group`; `enable_group`, `disabled_groups`, CLI `catalog off|on`). Planets offline: `bodies.kernels_status`, `remove_naif`, CLI `pysyzygos planets add|remove|status` (bodies.main), GUI `planets_refresh` / `planet_kernel`. tests/test_starcat.py.
 - `pysyzygos/gaia_local.py`: (old format, before 1.3.0) builds/reads a local G-limited Gaia DR3 copy from ESA's CDN bulk files (`build`, `status`);
   one `.npy` per source file plus `.cells.npy` (1x1 deg cell index) and `.hpm.npy` (pm > 1500 mas/yr). No healpy.

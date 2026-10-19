@@ -7,6 +7,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.3.1] "Beyond Horizons" - 2026-10-17
 
 ### Added
+- **Catalog data versions and updates**: each catalog shows its data version (System tab, header list, `setup
+  --status`): v2.1 (epoch proper motions, 1.3.1), v2.0 (as published with 1.3.0), old format. A v2.0 catalog can
+  be updated in place: System tab **Update to 2.1** or `pysyzygos setup --update-catalog` downloads only the changed
+  parts (core, quality, xref), copies extras, and swaps (`starcat.data_version`, `update_available`, `update`).
 - **Which proper motion a star has**: new record fields `star_pmra`, `star_pmdec`, `star_pm_err`, `star_pm_source`
   (Gaia DR3, UCAC5, UCAC4, UCAC4 epoch to Gaia, none); the favorites panel shows a "Proper motion" row, the ⚑ flag's
   hover text and the path verification's step-by-step name the source.
