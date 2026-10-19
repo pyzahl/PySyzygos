@@ -77,6 +77,7 @@ ARCHIVE_SHA256 = {
     "gaia_dr3_g16_v2_core.tar.xz": (2035404320, "f1fe5accc8fdddb2bbeda689551f6b8e79cce2ac2a71d51c40a84ee4c1e75e5f"),  # 1.3.1
     "gaia_dr3_g16_v2_quality.tar.xz": (None, "46d11d3a7f6fc717b27e71fe3ed4378dba907656b69e9d1cc2f44024273bc278"),
     "gaia_dr3_g16_v2_extras.tar.xz": (None, "1262480f747c207fc868727e6f110da63f62d64f3f57a96dc91ad87a9f38ba10"),
+    "gaia_dr3_g16_v2_xref.tar.xz": (124126432, "e9cda32869ae96753ab95e966d2a19b2488d7ca19363cf580ab22395436ff16d"),
 }
 
 
@@ -425,22 +426,47 @@ def _unit(ra_deg, dec_deg):
     return np.stack([np.cos(dec) * np.cos(ra), np.cos(dec) * np.sin(ra), np.sin(dec)], -1)
 
 
+ZONE_DEADLINE_S = 600                                          # one UCAC4 zone file (~10 MB): give up after this
+
+
+def _download(url, timeout=60, deadline=ZONE_DEADLINE_S):
+    """The bytes at url, with a limit on the WHOLE download: a server that sends a few bytes now and then never trips
+    the read timeout (found 2026-10-17: a zone file stuck at 9.9 MB for 20 hours), so a timer closes the connection
+    after deadline seconds and the read fails (the caller retries)."""
+    import threading, requests
+    r = requests.get(url, timeout=timeout, stream=True)
+    timer = threading.Timer(deadline, r.close)
+    timer.daemon = True
+    timer.start()
+    try:
+        r.raise_for_status()
+        buf = bytearray()
+        for chunk in r.iter_content(1 << 16):
+            buf += chunk
+        if timer.finished.is_set():
+            raise TimeoutError(f"{url}: not complete after {deadline} s")
+        n = int(r.headers.get("Content-Length") or len(buf))
+        if len(buf) != n:
+            raise IOError(f"{url}: {len(buf)} of {n} bytes")
+        return bytes(buf)
+    finally:
+        timer.cancel()
+        r.close()
+
+
 def ucac4_records(zone, fetch=None):
     """The records (UCAC4_REC) of a UCAC4 zone file, in file order: the running number is index+1. fetch(url) ->
     bytes stands in for the download (tests)."""
     if fetch is None:
-        import requests
-        r = None
-        for k in range(4):
+        blob = None
+        for k in range(5):
             try:
-                r = requests.get(f"{U.URL_UCAC4_ZONES}z{zone:03d}", timeout=180)
-                r.raise_for_status()
+                blob = _download(f"{U.URL_UCAC4_ZONES}z{zone:03d}")
                 break
             except Exception:
-                if k == 3:
+                if k == 4:
                     raise
-                time.sleep(5 * (k + 1))
-        blob = r.content
+                time.sleep(10 * (k + 1))
     else:
         blob = fetch(f"{U.URL_UCAC4_ZONES}z{zone:03d}")
     return np.frombuffer(blob, dtype=UCAC4_REC)

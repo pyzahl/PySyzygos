@@ -88,6 +88,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   neighbours go beyond the catalog; an old-format catalog; no quality part; high-RUWE stars switched off).
 
 ### Fixed
+- **UCAC4 zone downloads could hang for hours** (xref build): a server sending a few bytes now and then never
+  tripped the read timeout; each zone file now has a limit for the whole download (10 min), then it is retried.
 - **Stellarium showed the computer's time zone** after moving to the site (a site set by coordinates has no time
   zone in Stellarium): the link now also sets Stellarium's clock to the site's zone (`StelCore.currentTimeZone`, e.g.
   Europe/Zurich with summer time; from the favorites, else looked up once). The instant was right before too.

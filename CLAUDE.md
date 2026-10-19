@@ -111,7 +111,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   last), offsets.npy, core.npy (CORE 31 B), hpm.npy (rows), optional quality.npy (QUALITY 20 B: ruwe, errors f2, corr
   i1 x127, nss, multi_peak) and extras.npy (EXTRAS 10 B: bp/rp mmag, rv, rv_error, teff), each with <group>.json
   (build_id, n_stars; `group_ok`). Part `xref` (2026-10-17, XREF 12 B: ucac4 = zone*1e6+number, tyc = (t1*20000+t2)*4+t3,
-  hip; `ucac4_name`, `tyc_name`): `build_xref` = `match_ucac4` (+ `records=` -> `choose_pm`: epoch pm, see below) (zones z001..z900 from URL_UCAC4_ZONES, UCAC4_REC 78 B
+  hip; `ucac4_name`, `tyc_name`): `build_xref` = `match_ucac4` (+ `records=` -> `choose_pm`: epoch pm, see below; zone files via `_download`: a
+  timer closes the connection after ZONE_DEADLINE_S 600 s, as a trickling CDS server once held a zone 20 h) (zones z001..z900 from URL_UCAC4_ZONES, UCAC4_REC 78 B
   little-endian, J2000 vs ours moved back 16 yr with Gaia pm, cKDTree, <= 1" and 1.5 mag, one Gaia star per UCAC4
   star) + `tyc_hip` (gaiadr3.tycho2tdsc_merge_best_neighbour / hipparcos2_best_neighbour by source_id range, async,
   split at the 50k cap; DR3/DR2 have no UCAC4 table, only gaiadr1). Epoch pm (1.3.1): UCAC4_REC full layout
@@ -489,7 +490,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   3) stars too bright for Gaia from Hipparcos 2 (own kind). A core flag bit "entries in other Gaia files" (2 free).
 - Catalog mirrors: BUILT in 1.3.0 (starcat `mirrors`, `sources`: Zenodo + `URL_CATALOG_MIRRORS` + env
   PYSYZYGOS_CATALOG_MIRROR, speed probe, resume across sources, `ARCHIVE_SHA256` stored). First mirror: a temporary
-  BNL box share (Nextcloud: direct files at public.php/dav/files/<token>/rev2/<name>, Range works). Still to add:
+  BNL box share (Nextcloud: direct files at public.php/dav/files/<token>/catalog_v2.1/<name>, Range works; one folder per
+  set of checksums: rev2 = 1.3.0 (user removes it ~2026-10-25), catalog_v2.1 = 1.3.1 epoch-pm core/quality + xref; never replace files in place, a release
+  checks the SHA-256s built into it). Still to add:
   GitHub Releases or another permanent host; replace the BNL one when it goes.
 - Live search engine (ABOUT.md 3.8, timings of 2026-10-10): resident process with kernels, catalog, global
   pre-screen + index, SBDB list and orbits in memory; site test + exact solves in ~1-2 s; maps on demand; rolling
