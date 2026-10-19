@@ -72,14 +72,14 @@ ROWS = np.dtype([("source_id", "<i8"), ("ra", "<f8"), ("dec", "<f8"), ("parallax
                  ("pmdec", "<f4"), ("phot_g_mean_mag", "<f4"), ("ruwe", "<f4"), ("kind", "u1")])
 ZENODO_STEM = {16.0: "gaia_dr3_g16_v2"}                        # archives <stem>_<group>.tar.xz on the catalog record
 # the catalog's DATA version: <format>.<update>; 2.0 = format 2 as published with 1.3.0, 2.1 = with the epoch proper
-# motions of the 2-parameter stars (1.3.1). Mirror folders are named after it (catalog_v2.1/). Published: LATEST.
+# motions of the 2-parameter stars (1.3.2). Mirror folders are named after it (catalog_v2.1/). Published: LATEST.
 DATA_LATEST = {16.0: "2.1"}
 DATA_TEXT = {"1": "the old format (before 1.3.0)", "2.0": "format 2 as published with 1.3.0",
-             "2.1": "with the epoch proper motions of the 2-parameter stars (1.3.1)"}
+             "2.1": "with the epoch proper motions of the 2-parameter stars (1.3.2)"}
 # the published archives (build d242c96ed70f63b3, 2026-10-16): size and SHA-256, so a mirror's copy is checked without
 # Zenodo; a newer build on Zenodo (another checksum there) is taken from Zenodo's .sha256 instead
 ARCHIVE_SHA256 = {
-    "gaia_dr3_g16_v2_core.tar.xz": (2035404320, "f1fe5accc8fdddb2bbeda689551f6b8e79cce2ac2a71d51c40a84ee4c1e75e5f"),  # 1.3.1
+    "gaia_dr3_g16_v2_core.tar.xz": (2035404320, "f1fe5accc8fdddb2bbeda689551f6b8e79cce2ac2a71d51c40a84ee4c1e75e5f"),  # 1.3.2
     "gaia_dr3_g16_v2_quality.tar.xz": (None, "46d11d3a7f6fc717b27e71fe3ed4378dba907656b69e9d1cc2f44024273bc278"),
     "gaia_dr3_g16_v2_extras.tar.xz": (None, "1262480f747c207fc868727e6f110da63f62d64f3f57a96dc91ad87a9f38ba10"),
     "gaia_dr3_g16_v2_xref.tar.xz": (124126432, "e9cda32869ae96753ab95e966d2a19b2488d7ca19363cf580ab22395436ff16d"),

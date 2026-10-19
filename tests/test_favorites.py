@@ -138,7 +138,7 @@ e2 = next(x for x in F.load(fav) if x["key"] == "369152_20261012T0458")
 assert e2["record"]["shadow_from_utc"] == "~2026-10-12T04:59" and abs(float(e2["record"]["m_combined"]) - 8.05) < 0.01
 assert dict(dict(F.event_info(e2))["Event"])["From"] == "≈ 04:59 UT"
 assert F.backfill_event(lambda tid, utc: calls.append(tid), fav) == 0 and len(calls) == n, "once per favorite"
-# the star's proper motion and its source (record fields since 1.3.1; older records: from star_kind)
+# the star's proper motion and its source (record fields since 1.3.2; older records: from star_kind)
 assert F.pm_text(dict(star_pmra=-4.0, star_pmdec=-13.0, star_pm_err=1.7, star_pm_source="UCAC5")) == \
     "-4.00, -13.00 \u00b1 1.70 mas/yr (UCAC5)"
 assert F.pm_text(dict(star_kind="5")) == "UCAC4 epoch to Gaia" and F.pm_text({}) == "Gaia DR3"

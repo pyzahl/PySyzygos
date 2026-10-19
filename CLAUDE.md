@@ -115,7 +115,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   timer closes the connection after ZONE_DEADLINE_S 600 s, as a trickling CDS server once held a zone 20 h) (zones z001..z900 from URL_UCAC4_ZONES, UCAC4_REC 78 B
   little-endian, J2000 vs ours moved back 16 yr with Gaia pm, cKDTree, <= 1" and 1.5 mag, one Gaia star per UCAC4
   star) + `tyc_hip` (gaiadr3.tycho2tdsc_merge_best_neighbour / hipparcos2_best_neighbour by source_id range, async,
-  split at the 50k cap; DR3/DR2 have no UCAC4 table, only gaiadr1). Epoch pm (1.3.1): UCAC4_REC full layout
+  split at the 50k cap; DR3/DR2 have no UCAC4 table, only gaiadr1). Epoch pm (1.3.2): UCAC4_REC full layout
   (sigra/sigdc mas +128, cepra/cepdc 0.01 yr - 1900, pm 0.1 mas/yr); `epoch_pm` = UCAC4 J2000 taken back to its central
   epoch with UCAC4's pm, then to Gaia 2016 (errors hypot(sig, Gaia pos err)/interval, >= EPOCH_MIN_YEARS);
   `choose_pm` replaces where max-axis error < stored (quality pmra/pmdec_error; kind 2 = inf) -> KIND_2P_EPOCH 5
@@ -292,7 +292,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `pysyzygos/globe.py` (0.11.0): whole-Earth view (globe) `maps/<stem>_globe.svg` (written by
   `pysyzygos.write_globe` after the KML; `write_globes`, `globe_style` "color"/"lines"); `globe_data(spice, ...)` +
   pure `render_svg(d)`. Data `data/ne_110m_earth.json` (Natural Earth 110m coast/borders/land, public domain).
-  A4 page (1.3.1, `globe_page` "A4" | "square"; PAGES, W x 1448, width/height in mm): `system_data(spice, et, target,
+  A4 page (1.3.2, `globe_page` "A4" | "square"; PAGES, W x 1448, width/height in mm): `system_data(spice, et, target,
   star_dir)` (bodies in the star-Sun plane, deflection curve y(x) = x (d_star - d(x)) via astrometry.deflect) ->
   `_panel_true_scale` (AU, equal scale), `_panel_light` (x AU, y mas at the target's distance; Sun and, from
   DEFL_SHOWN_MAS, Jupiter/Saturn as edge markers with a broken distance line) (pure; `_Box`, `_frame` axes,
@@ -504,7 +504,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - Catalog mirrors: BUILT in 1.3.0 (starcat `mirrors`, `sources`: Zenodo + `URL_CATALOG_MIRRORS` + env
   PYSYZYGOS_CATALOG_MIRROR, speed probe, resume across sources, `ARCHIVE_SHA256` stored). First mirror: a temporary
   BNL box share (Nextcloud: direct files at public.php/dav/files/<token>/catalog_v2.1/<name>, Range works; one folder per
-  set of checksums: rev2 = 1.3.0 (user removes it ~2026-10-25), catalog_v2.1 = 1.3.1 epoch-pm core/quality + xref; never replace files in place, a release
+  set of checksums: rev2 = 1.3.0 (user removes it ~2026-10-25), catalog_v2.1 = 1.3.2 epoch-pm core/quality + xref; never replace files in place, a release
   checks the SHA-256s built into it). Still to add:
   GitHub Releases or another permanent host; replace the BNL one when it goes.
 - Live search engine (ABOUT.md 3.8, timings of 2026-10-10): resident process with kernels, catalog, global

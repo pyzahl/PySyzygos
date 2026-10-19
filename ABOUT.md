@@ -202,7 +202,7 @@ whole prediction.
 | 1 | 5/6-parameter, RUWE >= 1.4 (7.38 M; often unresolved doubles) | Gaia DR3 (as kind 0) | Gaia's x RUWE (Gaia underestimates them for such stars) |
 | 3 | 2-parameter, matched in UCAC5 | UCAC5 | UCAC5's e_pmRA / e_pmDE (the larger one) |
 | 4 | 2-parameter, not in UCAC5, matched in UCAC4 | UCAC4's own | UCAC4's e_pmRA / e_pmDE (the larger one) |
-| 5 | 2-parameter, with a UCAC4 measurement (1.3.1) | from UCAC4's measured position to Gaia's (below) | position errors / interval |
+| 5 | 2-parameter, with a UCAC4 measurement (1.3.2) | from UCAC4's measured position to Gaia's (below) | position errors / interval |
 | 2 | 2-parameter, none of the above | none: the 2016.0 position is used | 10 mas/yr per axis assumed (`PM_UNKNOWN_MAS_YR`) |
 
 **The three sources for 2-parameter stars** (573,735 stars to G 16; Gaia DR3 solved only their position, mostly
@@ -216,7 +216,7 @@ because the source is a close double, very bright or has too few observations):
    combined with earlier catalogues of older epochs. Matched
    by its J2000 position moved with its motion to 2016: within 0.5" and 1 mag (`gaia_local.pick_ucac4`). Used for
    the stars UCAC5 does not have: 171,094.
-3. **Epoch proper motion** (1.3.1, `starcat.epoch_pm`): the motion between UCAC4's MEASURED position and Gaia DR3's,
+3. **Epoch proper motion** (1.3.2, `starcat.epoch_pm`): the motion between UCAC4's MEASURED position and Gaia DR3's,
    typically over 15-20 years. UCAC4's catalogue position is given for J2000, but it is not a measurement: it is the
    position at the star's central epochs (`cepra`/`cepdc` in the zone files, typically 1997-2001) carried to J2000
    with UCAC4's own proper motion. So it is first taken back to those epochs, then
@@ -242,7 +242,7 @@ without any; 73,556 kept their UCAC5/UCAC4 motion. The 573,735 2-parameter stars
 (kind 5), UCAC5 74,414 (kind 3), UCAC4 48,654 (kind 4), none 95,972 (kind 2). The counts are in the catalog's
 `catalog.json` (`pm_xmatch`: before; `pm_epoch`: the replacements).
 
-**The other estimates, per event** (1.3.1, `pmcheck.py`, config `pm_alternatives`, default on): for an event on a
+**The other estimates, per event** (1.3.2, `pmcheck.py`, config `pm_alternatives`, default on): for an event on a
 2-parameter star the search asks VizieR for its UCAC5 and UCAC4 rows (two queries, ~1 s) and computes all four
 estimates: UCAC5, UCAC4's own, the epoch motion, and UCAC4 J2000 -> Gaia (the motion Occult uses). Each puts the
 star somewhere else at the event; their RMS distance from the position used is the star's realistic 1-sigma
@@ -391,7 +391,7 @@ after `sbdb_max_age_days`; the pick tool fills it for its targets from its bulk 
   motion -2.083 s / -28.67" (Occult -2.087 s / -28.62"), 1 km and 1 mas times, diameter, Sun and Moon all agree;
   the path crosses the same countries at the same minutes.
 - Coastlines, borders and land: `data/ne_110m_earth.json` (Natural Earth 1:110m, public domain, 166 KB).
-- **A4 page with the geometry** (1.3.1, `globe_page = "A4"`, the default; `"square"`: the view alone): below the
+- **A4 page with the geometry** (1.3.2, `globe_page = "A4"`, the default; `"square"`: the view alone): below the
   view two panels, drawn from the event's own values (`system_data`). *True scale* (AU): the Earth, the target on
   the star's line, the Sun, Jupiter and Saturn in the plane of the star's direction and the Sun (the planets
   projected, their distance from the plane noted); the deflection is invisible at this scale. *Light paths*: the

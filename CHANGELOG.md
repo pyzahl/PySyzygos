@@ -4,7 +4,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
-## [1.3.1] "Beyond Horizons" - 2026-10-17
+## [1.3.2] "Beyond Horizons" - 2026-10-19
+
+1.3.1 (version number set on 2026-10-17) was never released; its changes are part of this release.
 
 ### Added
 - **Proper-motion estimates for 2-parameter stars, per event** (`pmcheck.py`, config `pm_alternatives`): the search
@@ -15,7 +17,7 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   radius (red over the radius, as before). (4089) Galbraith: ±46 km instead of ±27; the line "as Occult" lies on
   Occult's centre line to 0.2 km.
 - **Catalog data versions and updates**: each catalog shows its data version (System tab, header list, `setup
-  --status`): v2.1 (epoch proper motions, 1.3.1), v2.0 (as published with 1.3.0), old format. A v2.0 catalog can
+  --status`): v2.1 (epoch proper motions, 1.3.2), v2.0 (as published with 1.3.0), old format. A v2.0 catalog can
   be updated in place: System tab **Update to 2.1** or `pysyzygos setup --update-catalog` downloads only the changed
   parts (core, quality, xref), copies extras, and swaps (`starcat.data_version`, `update_available`, `update`).
 - **Which proper motion a star has**: new record fields `star_pmra`, `star_pmdec`, `star_pm_err`, `star_pm_source`
@@ -861,7 +863,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
-[1.3.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.1
+[1.3.2]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.2
 [1.3.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.0
 [1.2.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.2.01
 [1.1.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.1.1
