@@ -1730,12 +1730,15 @@ def index():
                          f"1.3.0)").classes("text-sm text-slate-700")
                 ui.label("The new format: one sort order for every lookup (no separate pick index), the high-RUWE and "
                          "2-parameter stars included, and optional parts: Gaia's errors and flags (quality), colours "
-                         "and radial velocities (extras). G \u2264 16 is ready-made on Zenodo; other limits are built "
+                         "and radial velocities (extras), UCAC4 / Tycho-2 / Hipparcos names (xref). G \u2264 16 is "
+                         "ready-made on Zenodo and the mirror; other limits are built "
                          "from ESA's files (about 2 h). It is installed next to the old one and swapped in; the old "
                          "one is kept as <folder>.old until you delete it.").classes("text-xs text-slate-500")
                 with ui.row().classes("items-center gap-3"):
-                    up_parts = ui.select({"quality": "core + quality (recommended)", "none": "core only",
-                                          "all": "all parts (+ extras)"}, value="quality").props("dense outlined")
+                    up_parts = ui.select({"quality,xref": "core + quality + star names (recommended)",
+                                          "quality": "core + quality", "none": "core only",
+                                          "all": "all parts (+ extras, star names)"},
+                                         value="quality,xref").props("dense outlined")
                     up_del = ui.checkbox("delete the old catalog when the new one is in place", value=True).props(
                         "dense")
                     ui.button("Upgrade the catalog", on_click=lambda: cat_upgrade_ask(
@@ -1833,7 +1836,8 @@ def index():
         free = shutil.disk_usage(ROOT).free / 1e9
         old_gb = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(d) for f in fs) / 1e9
         if starcat.is_format2(new):
-            how = f"A finished new catalog is already there ({os.path.basename(new)}): it is only swapped in."
+            how = (f"A finished new catalog is already there ({os.path.basename(new)}, parts: "
+                   f"{', '.join(starcat.groups_present(new))}): it is only swapped in, with all its parts.")
         elif gmax in starcat.ZENODO_STEM:
             how = (f"The ready-made G \u2264 {gmax:g} catalog is downloaded (about 3 GB for core + quality, from the "
                    f"fastest of Zenodo and the mirrors), checked and unpacked: a few minutes to half an hour.")

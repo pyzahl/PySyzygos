@@ -514,9 +514,11 @@ def catalog_step(a):
                 if not starcat.is_format2(new):
                     sys.exit(f"\n   the new catalog in {new} is not complete yet: rerun setup --upgrade-catalog "
                              f"to resume (nothing is lost)")
+                ready = src is None                                      # a finished .new: only swapped in
                 old = starcat.swap_in(d)
                 for g in starcat.groups_present(d)[1:]:                  # parts not chosen (a .new built with all)
-                    if g not in groups:
+                    if g not in groups and not ready:                    # (a finished one keeps its parts: an
+                                                                         # xref part took hours to build)
                         starcat.remove_group(d, g)
                         print(f"   removed the part not chosen: {g}")
                 gb = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(old) for f in fs) / 1e9

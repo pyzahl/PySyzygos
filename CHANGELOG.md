@@ -88,6 +88,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   neighbours go beyond the catalog; an old-format catalog; no quality part; high-RUWE stars switched off).
 
 ### Fixed
+- **Catalog upgrade could drop finished parts**: swapping in an already finished new catalog removed every part not
+  ticked in the upgrade choice (default "core + quality"), so a locally built xref or extras part was lost. A
+  finished one now keeps all its parts; the choice offers "core + quality + star names" (default) and says what
+  "all parts" includes.
 - **UCAC4 zone downloads could hang for hours** (xref build): a server sending a few bytes now and then never
   tripped the read timeout; each zone file now has a limit for the whole download (10 min), then it is retried.
 - **Stellarium showed the computer's time zone** after moving to the site (a site set by coordinates has no time
