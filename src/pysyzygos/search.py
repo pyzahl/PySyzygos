@@ -944,9 +944,12 @@ def save_path_debug(fname, paths, record, target_id, star_dir, sigma3):
     NaN where none); and the event: target_id, target_name, star (Gaia DR3 source_id), star_ra / star_dec (deg, the
     corrected direction the path uses), star_dir (J2000 unit vector), mag, best_utc, best_et, r_km, sigma3_km,
     min_distance_km, site (lon, lat, ele m), version. Read: d = np.load(fname); d['center'][:, 1:3]; str(d['best_utc'])."""
+    plain = {k: v for k, v in paths.items() if k != "pm_alts"}
+    plain.update({f"pm_{i}": pts for i, (_, pts) in enumerate(paths.get("pm_alts") or [], 1)})   # other proper motions
     lines = {name: np.array([(et, lon, lat, np.nan if dur is None else dur) for et, lon, lat, dur in pts], float)
-             .reshape(-1, 4) for name, pts in paths.items()}
-    np.savez(fname, **lines, line_names=np.array(list(paths)), columns=np.array(["et", "lon_deg", "lat_deg", "dur_s"]),
+             .reshape(-1, 4) for name, pts in plain.items()}
+    np.savez(fname, **lines, line_names=np.array(list(plain)),
+             pm_labels=np.array([lab for lab, _ in paths.get("pm_alts") or []] or [""]), columns=np.array(["et", "lon_deg", "lat_deg", "dur_s"]),
              target_id=np.array(str(target_id)), target_name=np.array(str(record.get("target_name", ""))),
              star=np.array(int(record["star"]), dtype=np.int64), star_ra=float(record["star_ra"]),
              star_dec=float(record["star_dec"]), star_dir=np.asarray(star_dir, float), mag=float(record["mag"]),
@@ -1048,7 +1051,21 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
     s_mas = gaia_local.star_sigma_mas(star_kind, getattr(row, "ruwe", None), getattr(row, "pos_err", None),
                                       getattr(row, "pm_err", None),
                                       2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
-    s_km = None
+    s_km, pm_alts = None, []
+    if star_kind >= gaia_local.KIND_2P and getattr(config, "pm_alternatives", True):
+        # 2-parameter star: the other proper-motion estimates (VizieR); their spread is the realistic uncertainty
+        try:
+            from pysyzygos import pmcheck
+            yrs = 2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR
+            pe = getattr(row, "pos_err", None)
+            pm_alts = pmcheck.estimates(float(row.ra), float(row.dec), float(row.phot_g_mean_mag),
+                                        used=(float(row.pmra), float(row.pmdec)), years=yrs, ra_err=pe, dec_err=pe)
+            spread = pmcheck.spread_mas(pm_alts)
+            if spread and spread > (s_mas or 0.0):
+                s_mas = spread
+        except Exception as ex:                                       # offline: the quoted error only
+            print(f" --- proper-motion estimates not checked: {ex}")
+            pm_alts = []
     if s_mas:
         d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', '399')[0]))
         s_km = s_mas * d_km * np.pi / 648000000.0
@@ -1083,6 +1100,12 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
     record.update(star_pmra=float(getattr(row, "pmra", float("nan"))), star_pmdec=float(getattr(row, "pmdec", float("nan"))),
                   star_pm_err=float(pm_e) if pm_e is not None else float("nan"),
                   star_pm_source=gaia_local.pm_source(kind_))
+    if pm_alts:                                                       # the other estimates (pmcheck)
+        from pysyzygos import pmcheck
+        sp = pmcheck.spread_mas(pm_alts)
+        record.update(star_pm_spread_mas=round(sp, 1),
+                      star_pm_spread_km=round(sp * s_km / s_mas, 1) if s_km and s_mas else float("nan"),
+                      star_pm_alts=pmcheck.summary(pm_alts, gaia_local.pm_source(kind_)))
     names = dict(star_ucac4="", star_tyc="", star_hip="")             # the star's other names (catalog part xref)
     if near is not None and "ucac4" in near:
         me = near[near["source_id"].astype("int64") == int(row.source_id)]
@@ -1113,6 +1136,17 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         os.makedirs(config.map_dir, exist_ok=True)
         paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
                             sat_km=binaries.zone_km(target_id))    # known satellite: its zone on the map
+        paths["pm_alts"] = []                                         # the centre line with each other proper motion
+        for e in pm_alts:
+            if abs(e["east"]) + abs(e["north"]) < 1.0:
+                continue
+            try:
+                from pysyzygos import pmcheck
+                alt = shadow_path(target_id, pmcheck.shifted_dir(star_dir, e["east"], e["north"]), res['best_et'],
+                                  size['r_km'], sigma3)
+                paths["pm_alts"].append((e["label"], alt["center"]))
+            except Exception as ex:
+                print(f" --- no path for proper motion {e['label']}: {ex}")
         write_shadow_kml(paths, f"{config.map_dir}/{stem}.kml",
                          f"{record['target_name']} / Gaia {row.source_id}", observer=(config.LON, config.LAT))
         if getattr(config, "debug_save_paths", False):               # debug: the geodetic path for later checks

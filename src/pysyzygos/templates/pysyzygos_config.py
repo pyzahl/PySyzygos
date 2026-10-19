@@ -39,6 +39,9 @@ gaia_local_dir = "gaia_dr3_g16"  # folder of the local Gaia copy, required by co
 gaia_local_gmax = 16.0     # faintest G kept when building the local copy (~3 GB for 16, ~11 GB for 18; a new value needs a new folder)
 gaia_supplement = True     # also use <catalog>/supplement (high-RUWE and 2-parameter stars, flagged) when it exists
                            # (pysyzygos gaia supplement --dir <catalog> --gmax 16; GUI header "+ high-RUWE stars")
+pm_alternatives = True     # 2-parameter stars (no Gaia proper motion): look up the other proper-motion estimates
+                           # (VizieR: UCAC5, UCAC4, UCAC4 epoch, as Occult) per event; their spread sets the star's
+                           # uncertainty, and the map shows the centre line for each (pmcheck.py; ~1 s per such event)
 gaia_local_dir = _os.environ.get("PYSYZYGOS_CATALOG", gaia_local_dir)   # choose another catalog folder for one run
 
 ### CONFIG OBSERVER: sites, their view and equipment

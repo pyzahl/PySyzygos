@@ -274,6 +274,15 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - GUI header power button: `quit_dialog` -> `restart_app` (os.execv `python -m pysyzygos gui --port P --no-browser`,
   GUI_ARGS) / `quit_app` (app.shutdown); `_stop_job` first. Report: `alt_cell` + AZ_SWITCH/AZ_JS (checkbox in the
   Altitude header, its clicks do not sort; localStorage az_deg); `sigma_text`, chance column "33 % · 0.6σ", `chance_bar_svg` (favorites panel f_bar).
+- `pysyzygos/pmcheck.py` (2026-10-19): per event on a 2-parameter star (kind >= 2, config pm_alternatives): VizieR
+  ASU UCAC5 (I/340/ucac5: RAgaia/DEgaia within 1", G 0.5) + UCAC4 (I/322A/out: J2000 + own pm to 2016 within 1",
+  mag 1.5; EpRA/EpDE, e_RAJ2000/e_DEJ2000 = position errors at the central epoch) -> `estimates` (UCAC5, UCAC4,
+  epoch via starcat.epoch_pm on a built UCAC4_REC, J2000->Gaia "as Occult"; east/north mas offsets at the event vs
+  the pm used), `spread_mas` (RMS) -> s_mas = max(quoted, spread) in search; `shifted_dir` -> extra shadow_path per
+  alternative, paths["pm_alts"] [(label, centre pts)] -> KML "Proper motion <label>" (report LINE_STYLES pink),
+  save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
+  `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`. Galbraith: "as Occult"
+  line on Occult's centre to 0.19 km. tests/test_pmcheck.py (stand-in TSV of Galbraith's rows).
 - `pysyzygos/cameras.py`: `SENSORS` (sensor, px w, px h, pixel um, camera names) for the Site tab's "Sensor (cameras)"
   list; sizes = pixels x pixel size (`sensor_mm`); one entry per sensor, cameras searchable in the label.
 - `pysyzygos/occultations.py`: earlier occultations from NASA PDS "Small Bodies Occultations" V4.0 (doi

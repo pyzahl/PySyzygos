@@ -7,6 +7,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.3.1] "Beyond Horizons" - 2026-10-17
 
 ### Added
+- **Proper-motion estimates for 2-parameter stars, per event** (`pmcheck.py`, config `pm_alternatives`): the search
+  asks VizieR for the star's UCAC5 and UCAC4 rows and computes all four estimates (UCAC5, UCAC4, UCAC4 epoch to Gaia,
+  UCAC4 J2000 to Gaia as Occult uses). Their spread becomes the star's uncertainty when larger than the quoted error
+  (path sigma lines, chance), the map draws the centre line for each, the badge's hover lists them, the favorites
+  panel shows "Other estimates". New amber badge "star ±X km" when the star's uncertainty is over half the asteroid's
+  radius (red over the radius, as before). (4089) Galbraith: ±46 km instead of ±27; the line "as Occult" lies on
+  Occult's centre line to 0.2 km.
 - **Catalog data versions and updates**: each catalog shows its data version (System tab, header list, `setup
   --status`): v2.1 (epoch proper motions, 1.3.1), v2.0 (as published with 1.3.0), old format. A v2.0 catalog can
   be updated in place: System tab **Update to 2.1** or `pysyzygos setup --update-catalog` downloads only the changed
@@ -83,6 +90,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   with all of them. The header's catalog list updates afterwards.
 
 ### Changed
+- Results and favorites: an estimated size (from H and an assumed albedo) is marked by a box "size est." instead of
+  a small "*"; the asteroid's hover shows its full name and size with a short source ("SBDB diameter (NEOWISE)")
+  instead of the star's name and SBDB's raw reference.
 - **After a restart the pick does not download the asteroid list again** when offline copies are on (System tab):
   an empty cache (Linux keeps it in memory, `/dev/shm`) is filled from the offline copy if that is younger than
   `sbdb_max_age_days`; the size data likewise.

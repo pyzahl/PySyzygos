@@ -121,6 +121,16 @@ def pm_text(r):
     return f"{a:+.2f}, {d:+.2f}" + (f" \u00b1 {e:.2f}" if e is not None and e > 0 else "") + f" mas/yr ({src})"
 
 
+def alts_text(r):
+    """The star's other proper-motion estimates (search: pmcheck) and the spread they give at the event."""
+    try:
+        sk = float(r.get("star_pm_spread_km"))
+        spread = f" \u2192 path spread \u00b1{sk:.0f} km (1 sigma)" if sk == sk else ""
+    except (TypeError, ValueError):
+        spread = ""
+    return (r.get("star_pm_alts") or "").strip() + spread
+
+
 def edited(folder=DIR):
     """Keys of the favorites changed from their defaults (a note, or a status other than "planned"): removing those
     from the results page asks first."""
@@ -616,6 +626,7 @@ def event_info(entry):
               if ruwe is not None else ("2-parameter source \u2691 (see proper motion)" if sflag
                                         else "< 1.4 (local catalog)")),
              ("Proper motion", pm_text(r)),
+             *([("Other estimates", alts_text(r))] if (r.get("star_pm_alts") or "").strip() else []),
              ("Close/double", double_text(entry) or "not checked yet")]
     dist = f("dist_au")
     mas = (2 * rad / (dist * 1.495978707e8) * 206264806.2) if rad and dist else None

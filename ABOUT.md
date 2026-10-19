@@ -242,10 +242,21 @@ without any; 73,556 kept their UCAC5/UCAC4 motion. The 573,735 2-parameter stars
 (kind 5), UCAC5 74,414 (kind 3), UCAC4 48,654 (kind 4), none 95,972 (kind 2). The counts are in the catalog's
 `catalog.json` (`pm_xmatch`: before; `pm_epoch`: the replacements).
 
+**The other estimates, per event** (1.3.1, `pmcheck.py`, config `pm_alternatives`, default on): for an event on a
+2-parameter star the search asks VizieR for its UCAC5 and UCAC4 rows (two queries, ~1 s) and computes all four
+estimates: UCAC5, UCAC4's own, the epoch motion, and UCAC4 J2000 -> Gaia (the motion Occult uses). Each puts the
+star somewhere else at the event; their RMS distance from the position used is the star's realistic 1-sigma
+whenever it is larger than the quoted error (for close doubles the quoted errors are too small: the estimates
+disagree by more). The map shows the centre line for each other estimate (thin, pink, dashed, "Proper motion ...";
+`pmcheck.shifted_dir` moves the star direction, then the normal `shadow_path`); the record keeps `star_pm_alts`,
+`star_pm_spread_mas`, `star_pm_spread_km`. (4089) Galbraith, 2026-10-13: spread 31.4 mas = ±46 km (quoted error:
+±27 km); the line "as Occult" lies on Occult's published centre line to 0.19 km (0.10 km scatter, 56 points), ours
+72.6 km from it: the whole difference between the two predictions is this choice of proper motion.
+
 **What the prediction does with the error**: `gaia_local.star_sigma_mas` gives the star's 1-sigma position at the
-event, sqrt(position error^2 + (pm error x years since 2016)^2); in km at the asteroid it is combined with the
+event, sqrt(position error^2 + (pm error x years since 2016)^2), or the estimates' spread when larger; in km at the asteroid it is combined with the
 orbit's sigma into the path's sigma lines and the chance at the site, and the report shows a red **⚠ star ±… km**
-where it is larger than the asteroid.
+where it is larger than the asteroid's radius, an amber **star ±… km** where it is more than half the radius.
 
 **Compared with other programs**: Occult takes, for a star without a Gaia proper motion, the motion from UCAC4's
 J2000 position to Gaia's (UCAC4 as the reference epoch, as D. Herald described it); with (4089) Galbraith's star (UCAC4 573-029535) that reproduces

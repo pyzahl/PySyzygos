@@ -236,7 +236,8 @@ JPL_SBDB = U.URL_JPL_SBDB_PAGE                                       # asteroid 
 VIZIER_GAIA = U.URL_VIZIER_GAIA_DR3                                   # star, + Gaia DR3 id
 KML_NS = "{http://www.opengis.net/kml/2.2}"
 LINE_STYLES = (("Centre", "#15803d", 3, None), ("Shadow limit", "#dc2626", 2, None), ("1-sigma", "#7c3aed", 1.5, "2 4"),
-               ("3-sigma", "#d97706", 2, "6 6"), ("Satellite zone", "#0891b2", 1.5, "1 5"))
+               ("3-sigma", "#d97706", 2, "6 6"), ("Satellite zone", "#0891b2", 1.5, "1 5"),
+               ("Proper motion", "#db2777", 1.5, "8 3 2 3"))       # the centre with another proper motion (pmcheck)
 
 
 def kml_to_data(path):
@@ -285,6 +286,22 @@ def kml_to_data(path):
                                                          for q in centre))
             p["lon"] = round(p["lon"] + 360 * k, 5)
     return dict(lines=lines, pins=pins)
+
+
+def size_source_text(src):
+    """A size source for a hover text: 'SBDB diameter (NEOWISE)' instead of SBDB's reference with its URN and web
+    address; other texts unchanged."""
+    src = (src or "").strip()
+    if "(ref" not in src:
+        return src
+    base, ref = src.split("(ref", 1)
+    low = ref.lower()
+    name = next((n for k, n in (("neowise", "NEOWISE"), ("akari", "AKARI"), ("iras", "IRAS"), ("msx", "MSX"),
+                                ("occult", "occultations"), ("radar", "radar")) if k in low), None)
+    if not name:
+        m = re.search(r"abs/(\d{4}[A-Za-z&.]+[\d.]+[A-Z])", ref)          # an ADS bibcode
+        name = m[1] if m else ref.strip(" ()")[:40]
+    return f"{base.strip()} ({name})"
 
 
 def star_label(r):
@@ -336,7 +353,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
         margin = miss - rad
     body = ":" in tid                                            # a planet or moon (bodies.py: P:Jupiter, M:Io)
     label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else asteroid_label(tid, r.get("target_name"))
-    return dict(when=when, label=label, tid=tid, body=body, kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
+    return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body, kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
                 contact_dur=num(r.get("duration_s")) if (r.get("d_utc") or "").strip() else None,
                 star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1],
@@ -350,6 +367,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 size_src=(r.get("size_source") or "").strip(), utc=r["best_utc"].strip(),
                 drop_blend=num(r.get("mag_drop_blended")), dhint=(r.get("double_hint") or "").strip(),
                 sflag=(r.get("star_flag") or "").strip(), star_sigma=num(r.get("star_sigma_km")),
+                pm_alts=(r.get("star_pm_alts") or "").strip(),
                 p_site=num(r.get("p_site")), sigma1=num(r.get("path_sigma1_km")),
                 sigma_src=(r.get("sigma_source") or "").strip(), ra=ra, dec=dec, fov=fov,
                 globe=globe)
@@ -472,8 +490,10 @@ sup.bin{color:#0891b2;font-weight:600;margin-left:3px;cursor:help;white-space:no
 span.dbl{color:#b26a00;font-weight:600;cursor:help;white-space:nowrap}
 span.sflag{color:#b26a00;font-size:85%;cursor:help;white-space:nowrap}
 span.twi{color:#8a6d00;font-size:85%;cursor:help;white-space:nowrap}
+span.swarn2{color:#92400e;background:#fde68a;font-weight:600;font-size:85%;padding:0 4px;border-radius:3px;cursor:help;white-space:nowrap}
 span.swarn{color:#fff;background:#c62828;font-weight:700;font-size:85%;padding:0 4px;border-radius:3px;cursor:help;white-space:nowrap}
-sup.est{color:var(--muted);font-weight:700;margin-left:2px;cursor:help}
+span.sizeest{color:#3730a3;background:#e0e7ff;font-weight:600;font-size:75%;padding:0 4px;border-radius:3px;
+ cursor:help;white-space:nowrap;vertical-align:middle}
 .notes{color:var(--muted);font-size:.85rem;margin-top:16px}
 .notes li{margin:3px 0}
 .empty{padding:28px;text-align:center;color:var(--muted)}
@@ -817,6 +837,13 @@ def star_flag_tip(flag):
             "shadow path is less certain.")
 
 
+def star_noted(e):
+    """The star's own uncertainty (km, 1 sigma) when it is more than half the asteroid's radius but not more than the
+    radius (the amber tier below star_uncertain's red); else None."""
+    s, r = e.get("star_sigma"), e.get("rad")
+    return s if s is not None and r and 0.5 * r < s <= max(r, 1.0) else None
+
+
 def star_uncertain(e):
     """The star's own position uncertainty (km, 1 sigma, across the path) when it matters: larger than the asteroid's
     radius (then it decides whether the shadow reaches the site at all); else None."""
@@ -854,11 +881,18 @@ def star_mark(e):
     if not f:
         return ""
     s = star_uncertain(e)
+    alts = (e.get("pm_alts") or "").strip()
+    more = (f" Proper-motion estimates (VizieR; their spread sets this uncertainty): {alts}." if alts else "")
     tip = star_flag_tip(f) + (f" The star's position at the event date is uncertain by about {s:.0f} km (1 sigma) "
                               f"across the path, more than the asteroid's radius: this event may well not be "
-                              f"observable here; check other predictions (OWC) before observing." if s else "")
+                              f"observable here; check other predictions (OWC) before observing." if s else "") + more
     if s:
         return f' <span class="swarn" title="{esc(tip)}">\u26a0 star \u00b1{s:.0f} km</span>'
+    h = star_noted(e)                                             # half the radius .. the radius: worth a look
+    if h:
+        tip += (f" The star's position is uncertain by about {h:.0f} km (1 sigma), more than half the asteroid's "
+                f"radius: the path may lie noticeably off.")
+        return f' <span class="swarn2" title="{esc(tip)}">star \u00b1{h:.0f} km</span>'
     return f' <span class="sflag" title="{esc(tip)}">\u2691 {esc(f)}</span>'
 
 
@@ -878,8 +912,8 @@ def html_row_body(e):
     alt_tip = esc(f"azimuth {e['az']:.0f}\u00b0" if e["az"] is not None else "")
     dur = e.get("contact_dur")
     dur_txt = "\u2014" if not dur else (f"{dur / 60:.1f} min" if dur >= 120 else f"{dur:.1f} s")
-    sname = e.get("star_name") or f"Gaia DR3 {e['star']}"
-    tip = esc(f"{sname} \u00b7 radius {e['rad']:.0f} km ({e['size_src']})" if e["rad"] else "")
+    tip = esc(f"{e.get('full') or e['label']} \u00b7 radius {e['rad']:.0f} km, {size_source_text(e['size_src'])}"
+              if e["rad"] else (e.get("full") or ""))
     d_ts = parse_utc(e["d_utc"]).timestamp() if e.get("d_utc") else ""
     return (
         f'<tr><td class="ast" data-s="{esc(e["tid"])}" title="{tip}">{esc(e["label"])} '
@@ -898,8 +932,7 @@ def html_row_body(e):
 
 def html_row(e):
     size = f"D≈{2 * e['rad']:.1f} km" if e["rad"] is not None else ""
-    sname = e.get("star_name") or f"Gaia DR3 {e['star']}"
-    tip_ast = esc(f"{sname} · {size} ({e['size_src']})")
+    tip_ast = esc(f"{e.get('full') or e['label']}" + (f" · {size}" + (f", {size_source_text(e['size_src'])}" if e['size_src'] else "") if size else ""))
     drop_tip = ""
     if e["m_ast"] is not None:
         before = f"{e['m_before']:.2f} → " if e["m_before"] is not None else ""
@@ -934,8 +967,9 @@ def html_row(e):
             f'{esc(e["label"])} <span class="badge kind">{esc(e["kind"] or "body")}</span>' if e.get("body") else
             f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>')
         + binary_mark(e["tid"])
-        + (f'<sup class="est" title="Size estimated from H with an assumed albedo: diameter, duration and shadow width '
-           f'are uncertain by a factor of about 1.7 (no measured diameter in SBDB)">*</sup>' if size_estimated(e) else '')
+        + (f' <span class="sizeest" title="Size estimated from H with an assumed albedo: diameter, duration and shadow '
+           f'width are uncertain by a factor of about 1.7 (no measured diameter in SBDB)">size est.</span>'
+           if size_estimated(e) else '')
         + owc_line(e)
         + '</td>' + mid +
         f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (closest approach to the observer)"'
@@ -1090,8 +1124,8 @@ def to_html(events, meta):
 <li>Star magnitude is Gaia G. The drop assumes the star is fully covered and ignores the star's angular size and diffraction, so bright stars and very small bodies can show a smaller real drop.</li>
 <li><b>+moon</b> after an asteroid: it has known satellites (W. R. Johnston's compilation, NASA PDS 2019; "+moon?": only reported in an occultation, not confirmed); hover for their sizes and distances. A satellite casts its own shadow, somewhere within the dotted "satellite zone" lines on the map (its distance from the asteroid plus its radius): observers outside the main path may see a short extra event. Newer discoveries: Johnston's Archive (johnstonsarchive.net).</li>
 <li><b>\u26a0</b> after a drop: a close or double star. The number is the drop with the light of neighbours within a few arcseconds, which stays in the camera image when the star is covered; hover for details (neighbours from the local catalog; with the online check also Gaia's double-star hints and neighbours the catalog leaves out).</li>
-<li><b>*</b> after an asteroid: no measured diameter; its size is estimated from H with an assumed albedo, so diameter, duration and shadow width are uncertain by a factor of about 1.7 (typical for small asteroids, H above ~15).</li>
-<li>Chance: the probability that the shadow covers your site, from the shadow distance, the shadow radius and the path uncertainty (1 sigma: JPL Horizons' 3-sigma position uncertainty / 3, else the default). It assumes the size is right; an uncertain size (* after the asteroid) or a far-future event (large uncertainty) makes it a rough guide. Check again as the date approaches: the orbit, and with it the chance, improves.</li>
+<li><span class="sizeest">size est.</span> after an asteroid: no measured diameter; its size is estimated from H with an assumed albedo, so diameter, duration and shadow width are uncertain by a factor of about 1.7 (typical for small asteroids, H above ~15).</li>
+<li>Chance: the probability that the shadow covers your site, from the shadow distance, the shadow radius and the path uncertainty (1 sigma: JPL Horizons' 3-sigma position uncertainty / 3, else the default). It assumes the size is right; an uncertain size ("size est." after the asteroid) or a far-future event (large uncertainty) makes it a rough guide. Check again as the date approaches: the orbit, and with it the chance, improves.</li>
 <li>Shadow dist is the observer's distance from the shadow centre line in the fundamental plane. "Inside" means within the shadow radius; otherwise it is the gap to the shadow edge. Radius comes from the size lookup (hover the asteroid name).</li>
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>

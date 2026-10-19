@@ -615,6 +615,10 @@ anyway (other orbits; OWC times to 0.1 s).
   (-3.3, -10.5) +- (1.0, 2.3), close to the companion's Gaia motion (-3.3, -9.9). UCAC5 (-4.0, -13.0 +- 1.7) has the
   smaller error and stays (`starcat.pm_epoch`). The pair (WDS AG 112 AB, 2.8", 9.83 / 9.88) leaves every estimate
   uncertain: the 2.6 mas/yr between UCAC5 and the epoch motion are 28 mas, ~43 km, by 2026.
+  Confirmed on the ground (2026-10-19, `pmcheck`): the search's extra centre line with the motion Occult uses
+  (UCAC4 J2000 -> Gaia, -2.68, -9.11 mas/yr) lies on Occult's listed centre line to 0.19 km (0.10 km scatter, 56
+  points); ours (UCAC5) is 72.6 km from it in latitude. The spread of the four estimates (31.4 mas, ±46 km) is now the
+  star's uncertainty in the path sigma.
 - **High-RUWE supplement** (2026-10-10; `ABOUT.md` 2.4): (86288) 1999 UC45 occulted Gaia DR3 2846821043820040832
   (G 11.73, RUWE 1.65) on 2026-09-30 at 05:28:2x UT, observed from three California sites (1.17 s at one,
   https://www.dr-ricknolthenius.com/events/20260930-1999UC45/index.html). The star was not in the local catalog

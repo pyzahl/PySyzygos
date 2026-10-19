@@ -195,6 +195,8 @@ def write_shadow_kml(paths, filename, title, observer=None, tick_every=10):
     if paths.get('satellite_plus'):                                         # known satellite: where its shadow can pass
         parts += [line("Satellite zone A", paths['satellite_plus'], "ffffaa00", 1),
                   line("Satellite zone B", paths['satellite_minus'], "ffffaa00", 1)]
+    for label, pts in paths.get('pm_alts') or []:                          # 2-parameter star: other proper motions
+        parts.append(line(f"Proper motion {label}", pts, "ffcc66ff", 1))
     for i, (et, lon, lat, dur) in enumerate(paths['center']):
         if i % tick_every == 0:
             parts.append(pin(spice.et2utc(et, 'ISOC', 0)[11:16] + " UTC", lon, lat,
