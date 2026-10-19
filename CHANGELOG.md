@@ -9,6 +9,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 1.3.1 (version number set on 2026-10-17) was never released; its changes are part of this release.
 
 ### Added
+- **Favorites tasks run beside a search, pick or pre-screen**: the path verification (compute our path, compare,
+  step by step, export, keep) has its own job slot and its own log on the Favorites tab, which shows only those
+  tasks; searches, picks, pre-screens and setup still run one at a time.
 - **Proper-motion estimates for 2-parameter stars, per event** (`pmcheck.py`, config `pm_alternatives`): the search
   asks VizieR for the star's UCAC5 and UCAC4 rows and computes all four estimates (UCAC5, UCAC4, UCAC4 epoch to Gaia,
   UCAC4 J2000 to Gaia as Occult uses). Their spread becomes the star's uncertainty when larger than the quoted error
@@ -863,7 +866,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
-[1.3.2]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.2
+[1.3.2]: https://github.com/pyzahl/PySyzygos/compare/v1.3.0...main
 [1.3.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.0
 [1.2.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.2.01
 [1.1.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.1.1

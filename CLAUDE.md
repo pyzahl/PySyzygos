@@ -39,7 +39,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   v1.0.0 (first as PySyzygos) = 10.5281/zenodo.23381498; Zenodo followed the GitHub rename by itself.
   v1.1.0 = 10.5281/zenodo.23407110 (2026-10-16; the webhook timed out while Zenodo was down, archived later).
   v1.2.0 was released as tag `v1.2.01` (2026-10-16; tag v1.2.0 points one commit too early, at 1.1.1 code).
-  Every version increase gets a
+  GitHub releases (tag -> Zenodo DOI) only for 1.x.0 (user's rule, 2026-10-19: not too often); patch versions
+  (1.3.2, ...) are only committed, users get them with git pull / the update. Every version increase gets a
   `CHANGELOG.md` entry (Keep a Changelog style, newest first) (semver; keep CITATION.cff `version` and the README line in step);
   every module imports it, tools have `--version`, GUI header, run summary/report, picks and favorites record it.
 - `pysyzygos/search.py`: main search script. Kernel setup runs at import time (not import-safe). Driver is the `__main__` block.
@@ -271,6 +272,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   favorites `fav_pano` (site by lat/lon in sites.py; star_alt/star_az, else report.alt_az) -> f_pano. Dependency
   Pillow (uv.lock). horizons/ gitignored, in cleanup SETTINGS. tests/test_panorama.py (synthetic photo). First use:
   Seewis observatory (GoPro MAX, transparent-sky PNG): left edge 195.8 deg, 1.2 deg median vs its UserHorizon.
+- GUI job slots (2026-10-19): `Job.proc` = the main job (search, pick, pre-screen, setup, report, catalog: one at a
+  time, blocking each other), `Job.fav` = the Favorites tab's path-verification tasks (run, export, compare, steps,
+  keep), independent of the main job; `run_process(..., slot="fav")`, `stop_process(log, slot)`. The Favorites tab
+  has its own log card (`fav_log`, Clear/Stop) and hides the main log card (tabs.on_value_change). Safe in
+  parallel: own processes/SPICE, path-check output in favorites/<key>/pathcheck/run with its own db; it deletes only
+  that asteroid's cached SPKs (picks/pre-screens do not use them; a main search of the same asteroid at that moment
+  would download it again). `_stop_job` (quit/restart) stops both.
 - GUI header power button: `quit_dialog` -> `restart_app` (os.execv `python -m pysyzygos gui --port P --no-browser`,
   GUI_ARGS) / `quit_app` (app.shutdown); `_stop_job` first. Report: `alt_cell` + AZ_SWITCH/AZ_JS (checkbox in the
   Altitude header, its clicks do not sort; localStorage az_deg); `sigma_text`, chance column "33 % · 0.6σ", `chance_bar_svg` (favorites panel f_bar).
@@ -355,6 +363,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `owc_refs/` (private, not in git): stored OWC search results (`<site>_<date>_<filter>.txt`, `--ref` for
   pysyzygos/owc_check.py) with the matching pick runs (`.pick.csv/.log`) and a README of settings and findings. Keep
   adding sets there; never delete them.
+  `owc_refs/event_checks/<asteroid>_<date>_<star>/` (2026-10-19): single published events compared in detail
+  (compare.md + OWC event JSON with Besselian elements + our search output); OWC's x/y/dX/dY are in axes of date.
 - `VERIFICATION.md` (2026-10-08): all validation (OWC sets, Occult star positions, internal/geometric checks, what the
   differences mean); ABOUT Part 5 is a summary with a link. New OWC reference sets: add the numbers there (sites
   unnamed: "Test site 1", "Test site 2", "Test site 3", ...; the key to the real sites only in owc_refs/README.md)

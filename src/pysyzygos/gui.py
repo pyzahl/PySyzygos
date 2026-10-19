@@ -80,7 +80,8 @@ def fov(s):
 
 # ---------------------------------------------------------------- processes
 class Job:
-    proc = None
+    proc = None                    # the main job: search, pick, pre-screen, setup, report, catalog (one at a time)
+    fav = None                     # the Favorites tab's own tasks (path verification): independent of the main job
 
 
 SUPPLEMENT = dict(on=True)          # header "+ high-RUWE stars": every run gets PYSYZYGOS_SUPPLEMENT (gaia_local)
@@ -102,11 +103,12 @@ GUI_ARGS = {}                                                    # the options t
 
 
 def _stop_job():
-    if Job.proc is not None and Job.proc.returncode is None:
-        try:
-            Job.proc.terminate()
-        except ProcessLookupError:
-            pass
+    for p in (Job.proc, Job.fav):
+        if p is not None and p.returncode is None:
+            try:
+                p.terminate()
+            except ProcessLookupError:
+                pass
 
 
 def quit_app():
@@ -130,9 +132,13 @@ def restart_app():
     asyncio.get_event_loop().call_later(1.0, again)
 
 
-async def run_process(args, log, env_site=None, on_done=None, env_catalog=None):
-    if Job.proc and Job.proc.returncode is None:
-        ui.notify("A run is already in progress", type="warning")
+async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, slot="proc"):
+    """Run a PySyzygos command as a subprocess, its output into log. slot: "proc" (the main job: one at a time) or
+    "fav" (the Favorites tab's tasks: one at a time among themselves, independent of the main job)."""
+    cur = getattr(Job, slot)
+    if cur and cur.returncode is None:
+        ui.notify("A run is already in progress" if slot == "proc" else
+                  "A favorites task is already running (see the log on this tab)", type="warning")
         return None
     env = dict(os.environ, PYTHONUNBUFFERED="1", PYSYZYGOS_HOME=ROOT,
                PYTHONUTF8="1", PYTHONIOENCODING="utf-8")       # UTF-8 output on every system (log: decoded as UTF-8)
@@ -153,14 +159,15 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None):
     push(f"$ {' '.join(args)}" + (f"   (site {env_site})" if env_site else "")
          + (f"   (catalog {env_catalog})" if env_catalog else ""))
     t0 = time.time()
-    Job.proc = await asyncio.create_subprocess_exec(*args, cwd=ROOT, env=env, stdout=asyncio.subprocess.PIPE,
-                                                   stderr=asyncio.subprocess.STDOUT,
-                                                   stdin=asyncio.subprocess.DEVNULL)   # never waits for an answer:
+    proc = await asyncio.create_subprocess_exec(*args, cwd=ROOT, env=env, stdout=asyncio.subprocess.PIPE,
+                                                stderr=asyncio.subprocess.STDOUT,
+                                                stdin=asyncio.subprocess.DEVNULL)   # never waits for an answer:
     # without it the run inherits the terminal the GUI was started from, and setup's questions (no line end, so
     # not shown in the log) wait forever (found 2026-10-17 with "Install the new catalog")
-    async for line in Job.proc.stdout:
+    setattr(Job, slot, proc)
+    async for line in proc.stdout:
         push(line.decode(errors="replace").rstrip())
-    rc = await Job.proc.wait()
+    rc = await proc.wait()
     push(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s")
     if on_done:
         try:
@@ -170,9 +177,10 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None):
     return rc
 
 
-def stop_process(log):
-    if Job.proc and Job.proc.returncode is None:
-        Job.proc.terminate()
+def stop_process(log, slot="proc"):
+    p = getattr(Job, slot)
+    if p and p.returncode is None:
+        p.terminate()
         log.push("--- stopped")
 
 
@@ -244,7 +252,7 @@ def index():
     def quit_dialog():
         """Restart (the same program again: picks up an update, e.g. after git pull) or quit; for a GUI started from
         a launcher, where the process is not at hand."""
-        busy = Job.proc is not None and Job.proc.returncode is None
+        busy = any(p is not None and p.returncode is None for p in (Job.proc, Job.fav))
         with ui.dialog() as qd, ui.card().classes("max-w-md"):
             ui.label("Restart or quit PySyzygos?").classes("font-semibold")
             ui.label("Restart: the program starts again (with any update you installed) and this page reconnects "
@@ -710,6 +718,14 @@ def index():
                 f_pc.set_visibility(bool(pc_chk.value))
                 pc_chk.on_value_change(lambda e: (f_pc.set_visibility(bool(e.value)), save_ui_state(path_check=bool(e.value))))
             f_detail.set_visibility(False)
+            with ui.card().classes("w-full"):                         # this tab's own tasks (path verification) only
+                with ui.row().classes("w-full items-center"):
+                    ui.label("Favorites log").classes("font-semibold").tooltip(
+                        "The favorites' own tasks (path verification). They run independently of a search, pick or "
+                        "pre-screen, whose output stays in the log of the other tabs")
+                    ui.button("Clear", on_click=lambda: fav_log.clear()).props("flat dense")
+                    ui.button("Stop", on_click=lambda: stop_process(fav_log, "fav")).props("flat dense color=negative")
+                fav_log = ui.log(max_lines=2000).classes("w-full h-48 text-xs")
 
         with ui.tab_panel(t_sys):
             from pysyzygos import offline
@@ -763,6 +779,9 @@ def index():
             ui.label("Log").classes("font-semibold")
             ui.button("Clear", on_click=lambda: log.clear()).props("flat dense")
         log = ui.log(max_lines=3000).classes("w-full h-64 text-xs")
+    # the Favorites tab has its own log (its tasks only): the main one is not shown there
+    tabs.on_value_change(lambda e: log_card.set_visibility(e.value not in (t_fav, "Favorites")))
+    log_card.set_visibility(tabs.value not in (t_fav, "Favorites"))
 
     # ------------------------------------------------ site logic
     def show_site(name):
@@ -1989,7 +2008,8 @@ def index():
             pc_refresh()
             ui.notify("Our path is computed" if rc == 0 else "Computing our path failed: see the log",
                       type="positive" if rc == 0 else "negative")
-        await run_process(PYSYZYGOS + ["path-check", "run", fav_cur["key"]], log, on_done=done, env_catalog=cat_sel.value)
+        await run_process(PYSYZYGOS + ["path-check", "run", fav_cur["key"]], fav_log, on_done=done,
+                          env_catalog=cat_sel.value, slot="fav")
 
     async def pc_export():
         if not fav_cur["key"]:
@@ -2000,7 +2020,8 @@ def index():
                 ui.download(f, os.path.basename(f))
             else:
                 ui.notify("Export failed: compute our path first (see the log)", type="negative")
-        await run_process(PYSYZYGOS + ["path-check", "export", fav_cur["key"]], log, on_done=done, env_catalog=cat_sel.value)
+        await run_process(PYSYZYGOS + ["path-check", "export", fav_cur["key"]], fav_log, on_done=done,
+                          env_catalog=cat_sel.value, slot="fav")
 
     async def pc_upload(e):
         data = await e.file.read()
@@ -2035,7 +2056,8 @@ def index():
                 pc_show()
             else:
                 ui.notify("The comparison failed: see the log", type="negative")
-        await run_process(PYSYZYGOS + ["path-check", "compare", fav_cur["key"], lp, "--header", hp], log, on_done=done, env_catalog=cat_sel.value)
+        await run_process(PYSYZYGOS + ["path-check", "compare", fav_cur["key"], lp, "--header", hp], fav_log,
+                          on_done=done, env_catalog=cat_sel.value, slot="fav")
 
     async def pc_steps():
         if not fav_cur["key"]:
@@ -2049,11 +2071,12 @@ def index():
                 f_pc_steps.open()
             else:
                 ui.notify("Step by step failed: see the log", type="negative")
-        await run_process(PYSYZYGOS + ["path-check", "steps", fav_cur["key"]], log, on_done=done, env_catalog=cat_sel.value)
+        await run_process(PYSYZYGOS + ["path-check", "steps", fav_cur["key"]], fav_log, on_done=done,
+                          env_catalog=cat_sel.value, slot="fav")
 
     async def pc_keep():
         if fav_cur["key"]:
-            await run_process(PYSYZYGOS + ["path-check", "keep", fav_cur["key"]], log)
+            await run_process(PYSYZYGOS + ["path-check", "keep", fav_cur["key"]], fav_log, slot="fav")
 
     def on_fav_select(e):
         fav_cur["key"] = e.args if isinstance(e.args, str) else (e.args or [None])[0]

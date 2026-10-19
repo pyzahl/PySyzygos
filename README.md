@@ -508,7 +508,8 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    is rewritten with every change, for use in other tools or sharing. Drag the bottom-right corner of the table to resize it (remembered
    in your browser; the Results report and the Pick table have the same corner).
    **Path verification** (checkbox at the top, off by default): compare a favorite's geodetic path with Occult's
-   path listing for the same event, as in VERIFICATION.md section 3. *Compute our path (fresh)* runs the search for
+   path listing for the same event, as in VERIFICATION.md section 3. These tasks run beside a search, pick or
+   pre-screen; their output goes to the Favorites tab's own log (that tab shows no other log). *Compute our path (fresh)* runs the search for
    this event only, with today's orbit from JPL, and keeps the path and the orbit files with the favorite (so a later
    comparison uses the same orbit). Paste Occult's listing (or load its .txt), optionally its plot header (orbit
    JPL#, star RA/Dec, diameter), and *Compare*. Other path tables work too: only the centre line's longitude,
