@@ -398,7 +398,8 @@ def fetch_target_orbit(target_id, epochs, cache_dir=config.cache_path):
     if target_id not in _loaded:
         spice.furnsh(str(fn))
         _loaded[target_id] = int(spice.spkobj(str(fn))[0])
-        spice.boddef(target_id, _loaded[target_id])     # keep alias if callers still pass the number
+        from pysyzygos import kernels as K_
+        K_.body_alias(spice, target_id, _loaded[target_id])     # the number as a SPICE name (not boddef: ~161 max)
     return _loaded[target_id]                           # NAIF id, safe to use directly in spkpos
 
 SIZE_OVERRIDES = {}   # curate best values here: {"19": (r_km, r_sigma_km, "source note")}; they take priority

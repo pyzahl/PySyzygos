@@ -29,6 +29,16 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   `world-prescreens/` with `prescreens.json`), downloaded instead of built (hours): one `<name>.tar.xz` +
   `.sha256`, resumable, SHA-256 checked, only the listed files unpacked and checked again, the meta file last. The first: 2026-10-01 + 40 days, G <= 16.
 
+### Fixed
+- **Searches of more than about 160 asteroids** stopped with SPICE(TOOMANYPAIRS) ("no room available for adding ...
+  to the list of name/code pairs"): each asteroid number was registered as a SPICE body name with `boddef`, and this
+  SPICE version keeps only 853 names, about 692 of them built in. The names now go into SPICE's kernel pool
+  (`kernels.body_alias`, as a text kernel would define them), which takes thousands; planets and moons and the path
+  check use it too.
+- **Start-up time of runs started from the GUI**: the run summary (and the pick's timing line) counted from when
+  the GUI was started, e.g. "start-up 186129 s" after two days; each run now gets its own start time.
+
+
 ## [1.3.2] "Beyond Horizons" - 2026-10-19
 
 1.3.1 (version number set on 2026-10-17) was never released; its changes are part of this release.

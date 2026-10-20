@@ -25,6 +25,27 @@ LSK_RE = re.compile(r"naif(\d{4})\.tls")
 LSK_MARKER = ".lsk_checked"                       # when NAIF's leap-second directory was last looked at
 
 
+_ALIASES = {}            # body name -> NAIF code, set by body_alias (kept in the kernel pool)
+
+
+def body_alias(spice, name, code):
+    """Make name a SPICE name of the body code (e.g. an asteroid number '218001' for its SPK object 20218001), through
+    the kernel pool (NAIF_BODY_NAME / NAIF_BODY_CODE, as a text kernel would set them). Not boddef: CSPICE N0067 holds
+    853 name/code pairs, ~692 of them built in, so boddef fails after ~161 names (SPICE(TOOMANYPAIRS); a search of 400
+    targets, 2026-10-19); the pool takes thousands. The pool variable is replaced as a whole, so the full list is set
+    each time; a later spice.kclear() empties it (call this again after loading). Pool names win over built-in ones."""
+    name = str(name).strip()
+    if _ALIASES.get(name) == int(code):
+        try:
+            if spice.bodn2c(name) == int(code):
+                return
+        except Exception:
+            pass
+    _ALIASES[name] = int(code)
+    spice.pcpool("NAIF_BODY_NAME", list(_ALIASES))
+    spice.pipool("NAIF_BODY_CODE", list(_ALIASES.values()))
+
+
 def lsk_file(folder="."):
     """The newest local leap-second kernel (path): naifNNNN.tls with the highest NNNN, else LSK."""
     try:

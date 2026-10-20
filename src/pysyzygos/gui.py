@@ -172,6 +172,7 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
     if env_catalog:
         env["PYSYZYGOS_CATALOG"] = env_catalog
     env["PYSYZYGOS_SUPPLEMENT"] = "1" if SUPPLEMENT["on"] else "0"
+    env["PYSYZYGOS_T0"] = repr(time.time())               # this run's start (not the GUI's: start-up times)
     def push(text):
         # the page can be gone (browser closed, reloaded or stalled past the reconnect timeout): keep going without it,
         # and keep reading the output, or the process blocks on a full pipe and stays "in progress" forever

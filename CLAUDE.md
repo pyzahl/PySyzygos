@@ -182,7 +182,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `pysyzygos/bodies.py` (2026-10-08): planets/moons as targets, prefix + name (`P:Jupiter`, `M:Io`; `L:Moon` later),
   REGISTRY (NAIF id, centre = system barycentre, kind, V(1,0), phase coeff, rough sigma3), GROUPS ("jupiter").
   `ensure_kernel`: Horizons VECTORS (CENTER 500@<bary>, 20 min, ICRF) -> SPK type 13 via `spkw13` in cache_path
-  (~1 m vs Horizons; Horizons = jup365 ephemeris, so no 1 GB NAIF download), furnsh + `boddef(alias)` so all SPICE
+  (~1 m vs Horizons; Horizons = jup365 ephemeris, so no 1 GB NAIF download), furnsh + `kernels.body_alias(alias)` so all SPICE
   calls take "M:IO". search.py: corridor loop branch (no SBDB/Horizons SPK; size from PCK radii; planets H=None ->
   no drop cap, star limit = MAG_MIN like asteroids (GUI "Star G limit" override; no separate planet limit); moons H from satellites.json, G=MOON_G), deflection without own system
   (`bodies.deflectors`), sigma from REGISTRY, `contact_times` D/R (brentq on |offset|=r; logged d_utc/r_utc,
@@ -433,7 +433,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - Geodetic <-> ITRF conversions use WGS84 from `pysyzygos/earth.py` (A_KM, F, C_KM), never `bodvrd('EARTH','RADII')`
   (pck00010 is ~0.4 m off): paths.shadow_path (surfpt/recgeo: height 0 on WGS84, Occult's default), screen.Site,
   search.observer_j2000 / plane offsets, globe. Changed 2026-10-11: paths moved 0.3 m median, <= 3.6 m.
-- Target ids are strings of the asteroid number ('218001'); the SPK is aliased with `boddef` in `fetch_target_orbit`.
+- Target ids are strings of the asteroid number ('218001'); `fetch_target_orbit` makes it a SPICE name of the SPK's
+  object with `kernels.body_alias` (kernel pool NAIF_BODY_NAME/CODE). Never `spice.boddef` for names: CSPICE N0067
+  holds 853 name/code pairs, ~692 built in, so boddef fails after ~161 (SPICE(TOOMANYPAIRS); a 400-target search on
+  2026-10-19). The pool takes thousands (tests/test_body_alias.py); kclear() empties it, body_alias restores all.
 - Sun limit default 0 deg (2026-10-15; was -6); events with the Sun above `report.TWILIGHT_SUN_ALT` (-12) are marked
   "☼ −8°" after the star magnitude (`twilight_text`/`twilight_mark`; report rows, Markdown, exports.event_shown and
   pick_shown: keep them in step).

@@ -47,11 +47,21 @@ class Spice:
         written.append((body, center, frame, degree, n))
     def spkcls(self, h): pass
     def furnsh(self, path): written.append(("furnsh", os.path.basename(path)))
-    def boddef(self, name, code): written.append(("boddef", name, code))
+    pool = {}
+    def pcpool(self, name, values): Spice.pool[name] = list(values)        # kernel pool (kernels.body_alias)
+    def pipool(self, name, values):
+        Spice.pool[name] = list(values)
+        for n, c in zip(Spice.pool["NAIF_BODY_NAME"], values):
+            written.append(("alias", n, c))
+    def bodn2c(self, name):
+        names = Spice.pool.get("NAIF_BODY_NAME", [])
+        if name not in names:
+            raise Exception("SPICE(NOTFOUND)")
+        return Spice.pool["NAIF_BODY_CODE"][names.index(name)]
 cache = tempfile.mkdtemp()
 p = B.ensure_kernel(Spice(), "M:Io", 2 * 86400.0, 4 * 86400.0, cache)
 assert os.path.isfile(p) and calls == [(501, 5, "2026-10-08", "2026-10-14")], calls
-assert (501, 5, "J2000", 7, 3) in written and ("boddef", "M:IO", 501) in written
+assert (501, 5, "J2000", 7, 3) in written and ("alias", "M:IO", 501) in written
 B.ensure_kernel(Spice(), "M:Io", 2 * 86400.0, 4 * 86400.0, cache)
 assert len(calls) == 1, "cached: Horizons asked once"
 # the optional NAIF kernel: used (no Horizons) when it covers the window, else Horizons as before
@@ -64,7 +74,7 @@ class LocalSpice(Spice):
     def wnfetd(self, cov, i): return (self.lo, self.hi)
 calls.clear(); written.clear()
 p = B.ensure_kernel(LocalSpice(-1e10, 1e10), "M:Europa", 0.0, 86400.0, tempfile.mkdtemp(), folder=local)
-assert p.endswith("jup365.bsp") and calls == [] and ("boddef", "M:EUROPA", 502) in written
+assert p.endswith("jup365.bsp") and calls == [] and ("alias", "M:EUROPA", 502) in written
 p = B.ensure_kernel(LocalSpice(0.0, 10.0), "M:Europa", 0.0, 86400.0, tempfile.mkdtemp(), folder=local)
 assert not p.endswith("jup365.bsp") and len(calls) == 1, "window not covered: Horizons"
 assert B.naif_kernel("jupiter", local).endswith("jup365.bsp") and B.naif_kernel("jupiter", tempfile.mkdtemp()) is None

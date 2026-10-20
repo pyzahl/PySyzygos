@@ -1,7 +1,7 @@
 """paths.py - ground track of an asteroid shadow as KML for Google My Maps / Earth.
 
 Needs the same SPICE state as the main tool: LSK, planetary SPK, Earth PCK (ITRF93) and the
-asteroid SPK loaded, and the asteroid number string aliased with boddef (fetch_target_orbit does that).
+asteroid SPK loaded, and the asteroid number string aliased (kernels.body_alias; fetch_target_orbit does that).
 
 v2: SpiceyPy's surfpt() returns only the point and raises NotFoundError when the ray misses the Earth
 (v1 unpacked a (point, found) tuple, which crashed near the ends of the time window).

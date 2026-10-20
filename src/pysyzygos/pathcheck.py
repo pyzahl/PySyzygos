@@ -464,7 +464,8 @@ def _load(out):
     tid = str(z["target_id"])
     if ":" in tid:
         raise SystemExit("planets and moons are not supported by path-check yet")
-    spice.boddef(tid, int(spice.spkobj(spks[-1])[0]))
+    from pysyzygos import kernels as K
+    K.body_alias(spice, tid, int(spice.spkobj(spks[-1])[0]))
     return spice, z, tid
 
 

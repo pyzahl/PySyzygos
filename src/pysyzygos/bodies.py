@@ -8,7 +8,7 @@ Positions: de440 has only the planet systems' barycentres. For the planet itself
 Horizons for positions and velocities relative to the barycentre over the search window and writes them into a
 small SPICE kernel (type 13, Hermite interpolation; 20 min steps reproduce Horizons to ~1 m), cached in cache_path,
 like the asteroid orbits. Horizons uses the same ephemeris as NAIF's satellite kernels (e.g. jup365), so the
-1 GB kernel download is not needed. The target name ("M:IO") becomes a SPICE alias of the body (boddef), so the
+1 GB kernel download is not needed. The target name ("M:IO") becomes a SPICE alias of the body (kernels.body_alias), so the
 search, maps and previews work with it unchanged.
 
 Size: radii from the planet constants kernel (pck00010). Brightness: V(1,0) and a phase coefficient
@@ -210,7 +210,8 @@ def ensure_kernel(spice, target, et0, et1, cache_dir, folder="."):
             ok = False
         if ok:
             spice.furnsh(local)
-            spice.boddef(b["alias"], b["naif"])
+            from pysyzygos import kernels as K
+            K.body_alias(spice, b["alias"], b["naif"])
             LOADED.add(b["target"])
             return local
     t0 = spice.et2utc(et0 - PAD_DAYS * 86400.0, "ISOC", 0)[:10]
@@ -227,7 +228,8 @@ def ensure_kernel(spice, target, et0, et1, cache_dir, folder="."):
         spice.spkcls(h)
         os.replace(tmp, path)
     spice.furnsh(path)
-    spice.boddef(b["alias"], b["naif"])
+    from pysyzygos import kernels as K
+    K.body_alias(spice, b["alias"], b["naif"])
     LOADED.add(b["target"])
     return path
 
