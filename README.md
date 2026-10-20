@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.3.2 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.3.3 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -40,6 +40,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Pick tool: choose targets](#pick-tool-choose-targets)
 - [Web interface (GUI)](#web-interface-gui)
 - [Planets and moons](#planets-and-moons)
+- [Occult data (optional add-on)](#occult-data-optional-add-on)
 - [Report: event list, maps and previews](#report-event-list-maps-and-previews)
 - [GUI step by step, with screenshots](GETTING_STARTED.md) (Getting started: from the install to a first prediction)
 - [Contributing](#contributing)
@@ -1006,6 +1007,21 @@ latitude/longitude box of its track and the star's altitude range along it, so a
 events that can reach it (about 1 in 5). `extract` cuts a region pre-screen (the same `.db` as a region build), e.g.
 a continent with a brighter star limit to share.
 
+**Shared world pre-screens.** A whole-Earth build takes hours, so finished ones are shared on the catalog mirror
+(folder `world-prescreens/`): download one instead of building it, in the Pick tab (**Pre-screens → Download shared**) or:
+
+```bash
+pysyzygos prescreen remote                 # what the mirror offers (window, limits, size, build date)
+pysyzygos prescreen fetch                  # the latest one, into prescreen/ (resumable, SHA-256 checked)
+pysyzygos prescreen fetch global__2026-10-01_40d_G16
+```
+
+The 40-day one of 2026-10-01 (G <= 16, with the supplement, 19.3 M events of 461,867 asteroids) is about 1.6 GB
+compressed. The pick's "auto" uses it like your own. Orbits are those of the build day, so prefer a recent one; the
+search always takes the current orbit from JPL Horizons. Maintainers publish a build with `pysyzygos prescreen publish
+prescreen/<name>.global.npy`: it writes `<name>.tar.xz`, its `.sha256` and the list `prescreens.json` to
+`release/world-prescreens/`; those three files then go to the mirror folder.
+
 **Regions.** Named: usa, north-america, central-america, south-america, europe, africa, middle-east, east-asia, japan,
 australia, new-zealand; or `lat_min,lat_max,lon_min,lon_max`. A region is a latitude/longitude box (a rectangle on the
 map), not a circle. *Around this site*: +-km/111.2 degrees of latitude and +-km/(111.2 cos(site latitude)) degrees of
@@ -1196,6 +1212,38 @@ pysyzygos.bodies` lists them).
   `plu060.bsp`, Mars `mar099.bsp`; Uranus only via Horizons (NAIF splits it per moon, up to 2 GB each).
 * Coming: Earth's Moon; later solar eclipses (contacts C1-C4).
 
+## Occult data (optional add-on)
+
+David Herald maintains asteroid data for his program Occult, and IOTA publishes it for download. PySyzygos can use
+these files as an optional add-on. Choose the datasets in the GUI's **System** tab (one checkbox each), or on the
+command line:
+
+```bash
+pysyzygos occult-data                       # status: what is installed, server dates
+pysyzygos occult-data add diameters observations
+pysyzygos occult-data add all               # all six: 37 MB of downloads, 130 MB on disk
+pysyzygos occult-data update                # download the installed ones that changed on the server
+pysyzygos occult-data import "/path/to/Occult 4/Resource Files"   # copy from an Occult installation instead
+pysyzygos occult-data show 4089             # everything the installed datasets know about an asteroid
+pysyzygos occult-data remove gaia_doubles
+```
+
+| Dataset | Contents |
+|---|---|
+| `diameters` | weighted mean diameter and uncertainty per numbered asteroid from the infrared surveys (NEOWISE, AKARI AcuA, IRAS, MSX, TNOs); marked where only estimated from H |
+| `diameters_all` | each survey's diameter and albedo |
+| `magnitudes` | H and G in two colours (g, r) for about 122,000 asteroids, oblateness and pole for some (A&A 687, A38, 2024); H in V converted from g and r |
+| `binaries` | known and suspected asteroid satellites, with orbits |
+| `observations` | the occultation results archive: the profile measured in each observed event, updated continuously |
+| `gaia_doubles` | Gaia DR3 non-single-star solutions (orbits, accelerations), G < 16 |
+
+The files go to the data folder's `occult_data/`. The favorites panel then shows what they know about the asteroid
+and the star: diameters by survey, H in V, satellites, earlier occultations and Gaia's non-single-star solution at
+the star. With `observations` installed, the earlier occultations come from this archive, which is updated
+continuously, instead of the yearly NASA PDS version shipped with PySyzygos. The data are reference information:
+the predictions do not use them yet. **System → Check for updates** compares the installed files with the server.
+`pysyzygos cleanup` removes the folder.
+
 ## Report: event list, maps and previews
 
 The GUI builds and shows the report after every search; this section is about the page itself and the command.
@@ -1341,6 +1389,11 @@ DOI 10.1016/j.pss.2017.02.013
 - [Occultations] Herald, D., Dunham, D. W., et al. Small Bodies Occultations, NASA Planetary Data System, Small
   Bodies Node (V4.0, 2024). https://doi.org/10.26033/ehqs-jp27 , https://sbn.psi.edu/pds/resource/occ.html
   (earlier occultations of an asteroid, shown in the favorites panel).
+
+- [Occult data] Herald, D., Occult (asteroid diameters, magnitudes, binary asteroids, occultation results archive,
+  Gaia non-single stars), distributed by IOTA: https://www.occultations.org/sw/occult/ (optional add-on,
+  `pysyzygos occult-data`). Magnitudes from: Combined spin orientation and phase function of asteroids, A&A 687, A38
+  (2024). Non-single stars from Gaia DR3 Part 3, VizieR I/357.
 
 - [Occultation diameters] Herald, D., et al. (2020). Precise astrometry and diameters of asteroids from occultations
   - a data set of observations and their interpretation. Monthly Notices of the Royal Astronomical Society.

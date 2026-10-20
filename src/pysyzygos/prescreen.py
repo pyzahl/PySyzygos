@@ -11,6 +11,9 @@ region: `pysyzygos pick --prescreen FILE` screens only those asteroids instead o
     pysyzygos prescreen extract prescreen/<global>.global.npy --region usa            # a region cut from a global one
     pysyzygos prescreen extract prescreen/<global>.global.npy --region 35,60,-10,30 --cam-limit 14
     pysyzygos prescreen query prescreen/<global>.global.npy                           # asteroids for the site
+    pysyzygos prescreen remote                                                        # shared ones on the mirror
+    pysyzygos prescreen fetch [name|latest]                                           # download one into prescreen/
+    pysyzygos prescreen publish prescreen/<global>.global.npy   # maintainers: to release/world-prescreens/ (mirror)
 
 Whole Earth (--global): instead of testing a region, the build stores per event the shadow's motion across the
 fundamental plane (star direction, a quadratic in time, its misfit; ~80 bytes, see shadowtrack.py), sorted by time in
@@ -798,6 +801,192 @@ def remove(path):
             os.remove(p)
 
 
+# ------------------------------------------------------------------------- shared pre-screens (mirror)
+MANIFEST = "prescreens.json"
+SHARE_DIR = os.path.join("release", "world-prescreens")
+SHARE_KEYS = ("start", "days", "et0", "et1", "region", "cam_limit", "hmax", "min_drop", "reach_km", "max_sun_alt",
+              "min_alt", "supplement", "asteroids_screened", "n_events", "n_asteroids", "built", "build_s", "version")
+
+
+def _files(path):
+    """The files of a global pre-screen to share: events, index, then the meta file (list_files sees a pre-screen
+    only once its .json is there, so a fetch writes it last)."""
+    return [p for p in (path, _idx_path(path)) if os.path.exists(p)] + [_meta_path(path)]
+
+
+def _sha(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for c in iter(lambda: f.read(1 << 22), b""):
+            h.update(c)
+    return h.hexdigest()
+
+
+def _tar_xz(folder, names, dst):
+    """Pack the files names (in folder, no directory part) into dst (.tar.xz): tar + the xz program on all cores if
+    both are there, else Python's tarfile with lzma (same format)."""
+    import shutil, subprocess, tarfile
+    tmp = dst + ".part"
+    if shutil.which("tar") and shutil.which("xz"):
+        with open(tmp, "wb") as out:
+            tar = subprocess.Popen(["tar", "-cf", "-", "-C", folder] + list(names), stdout=subprocess.PIPE)
+            subprocess.run(["xz", "-T0", "-6", "-c"], stdin=tar.stdout, stdout=out, check=True)
+            tar.stdout.close()
+            if tar.wait() != 0:
+                raise RuntimeError("tar failed")
+    else:
+        with tarfile.open(tmp, "w:xz", preset=6) as t:
+            for n in names:
+                t.add(os.path.join(folder, n), arcname=n)
+    os.replace(tmp, dst)
+
+
+def catalog_info(name):
+    """What the pre-screen's catalog was: {'folder', 'format', 'build_id', 'gmax', 'pm_epoch'} from its catalog.json
+    (the folder itself, or the same name without .new / .old after an upgrade swapped it in), else {'folder': name}."""
+    out = {"folder": name}
+    for d in (name, name.rsplit(".", 1)[0] if name.endswith((".new", ".old")) else None):
+        p = os.path.join(d, "catalog.json") if d else None
+        if p and os.path.isfile(p):
+            with open(p) as f:
+                c = json.load(f)
+            out.update(format=c.get("format", 1), build_id=c.get("build_id"), gmax=c.get("gmax"),
+                       pm_epoch=(c.get("pm_epoch") or {}).get("date"), data_version=c.get("data_version"))
+            break
+    return out
+
+
+def publish(path, dest=SHARE_DIR, log=print):
+    """Pack a global pre-screen for the mirror: <name>.tar.xz (events, index, meta) + <name>.tar.xz.sha256 in the share
+    folder, and its entry in the folder's prescreens.json (settings, catalog, the archive's and each file's size and
+    SHA-256; replaces an entry of the same name). Upload those to the mirror's pre-screen folder (world-prescreens/). Returns the entry."""
+    if not is_global(path):
+        sys.exit("only global (whole-Earth) pre-screens are shared: a region one is cut from them in seconds")
+    m = read_meta(path)
+    if not has_index(path):
+        log("no index yet: building it first (pysyzygos prescreen index)")
+        index(path)
+    os.makedirs(dest, exist_ok=True)
+    name = os.path.basename(path)[:-len(".global.npy")]
+    files = [dict(name=os.path.basename(p), bytes=os.path.getsize(p), sha256=_sha(p)) for p in _files(path)]
+    archive = name + ".tar.xz"
+    out = os.path.join(dest, archive)
+    t = time.time()
+    log(f"{archive}: packing {', '.join(f['name'] for f in files)} ({sum(f['bytes'] for f in files) / 1e6:.0f} MB) ...")
+    _tar_xz(os.path.dirname(os.path.abspath(path)), [f["name"] for f in files], out)
+    sha = _sha(out)
+    with open(out + ".sha256", "w") as f:
+        f.write(f"{sha}  {archive}\n")
+    log(f"   {os.path.getsize(out) / 1e6:.0f} MB in {_hms(time.time() - t)}, SHA-256 {sha}")
+    entry = {k: m.get(k) for k in SHARE_KEYS}
+    entry.update(name=name, kind="global", catalog=catalog_info(m.get("catalog", "")), archive=archive,
+                 archive_bytes=os.path.getsize(out), archive_sha256=sha, files=files, published=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), published_with=__version__)
+    mp = os.path.join(dest, MANIFEST)
+    try:
+        with open(mp) as f:
+            man = json.load(f)
+    except (OSError, ValueError):
+        man = dict(format=1, about="PySyzygos shared pre-screens: pysyzygos prescreen remote / fetch", prescreens=[])
+    man["prescreens"] = sorted([e for e in man["prescreens"] if e.get("name") != name] + [entry],
+                               key=lambda e: (e.get("start") or "", e["name"]))
+    man["updated"] = entry["published"]
+    with open(mp + ".tmp", "w") as f:
+        json.dump(man, f, indent=1)
+    os.replace(mp + ".tmp", mp)
+    log(f"{mp}: {len(man['prescreens'])} pre-screen(s). Upload {archive}, {archive}.sha256 and {MANIFEST} to the "
+        f"mirror's pre-screen folder (urls.URL_PRESCREEN_MIRRORS)")
+    return entry
+
+
+def mirrors():
+    """Mirror folders of shared pre-screens: env PYSYZYGOS_PRESCREEN_MIRROR (comma-separated) first, then urls.py."""
+    from pysyzygos import urls as U
+    env = [m.strip() for m in os.environ.get("PYSYZYGOS_PRESCREEN_MIRROR", "").split(",") if m.strip()]
+    return [m if m.endswith("/") else m + "/" for m in env + list(U.URL_PRESCREEN_MIRRORS)]
+
+
+def _get(url, timeout=90):
+    if url.startswith("file://"):
+        with open(url[len("file://"):], "rb") as f:
+            return f.read()
+    import requests
+    r = requests.get(url, timeout=timeout)
+    r.raise_for_status()
+    return r.content
+
+
+def remote_list(mirror_list=None, log=print):
+    """(mirror, manifest) of the first mirror that answers, or (None, None)."""
+    for m in (mirrors() if mirror_list is None else mirror_list):
+        try:
+            return m, json.loads(_get(m + MANIFEST))
+        except Exception as e:                                     # unreachable, no manifest, not JSON
+            log(f"   {m}: no list ({str(e)[:80]})")
+    return None, None
+
+
+def _choose(items, name):
+    if name in (None, "", "latest"):
+        return max(items, key=lambda e: (e.get("start") or "", e.get("built") or "")) if items else None
+    return next((e for e in items if e["name"] == name or e["name"] + ".global.npy" == name), None)
+
+
+def fetch(name="latest", folder=DIR, mirror_list=None, log=print):
+    """Download a shared pre-screen into folder: its .tar.xz (resumable), SHA-256 checked, then only the listed files
+    unpacked (by name; nothing else in the archive is written), each checked again, the meta file last. Nothing is
+    downloaded when the files are already there and intact. Returns the .global.npy path."""
+    import shutil, tarfile
+    from pysyzygos import gaia_local as GL
+    m, man = remote_list(mirror_list, log)
+    if not man:
+        sys.exit("no pre-screen mirror answered (offline?)")
+    e = _choose(man.get("prescreens", []), name)
+    if e is None:
+        sys.exit(f"no shared pre-screen '{name}'; available: "
+                 + ", ".join(x["name"] for x in man.get("prescreens", [])))
+    os.makedirs(folder, exist_ok=True)
+    need = sum(f["bytes"] for f in e["files"]) + e["archive_bytes"]
+    if shutil.disk_usage(folder).free < need:
+        sys.exit(f"not enough disk space in {folder}: {need / 1e9:.1f} GB needed")
+    log(f"{e['name']}: {e['start']} + {e['days']:g} d, G <= {e['cam_limit']:g}, {e['n_events']} events of "
+        f"{e['n_asteroids']} asteroids, built {str(e.get('built'))[:10]}, from {m}")
+    if all(os.path.isfile(os.path.join(folder, f["name"])) and os.path.getsize(os.path.join(folder, f["name"]))
+           == f["bytes"] and _sha(os.path.join(folder, f["name"])) == f["sha256"] for f in e["files"]):
+        log("   already here and intact")
+        return os.path.join(folder, e["name"] + ".global.npy")
+    part = os.path.join(folder, e["archive"] + ".part")
+    if not (os.path.isfile(part) and os.path.getsize(part) == e["archive_bytes"]):
+        log(f"   {e['archive']}: {e['archive_bytes'] / 1e6:.0f} MB")
+        if m.startswith("file://"):
+            shutil.copyfile(m[len("file://"):] + e["archive"], part)
+        else:
+            GL._fetch_resume(m + e["archive"], e["archive_bytes"], part)
+    log("   checking the SHA-256 ...")
+    if _sha(part) != e["archive_sha256"]:
+        os.remove(part)
+        sys.exit(f"{e['archive']}: SHA-256 mismatch (corrupt download, deleted); run again")
+    log(f"   unpacking {e['archive']} ...")
+    want = {f["name"]: f for f in e["files"]}
+    with tarfile.open(part, "r:xz") as t:
+        members = {x.name: x for x in t.getmembers() if x.isfile()}
+        missing = [n for n in want if n not in members]
+        if missing:
+            sys.exit(f"{e['archive']}: {', '.join(missing)} missing in the archive")
+        for f in e["files"]:                                      # the list's order: the meta file last
+            final = os.path.join(folder, f["name"])
+            with t.extractfile(members[f["name"]]) as src, open(final + ".part", "wb") as dst:
+                shutil.copyfileobj(src, dst, 1 << 22)
+            if os.path.getsize(final + ".part") != f["bytes"] or _sha(final + ".part") != f["sha256"]:
+                os.remove(final + ".part")
+                sys.exit(f"{f['name']}: unpacked file does not match its SHA-256; run again")
+            GL.replace_file(final + ".part", final)
+    os.remove(part)
+    path = os.path.join(folder, e["name"] + ".global.npy")
+    log(f"{path}: ready (pick --prescreen auto uses it when it covers the window)")
+    return path
+
+
 def describe(path, meta=None):
     m = meta or read_meta(path)
     reg = m.get("region")
@@ -876,7 +1065,33 @@ def main(argv=None):
     q.add_argument("--min-alt", type=float, default=c("min_alt", 10.0))
     q.add_argument("--max-sun-alt", type=float, default=c("max_sun_alt", 0.0))
     q.add_argument("--numbers", action="store_true", help="print the asteroid numbers")
+    pb = sub.add_parser("publish", help="pack a global pre-screen (.tar.xz + .sha256) into the share folder for the mirror")
+    pb.add_argument("file", help="a global pre-screen (.global.npy)")
+    pb.add_argument("--to", default=SHARE_DIR, help=f"share folder (default {SHARE_DIR})")
+    sub.add_parser("remote", help="the shared pre-screens on the mirror")
+    fe = sub.add_parser("fetch", help="download a shared pre-screen from the mirror into prescreen/")
+    fe.add_argument("name", nargs="?", default="latest", help="its name (see remote), default: the latest")
     a = ap.parse_args(argv)
+    if a.cmd == "publish":
+        publish(a.file, a.to)
+        return 0
+    if a.cmd == "remote":
+        m, man = remote_list()
+        if not man:
+            print("No pre-screen mirror answered (offline?).")
+            return 1
+        print(f"Shared pre-screens at {m} (updated {str(man.get('updated'))[:16]}):")
+        here = {os.path.basename(p) for p, _ in list_files()}
+        for e in man.get("prescreens", []):
+            mb = e["archive_bytes"] / 1e6
+            print(f"  {e['name']}{'  [installed]' if e['name'] + '.global.npy' in here else ''}\n"
+                  f"    {e['start']} + {e['days']:g} d, whole Earth, G <= {e['cam_limit']:g}, reach "
+                  f"{e['reach_km']:g} km, {e['n_events']} events of {e['n_asteroids']} asteroids, built "
+                  f"{str(e.get('built'))[:10]} ({e.get('version')}), download {mb:.0f} MB")
+        return 0
+    if a.cmd == "fetch":
+        fetch(a.name)
+        return 0
     if a.cmd == "list":
         for p, m in list_files():
             n_ev, n_ast = counts(p)

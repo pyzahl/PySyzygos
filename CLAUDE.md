@@ -98,6 +98,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `near_site`/`hits_box` add `_reach_pad` = max ground_reach over the track's altitude range (not monotonic in h:
   33 points + 3 %) for the query's reach/min_alt, TOL margins; validated 2026-10-10: 0 dropped at all tested
   sites/limits, passes 14-26 % of events). Named regions `REGIONS` / `parse_region`.
+  Shared (1.3.3): `publish` (release/world-prescreens/: <name>.tar.xz via tar + xz -T0 or tarfile, .sha256,
+  prescreens.json with SHARE_KEYS settings, catalog_info (catalog.json of the folder or its .new/.old twin), archive,
+  archive_bytes/_sha256, files [name, bytes, sha256], meta file last), `remote_list` / `fetch` (URL_PRESCREEN_MIRRORS
+  = BNL box world-prescreens/ + env PYSYZYGOS_PRESCREEN_MIRROR, file:// for tests; GL._fetch_resume, only the
+  listed members extracted and checked, nothing downloaded if intact). GUI Pick
+  "Download shared" (`prescreen_shared`). tests/test_prescreen_share.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via
@@ -297,6 +303,18 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   10.26033/ehqs-jp27): compact extract `data/occultations_pds.json` (per numbered asteroid: events, years, quality
   counts, best profile of codes >= 2 with measured size, shape-model diameter; no chords/observers), rebuilt with
   `python -m pysyzygos.occultations build <zip>`. Reference line in the favorites panel only; not a size source yet.
+- `pysyzygos/occultdata.py` (1.3.3, optional add-on, `pysyzygos occult-data status|add|remove|update|import|show`, GUI
+  System tab "Occult data"): D. Herald's Occult data from IOTA, URL_OCCULT_DATA + <File>.zip (case-sensitive; HEAD
+  Last-Modified = server date in occult_data/datasets.json; only the expected member names are extracted). DATASETS:
+  diameters (AsteroidDiameters.bin: int16 dia x10 for 1..n, n = size/3, then u1 unc x5 at byte 2n; negative = from
+  H; the help page's offsets are the old layout), diameters_all (9-byte records num i4, dia i2, unc u1 x2.5, source,
+  albedo x500; the Indiv file swaps the last two), magnitudes (HGsHG1G2_Magnitudes.csv by column position, HV =
+  Hg - 0.03 - 0.42 (Hg - Hr)), binaries (CSV with orbits), observations (Asteroid~Observations.xml -> observations.json
+  in occultations.py's schema; occultations.load prefers it over the PDS extract), gaia_doubles (Gaia_Doubles.csv +
+  gaia_doubles.idx.npy by RA, `gaia_doubles_near`, `star_text` 3"). `import_folder` copies from an Occult "Resource
+  Files" folder (server date unknown -> listed by check_updates). Favorites panel `f_ocd` (summary + star_text),
+  sysinfo `occult_data`, cleanup DOWNLOADS. Reference only; not used by the predictions yet. Redistribution not
+  agreed: never ship these files in data/. tests/test_occultdata.py.
 - `pysyzygos/globe.py` (0.11.0): whole-Earth view (globe) `maps/<stem>_globe.svg` (written by
   `pysyzygos.write_globe` after the KML; `write_globes`, `globe_style` "color"/"lines"); `globe_data(spice, ...)` +
   pure `render_svg(d)`. Data `data/ne_110m_earth.json` (Natural Earth 110m coast/borders/land, public domain).
@@ -514,7 +532,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - Catalog mirrors: BUILT in 1.3.0 (starcat `mirrors`, `sources`: Zenodo + `URL_CATALOG_MIRRORS` + env
   PYSYZYGOS_CATALOG_MIRROR, speed probe, resume across sources, `ARCHIVE_SHA256` stored). First mirror: a temporary
   BNL box share (Nextcloud: direct files at public.php/dav/files/<token>/catalog_v2.1/<name>, Range works; one folder per
-  set of checksums: rev2 = 1.3.0 (user removes it ~2026-10-25), catalog_v2.1 = 1.3.2 epoch-pm core/quality + xref; never replace files in place, a release
+  set of checksums: rev2 removed 2026-10-19; catalog_v2.1 = 1.3.2 epoch-pm core/quality + xref; never replace files in place, a release
   checks the SHA-256s built into it). Still to add:
   GitHub Releases or another permanent host; replace the BNL one when it goes.
 - Live search engine (ABOUT.md 3.8, timings of 2026-10-10): resident process with kernels, catalog, global

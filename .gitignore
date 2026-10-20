@@ -11,6 +11,7 @@ sbdb_cache.json
 owc_reference.txt
 owc_reference.csv
 owc_refs/
+/slides/
 /sites.py
 /pysyzygos_config.py
 /pyoccult_config.py*
@@ -56,3 +57,4 @@ data/ObsCodes.html
 private-docs/
 owc_cache.json
 /offline/
+/occult_data/

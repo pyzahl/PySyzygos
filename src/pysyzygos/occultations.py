@@ -20,7 +20,8 @@ import csv, io, json, os, sys, zipfile
 
 FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "occultations_pds.json")
 QUALITY = {0: "unreliable", 1: "astrometry only", 2: "limits on size", 3: "reliable size",
-           4: "better than shape models"}
+           4: "better than shape models", 5: "short event, no astrometry",       # 5, 6: Occult's archive (add-on)
+           6: "one star of a double"}
 _DATA = None
 
 
@@ -103,9 +104,17 @@ def build(src, out=FILE):
     return data["meta"]["asteroids"]
 
 
-def load(path=FILE):
+def load(path=None):
+    """The archive extract: the Occult data add-on's (occultdata.py, updated by IOTA continuously) when installed,
+    else the PDS extract shipped in data/. path: a given extract (tests)."""
     global _DATA
     if _DATA is None:
+        if path is None:
+            try:
+                from pysyzygos import occultdata
+                path = occultdata.observations_file() or FILE
+            except Exception:                                     # no data folder (tests, early start-up)
+                path = FILE
         try:
             with open(path, encoding="utf-8") as f:
                 _DATA = json.load(f)
@@ -125,9 +134,9 @@ def text(number):
     data = load()
     if not data["asteroids"]:
         return ""
-    until = (data["meta"].get("events_until") or "")[:7]
+    until = (data["meta"].get("events_until") or "")[:10 if data["meta"].get("label") else 7]
     a = lookup(number)
-    head = f"Occultations (NASA PDS archive, to {until})"
+    head = f"Occultations ({data['meta'].get('label', 'NASA PDS archive')}, to {until})"
     if not a or not a["n"]:
         return f"{head}: none observed yet" + (f"; shape-model diameter {a['shape_dia']['d']:g} km" if a and
                                               a.get("shape_dia") else "")
@@ -137,7 +146,7 @@ def text(number):
     s = a.get("shape_dia")
     if s:
         parts.append(f"shape-model diameter {s['d']:g}" + (f" ± {s['u']:g}" if s.get("u") else "")
-                     + f" km ({s['events']} events)")
+                     + f" km ({s['events']} event{'s' if s['events'] != 1 else ''}" + (f", {s['method']})" if s.get("method") else ")"))
     b = a.get("best")
     if b:
         parts.append(f"best profile {b['date']}: {b['major']:g} × {b['minor']:g} km "

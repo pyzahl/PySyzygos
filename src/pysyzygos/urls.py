@@ -28,7 +28,12 @@ URL_ZENODO_CATALOG_RECORD = "https://zenodo.org/api/records/23113337"           
 # in starcat.ARCHIVE_SHA256): folder addresses ending in /, tried with Zenodo, the fastest wins. Env
 # PYSYZYGOS_CATALOG_MIRROR adds one (e.g. a club's or institute's copy).
 URL_CATALOG_MIRRORS = [
-    "https://bnlbox.sdcc.bnl.gov/public.php/dav/files/2byYPzX4odRZRfR/catalog_v2.1/",   # temporary BNL box (rev2: 1.3.0)
+    "https://bnlbox.sdcc.bnl.gov/public.php/dav/files/2byYPzX4odRZRfR/catalog_v2.1/",   # temporary BNL box (1.3.2+)
+]
+# shared pre-screens (prescreen.py fetch/remote): folders with prescreens.json and <name>.tar.xz (+ .sha256); env
+# PYSYZYGOS_PRESCREEN_MIRROR adds one. Filled by `pysyzygos prescreen publish` (local release/world-prescreens/).
+URL_PRESCREEN_MIRRORS = [
+    "https://bnlbox.sdcc.bnl.gov/public.php/dav/files/2byYPzX4odRZRfR/world-prescreens/",   # temporary BNL box
 ]
 URL_UCAC4_ZONES = "https://cdsarc.cds.unistra.fr/ftp/I/322A/UCAC4/u4b/"        # UCAC4 zone files z001..z900 (xref)
 URL_CDS_XMATCH = "https://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync"             # CDS XMatch (supplement pm: UCAC5/4)
@@ -41,6 +46,7 @@ URL_JPL_SBDB_PAGE = "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr="   
 
 # --- earlier occultation results (pysyzygos/occultations.py): NASA PDS Small Bodies Node archive
 URL_PDS_OCCULTATIONS_PAGE = "https://sbn.psi.edu/pds/resource/occ.html"                       # all versions
+URL_OCCULT_DATA = "https://www.occultations.org/sw/occult/"   # + <File>.zip (case-sensitive): occultdata.py add-on
 URL_PDS_OCCULTATIONS_ZIP = "https://sbnarchive.psi.edu/pds4/non_mission/smallbodiesoccultations_V4_0.zip"  # V4.0
 
 # --- asteroid satellites (pysyzygos/binaries.py)

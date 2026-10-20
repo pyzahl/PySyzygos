@@ -516,6 +516,9 @@ def index():
                     ui.button("Build pre-screen", on_click=lambda: run_prescreen()).props("outline")
                     ui.button("Delete selected", on_click=lambda: delete_prescreens()).props(
                         "flat dense color=negative")
+                    ui.button("Download shared", on_click=lambda: prescreen_shared()).props("outline dense").tooltip(
+                        "Whole-Earth pre-screens shared on the mirror (built by other users of PySyzygos): list them "
+                        "and download one instead of building it (about 1.5 GB for 40 days at G 16; any site)")
                 ps_cols = [dict(name=k, label=lbl, field=k, sortable=True, align="left") for k, lbl in
                            (("name", "Name"), ("window", "Window"), ("region", "Region"), ("sites", "Sites inside"),
                             ("limits", "Limits"), ("found", "Asteroids / events"), ("age", "Built"), ("fits", "This pick"))]
@@ -665,7 +668,13 @@ def index():
                                 "Earlier occultations of this asteroid in NASA's archive of observed occultations (PDS "
                                 "Small Bodies Node; Herald, Dunham et al.; doi:10.26033/ehqs-jp27). Reference only: the "
                                 "prediction uses the size above. Event quality: astrometry only < limits on size < "
-                                "reliable size < better than shape models")
+                                "reliable size < better than shape models. With the Occult data add-on (System tab): "
+                                "IOTA's current archive instead")
+                            f_ocd = ui.label().classes("text-sm text-slate-600 whitespace-pre-line").tooltip(
+                                "From the optional Occult data add-on (System tab; data by D. Herald, published by "
+                                "IOTA): infrared diameters, H in g and r, known satellites, Gaia non-single-star "
+                                "solutions at the star (within 3\"). Reference only: the prediction uses the size "
+                                "above")
                             with ui.row().classes("items-center gap-2"):
                                 ui.button("Double-star check (VizieR)", on_click=lambda: fav_vizier()).props(
                                     "outline dense").tooltip(
@@ -759,6 +768,22 @@ def index():
                      "from your computer; without, from JPL Horizons per search (needs the network). Uranus: Horizons "
                      "only (NAIF splits it into very large files).").classes("text-xs text-slate-500")
             planets_box = ui.column().classes("w-full gap-0")
+            ui.separator()
+            ui.label("Occult data (optional add-on)").classes("font-semibold")
+            ui.label("Asteroid data that D. Herald maintains for the Occult program, published by IOTA: infrared "
+                     "diameters, H and G in two colours, asteroid satellites, the occultation results archive "
+                     "(updated continuously; replaces the yearly NASA PDS extract in the favorites panel), Gaia "
+                     "non-single stars. Shown with the favorites as reference; the predictions do not use them yet. "
+                     "Stored in the data folder's occult_data/.").classes("text-xs text-slate-500")
+            occ_box = ui.column().classes("w-full gap-0")
+            with ui.row().classes("items-center gap-2"):
+                ui.button("Check for updates", on_click=lambda: occ_check()).props("outline dense").tooltip(
+                    "Compare the installed datasets with the server's (a few small requests); changed ones can then "
+                    "be downloaded again")
+                occ_src = ui.input("Occult 'Resource Files' folder").props("dense outlined").classes("w-96")
+                ui.button("Import", on_click=lambda: occ_import()).props("flat dense").tooltip(
+                    "Copy the datasets from an Occult installation instead of downloading them (their server date is "
+                    "then unknown: 'Check for updates' lists them)")
             ui.separator()
             ui.label("Offline use").classes("font-semibold")
             ui.label("The pick's asteroid list (JPL SBDB) and the searches' orbit files (JPL Horizons) are cached in "
@@ -1409,6 +1434,36 @@ def index():
             pre_info.text = ("No pre-screen fits this site and window: screens all asteroids (slower). "
                              "Build one below for fast picks.")
 
+    async def prescreen_shared():
+        from pysyzygos import prescreen as PS
+        ui.notify("Asking the mirror for its shared pre-screens ...")
+        m, man = await run.io_bound(PS.remote_list, None, lambda *a: None)
+        if not man or not man.get("prescreens"):
+            ui.notify("No shared pre-screens (mirror not reachable, or none published yet)", type="warning")
+            return
+        here = {os.path.basename(p) for p, _ in PS.list_files()}
+        with ui.dialog() as dlg, ui.card().classes("max-w-3xl"):
+            ui.label("Shared whole-Earth pre-screens").classes("font-semibold")
+            ui.label("Built with the limits shown (loose on purpose: a pick with stricter limits finds the same "
+                     "events). Orbits are those of the build day: prefer a recent one.").classes("text-xs text-slate-500")
+            for e in reversed(man["prescreens"]):
+                mb = e["archive_bytes"] / 1e6
+                with ui.row().classes("items-center gap-3"):
+                    ui.label(f"{e['start']} + {e['days']:g} d, G \u2264 {e['cam_limit']:g}, {e['n_asteroids']} "
+                             f"asteroids / {e['n_events']} events, built {str(e.get('built'))[:10]}, "
+                             f"{mb:.0f} MB").classes("text-sm")
+                    if e["name"] + ".global.npy" in here:
+                        ui.label("installed").classes("text-sm text-green-700")
+                    else:
+                        async def get(name=e["name"]):
+                            dlg.close()
+                            ui.notify(f"Downloading {name} (see the log)")
+                            await run_process(PYSYZYGOS + ["prescreen", "fetch", name], log)
+                            prescreen_options()
+                        ui.button("Download", on_click=get).props("dense outline")
+            ui.button("Close", on_click=dlg.close).props("flat")
+        dlg.open()
+
     async def delete_prescreens():
         sel = [r["path"] for r in ps_table.selected]
         if not sel:
@@ -1583,6 +1638,14 @@ def index():
             import base64
             f_err.props(f'src="data:image/svg+xml;base64,{base64.b64encode(err.encode()).decode()}" alt="Error ellipses"')
         f_occ.text = occultations.text(e["record"].get("target_id", ""))
+        from pysyzygos import occultdata
+        ocd = occultdata.summary(e["record"].get("target_id", ""))
+        try:
+            ocd += occultdata.star_text(float(e["record"]["star_ra"]), float(e["record"]["star_dec"]))
+        except (KeyError, TypeError, ValueError):
+            pass
+        f_ocd.text = "\n".join(ocd)
+        f_ocd.set_visibility(bool(ocd))
         from pysyzygos import doubles as D_
         f_viz.text = "\n".join(D_.vizier_text(e.get("vizier")))
         f_added.text = f"added {e.get('added', '')[:16].replace('T', ' ')} UT"
@@ -1813,6 +1876,68 @@ def index():
                 ui.button("Cancel", on_click=lambda: go(False)).props("flat")
         dlg.open()
 
+    def occ_refresh(*_):
+        from pysyzygos import occultdata
+        occ_box.clear()
+        with occ_box:
+            for s in occultdata.status():
+                when = (s["server_date"][5:16] if s["server_date"] else "imported" if s["source"] else "")
+                label = (f"{s['key']}: {s['text']} (" + (f"{s['bytes'] / 1e6:.1f} MB, {when})" if s["installed"]
+                                                          else f"{s['zip']})"))
+                cb = ui.checkbox(label, value=s["installed"]).props("dense")
+                cb.on_value_change(lambda e, k=s["key"]: occ_toggle(k, e.value))
+
+    async def occ_toggle(key, on):
+        from pysyzygos import occultdata
+        if on:
+            ui.notify(f"Downloading {key} (see the log)")
+            await run_process(PYSYZYGOS + ["occult-data", "add", key], log)
+            occ_refresh()
+            return
+
+        async def go(delete):
+            dlg.close()
+            if delete:
+                await run.io_bound(occultdata.remove, key)
+                ui.notify(f"{key} deleted", type="positive")
+            occ_refresh()
+
+        with ui.dialog().props("persistent") as dlg, ui.card().classes("max-w-lg"):
+            ui.label(f"Delete the dataset '{key}'?").classes("font-semibold")
+            ui.label("Ticking it again downloads it anew.").classes("text-sm")
+            with ui.row():
+                ui.button("Delete", on_click=lambda: go(True)).props("color=negative")
+                ui.button("Cancel", on_click=lambda: go(False)).props("flat")
+        dlg.open()
+
+    async def occ_check():
+        from pysyzygos import occultdata
+        new = await run.io_bound(occultdata.check_updates)
+        if not new:
+            ui.notify("The installed Occult datasets are up to date", type="positive")
+            return
+        with ui.dialog() as dlg, ui.card().classes("max-w-lg"):
+            ui.label("Newer on the server:").classes("font-semibold")
+            for k, d in new.items():
+                ui.label(f"{k}: {d}").classes("text-sm")
+
+            async def go():
+                dlg.close()
+                await run_process(PYSYZYGOS + ["occult-data", "update"], log)
+                occ_refresh()
+            with ui.row():
+                ui.button("Download", on_click=go).props("color=primary")
+                ui.button("Later", on_click=dlg.close).props("flat")
+        dlg.open()
+
+    async def occ_import():
+        src = (occ_src.value or "").strip()
+        if not src or not os.path.isdir(src):
+            ui.notify("Enter the path of an Occult 'Resource Files' folder", type="warning")
+            return
+        await run_process(PYSYZYGOS + ["occult-data", "import", src], log)
+        occ_refresh()
+
     async def cat_part(d, g, on):
         if on:
             if g in starcat.disabled_groups(d):                     # switched off earlier: back at once
@@ -1967,6 +2092,7 @@ def index():
     sys_refresh()
     cat_refresh()
     planets_refresh()
+    occ_refresh()
     cat_sel.on_value_change(cat_refresh)
     tabs.on_value_change(lambda e: sys_info_refresh() if e.value in (t_sys, "System") else None)
 

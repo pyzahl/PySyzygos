@@ -11,7 +11,7 @@ authors:
     alias: pyzahl
 license: GPL-3.0-or-later
 doi: 10.5281/zenodo.23149371
-version: "1.3.2"
+version: "1.3.3"
 repository-code: "https://github.com/pyzahl/PySyzygos"
 abstract: >-
   Occultation predictor in Python (called PyOccult up to version 0.18; syzygos, Greek

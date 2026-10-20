@@ -4,6 +4,22 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [1.3.3] "Beyond Horizons" - 2026-10-19
+
+### Added
+- **Occult data, an optional add-on** (`occultdata.py`, `pysyzygos occult-data`, GUI System tab "Occult data"):
+  asteroid data that D. Herald maintains for Occult, downloaded from IOTA's server per dataset (or copied from an
+  Occult installation): infrared diameters (weighted mean and per survey, with albedos), H and G in two colours for
+  ~122,000 asteroids, asteroid satellites with orbits, the occultation results archive and Gaia DR3 non-single stars.
+  The favorites panel shows what they know about the asteroid and the star; with the archive installed, "earlier
+  occultations" come from it (updated continuously) instead of the yearly NASA PDS extract. "Check for updates"
+  compares the installed files with the server. Reference data only: the predictions do not use them yet.
+  `pysyzygos info` and the System tab's "Data in use" list them; `pysyzygos cleanup` removes them.
+- **Shared world pre-screens** (`pysyzygos prescreen remote | fetch [name|latest] | publish`, Pick tab
+  "Pre-screens -> Download shared"): whole-Earth pre-screens on the mirror (`URL_PRESCREEN_MIRRORS`, folder
+  `world-prescreens/` with `prescreens.json`), downloaded instead of built (hours): one `<name>.tar.xz` +
+  `.sha256`, resumable, SHA-256 checked, only the listed files unpacked and checked again, the meta file last. The first: 2026-10-01 + 40 days, G <= 16.
+
 ## [1.3.2] "Beyond Horizons" - 2026-10-19
 
 1.3.1 (version number set on 2026-10-17) was never released; its changes are part of this release.

@@ -234,11 +234,20 @@ def results(results_db="pysyzygos.db"):
     return out
 
 
+def occult_data():
+    """[(label, value)]: the optional Occult data add-on's datasets (occultdata.py)."""
+    from pysyzygos import occultdata
+    rows = [(s["key"], f"{s['bytes'] / 1e6:.1f} MB, " + (f"server date {s['server_date'][5:16]}" if s["server_date"]
+                                                         else f"copied from {s['source']}"))
+            for s in occultdata.status() if s["installed"]]
+    return rows or [("not installed", "optional (System tab, or: pysyzygos occult-data add <name>)")]
+
+
 def summary():
     from pysyzygos import config
     in_use = os.environ.get("PYSYZYGOS_CATALOG") or getattr(config, "gaia_local_dir", None)
     return [("Time and Earth", time_earth()), ("Stars", stars(in_use)),
-            ("Asteroids", asteroids(config.cache_path)), ("Planets and moons", planets(config.cache_path)), ("Results", results(getattr(config, "results_db", "pysyzygos.db")))]
+            ("Asteroids", asteroids(config.cache_path)), ("Planets and moons", planets(config.cache_path)), ("Occult data (add-on)", occult_data()), ("Results", results(getattr(config, "results_db", "pysyzygos.db")))]
 
 
 def main(argv=None):
