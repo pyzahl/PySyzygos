@@ -418,6 +418,16 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   it would create one). Keep its lists in step when new downloads/outputs are added. `tests/test_cleanup.py`.
 - `GETTING_STARTED.md` (2026-10-17): beginners' walk-through (install, site, pick, search, results, favorites; why the
   first runs are slow, caches); linked at the top of README's Quick start. Keep it in step with GUI labels.
+- `docs/math/` (2026-10-20, tracked): the math slides on their own (beamer): `pysyzygos_math.tex` (main),
+  `math_slides.tex` (the slides, single source: workflow, conventions, who computes what, notation, astrometry ST1 ST2
+  AS, solver IN OB LT, Besselian figure, FG FP CA OV), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
+  library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
+  (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The
+  private talk (slides/, gitignored) \input's preamble and math_slides from here; personal slides and the Galbraith
+  globe (names the site) stay private. Convention: math slides carry \slideid{ID}; key formulas are numbered
+  ID.n (\tag in displays, \eqtag in text lines); the function implementing one gets a comment block right above
+  its def: `# Math: FP.1, FP.2 (slide FP): ...` (ranges ST2.1-ST2.3, "slide X" refs). After changing a formula or
+  its code, run `python3 docs/math/check_xref.py` (tests/test_math_xref.py fails on references that do not exist).
 - `CONTRIBUTING.md`: fork/branch workflow, setup, tests, working with Claude Code, private files, pull requests,
   GPL-3.0-or-later for contributions. `LICENSE` (GPL-3.0 text), `CITATION.cff` (validated with cffconvert).
 - `tests/`: stand-in based tests, run each with `python tests/<name>.py` (no SPICE, astropy or network needed).
@@ -536,6 +546,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   from `file://`. Map dialog reopen bug fixed 2026-10-02 (the box was cleared on every open, removing Leaflet's panes).
 
 ## Ideas not built yet
+- Maps on demand (user, 2026-10-20): a 400-asteroid search (430 hits) spent 32.7 of 70.6 s on maps (KML, preview,
+  globe SVG; ~0.08 s per hit). A switch for big searches to skip them (config write_maps/write_globes exist, but no
+  GUI choice), and make them only for favorites (when a hit is starred: KML + preview + globe from the record and the
+  saved path, as the favorites copy them now) or on click in the report. Next after that: the VizieR proper-motion
+  check (~1.4 s per 2-parameter star) and the online double check (~9 s per run).
 - Double / companion stars from more sources (planned 2026-10-17, then put on the list): Gaia resolves pairs from
   ~0.4-0.7"; closer ones only show as RUWE, ipd_frac_multi_peak, duplicated_source, NSS (all in the quality part)
   and three indicators we do not keep yet: ipd_gof_harmonic_amplitude (elongated image), astrometric_excess_noise

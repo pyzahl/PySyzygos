@@ -749,8 +749,9 @@ All checks, with their numbers and the discussion of the differences, are in
   angular diameter is comparable to the shadow, making the event partial. Idea: Gaia `radius_gspphot` and
   `distance_gspphot` (angle in mas ~ 9.305 R / d_pc), a partial-coverage drop, and a flag when the star is larger than
   about 30 % of the shadow.
-- **Stellar parallax**: applied since 0.10.0 together with the light deflection (see below); the old unused
-  `geocentric_star_dir` in pysyzygos/search.py did the same and is superseded by `pysyzygos.astrometry.parallax_dir`.
+- **Stellar parallax**: applied since 0.10.0 together with the light deflection (see below); an early, unused
+  `geocentric_star_dir` in pysyzygos/search.py did the same (superseded by `pysyzygos.astrometry.parallax_dir`,
+  removed in 1.3.3).
 - **`star_test`'s `observable` text column**: `if not observable(...)` tests a tuple (always true), so the text never
   says "no". Harmless today, because `handle_star` rejects unobservable events with `observable(...)[0]`.
 - **Path uncertainty (sigma)** (the ellipse is now logged and drawn, 0.14.x: `ellipses.py`, favorites panel; the error

@@ -125,15 +125,7 @@ if download_kernels(config.earth_pck_max_age):
 
 ### NOW OCCULT CALC AND STAR+ASTEROID EPH MANAGEMENT
 
-PC_KM = 3.0856775814913673e13
-def geocentric_star_dir(ra_deg, dec_deg, plx_mas, et):
-    ra, dec = np.radians(ra_deg), np.radians(dec_deg)
-    u_bary = np.array([np.cos(dec)*np.cos(ra), np.cos(dec)*np.sin(ra), np.sin(dec)])
-    earth, _ = spice.spkpos('399', et, 'J2000', 'NONE', 'SSB')
-    v = u_bary * (1000.0 / max(plx_mas, 0.01)) * PC_KM - earth
-    return v / np.linalg.norm(v)
-
-
+# Math: OB.1, OB.2 (slide OB): the site (WGS84, georec) turned to J2000 by R(t) = pxform.
 def observer_j2000(et, obs_geo):
     from pysyzygos import earth                           # WGS84 (GPS) geodetic coordinates
     itrf = spice.georec(obs_geo['lon'], obs_geo['lat'], obs_geo['alt'], earth.A_KM, earth.F)
@@ -259,35 +251,6 @@ def CoordinateDistance(parallax_mas):
     
 
 
-def list_spk_contents(kernel_path):
-    # Find all unique object IDs tracked in the BSP file
-    objects = spice.spkobj(kernel_path)
-    
-    print(f"Found {len(objects)} objects in {kernel_path}:\n")
-    print(f"{'Object NAIF ID':<15} | {'Coverage Start (ET)':<20} | {'Coverage End (ET)':<20}")
-    print("-" * 62)
-    
-    for obj_id in objects:
-        # Retrieve the coverage windows for each object
-        cover = spice.spkcov(kernel_path, obj_id)
-        
-        # Iterate over the distinct intervals within the window
-        num_intervals = spice.wncard(cover)
-        for i in range(num_intervals):
-            # Extract start and end times in Ephemeris Time (seconds past J2000)
-            start_et, end_et = spice.wnfetd(cover, i)
-            
-            # (Optional) Convert ET to a human-readable UTC string
-            # Requires loading a leapseconds kernel (tls) if you want to use spice.et2utc
-            
-            print(f"{obj_id:<15} | {start_et:<20.3f} | {end_et:<20.3f}")
-
-
-
-        
-# 20028119, 28119 (1998 SX71),28119
-
-#+20000000
 def get_asteroid_name(spk_id):
     """Full name ("218001 (2001 XQ72)") from the SBDB size cache (fetched and cached if missing); the number if SBDB
     cannot be reached. Accepts the asteroid number or its SPK id (20000000 + number); a major body: its name."""
@@ -552,6 +515,8 @@ def apparent_mag_HG(et, target, H, G=0.15):
     return H + 5*np.log10(r * delta) - 2.5*np.log10((1 - G)*phi1 + G*phi2)
 
 
+# Math: OB.1, OB.2, LT.1, LT.2, FP.1, FP.2 (slides OB, LT, FP): rho with the light time from the
+# site (spkcpo 'CN'), the plane axes x, y, z = s, and the offsets xi, eta.
 def besselian_offsets(et, star_vector, observer_geo, asteroid_target):
     """Offsets (km) of the shadow axis from the observer on the fundamental plane.
     x points east, y points celestial north; the value is asteroid axis minus observer."""
@@ -579,6 +544,7 @@ def besselian_offsets(et, star_vector, observer_geo, asteroid_target):
     return d[0], d[1]
 
 
+# Math: FP.2 (slide FP): d = |(xi, eta)|.
 def get_besselian_miss_distance(*args):
     return np.hypot(*besselian_offsets(*args))
 
@@ -648,6 +614,7 @@ def contact_times(et_ca, miss_km, r_km, speed_kms, star_dir, obs_geo, target):
     return tuple(out)
 
 
+# Math: OV.2, OV.3 (slide OV): speed from +-1 s, chord, duration, magnitude drop.
 def event_metrics(et, star_dir, obs_geo, target, r_km, m_star, m_ast, dt=1.0):
     dx0, dy0 = besselian_offsets(et - dt, star_dir, obs_geo, target)
     dx1, dy1 = besselian_offsets(et + dt, star_dir, obs_geo, target)
@@ -660,6 +627,7 @@ def event_metrics(et, star_dir, obs_geo, target, r_km, m_star, m_ast, dt=1.0):
 
 
 
+# Math: OV.1 (slide OV): the local vertical u (geodetic normal) in J2000.
 def _up_j2000(et, obs_geo):
     lon, lat = obs_geo['lon'], obs_geo['lat']
     up_itrf = np.array([np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)])
@@ -683,6 +651,7 @@ def az_deg(et, direction, obs_geo):
     return float(np.degrees(np.arctan2(d @ east, d @ north)) % 360.0)
 
 
+# Math: OV.1 (slide OV): star above h_min and Sun below h_sun,max at the site.
 def observable(et, star_dir, obs_geo, min_star_alt=config.MIN_STAR_ALT, max_sun_alt=config.MAX_SUN_ALT):
     star_alt = alt_deg(et, star_dir, obs_geo)
     sun_alt = sun_alt_deg(et, obs_geo)
@@ -702,6 +671,8 @@ def window_is_observable(et0, span, obs_geo, target_id, min_star_alt=config.MIN_
 # ==========================================
 # 3. EXECUTION AND TEST HARNESS
 # ==========================================
+# Math: IN.1, CA.1, CA.2 (slides IN, CA): s from (ra, dec); t* = t0 + argmin d over the bracket (bounded
+# Brent on the offset, xatol 1 ms); hit if d_min < r_max + reach.
 def star_test (loc = EarthLocation(lat=40.7128*u.deg, lon=-74.0060*u.deg, height=10*u.m),
                center_time_utc = "2026-10-01T04:30:00", time_span = 24*3600,
                star_ra=np.radians(68.98), star_dec=np.radians(16.50),
@@ -1051,6 +1022,8 @@ def owc_opt():
                 extinction=config.pick_extinction)
 
 
+# Math: ST2 (slide ST2, via astrometry.corrected_star_dir), CA.2 (bracket-edge minima rejected), then
+# OV.1-OV.3 and the path uncertainty for the hit.
 def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, bracket_s, r_search, win_lo, win_hi,
                 t_start=None):
     """Refine one candidate star with the exact solver, log it (CSV, KML map) if it is a real, observable hit.

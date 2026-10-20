@@ -206,6 +206,7 @@ def solver_bracket_s(plan, j, factor=1.3, max_s=4 * 3600.0):
     return 2.0 * float(np.clip(half, step, max_s / 2.0))
 
 
+# Math: ST1.1 (slide ST1): applies the frame-spin correction (Gaia's own proper motions only).
 def gaia_pm(df, pm_bias=True):
     """(pmra*, pmdec) in mas/yr of the stars in df, with Gaia's bright-star proper-motion bias removed when pm_bias
     (astrometry.gaia_pm_bias; G < 13). Proper motions not from Gaia (supplement kinds 3, 4: UCAC5, UCAC4) and rows
@@ -220,6 +221,7 @@ def gaia_pm(df, pm_bias=True):
     return gaia_pm_bias(pmra, pmdec, df["ra"].to_numpy(float), df["dec"].to_numpy(float), g)
 
 
+# Math: ST1.2 (slide ST1): space motion from J2016.0 (TCB) to the event with astropy/ERFA pmsafe.
 def propagate_exact(df, utc_time, pm_bias=True, rv=True):
     """Astropy space motion for the surviving stars only (same recipe as fetch_and_propagate_stars). Adds
     ra_YYYYMMDD / dec_YYYYMMDD. df must have ra, dec, parallax, pmra, pmdec (and phot_g_mean_mag for the

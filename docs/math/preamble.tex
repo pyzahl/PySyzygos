@@ -1,0 +1,42 @@
+% PySyzygos slides: shared preamble (theme, colours, macros) of the math slides (docs/math) and the talk.
+% Vectors after ISO 80000-2 (bold italic, half arrow); math slides carry an ID (\slideid) and numbered formulas
+% (\tag / \eqtag, <ID>.<n>) that the code cites as "# Math: <ID>.<n>" (check_xref.py keeps both in step).
+\usetheme[progressbar=frametitle, numbering=fraction, block=fill]{metropolis}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{booktabs,array}
+\usepackage{siunitx}
+\usepackage{amsmath,amssymb,bm}
+% vectors after ISO 80000-2: bold italic with a half arrow (harpoon) over it; unit vectors with a hat
+\newcommand{\vv}[1]{\overset{\rightharpoonup}{\bm{#1}}}
+\newcommand{\uv}[1]{\hat{\bm{#1}}}
+% math slides: a short ID in a box at the right of the title bar; formulas numbered <ID>.<n> (\tag in displays,
+% \eqtag at the end of a text line).
+\newcommand{\slideid}[1]{\begin{tikzpicture}[remember picture, overlay]
+  \node[anchor=east, draw=white, line width=0.6pt, rounded corners=2pt, inner sep=2.5pt, text=white,
+        font=\footnotesize\bfseries] at ([xshift=-3mm, yshift=-0.55cm]current page.north east) {#1};
+  \end{tikzpicture}}
+\newcommand{\eqtag}[1]{\hfill{\scriptsize\textcolor{syzblue}{(#1)}}}
+\newcommand{\grp}[1]{\multicolumn{2}{@{}l}{\footnotesize\textbf{#1}} \\}   % group heading row (conventions table)
+% which library computes a step (tags on the astrometry and solver slides)
+\newcommand{\libtag}[2]{{\setlength{\fboxsep}{1.2pt}\colorbox{#1!18}{\textcolor{#1!70!black}{\tiny\textsf{#2}}}}}
+\newcommand{\SP}{\libtag{blue}{SpiceyPy}}
+\newcommand{\AP}{\libtag{green}{astropy/ERFA}}
+\newcommand{\SC}{\libtag{orange}{SciPy}}
+\newcommand{\OWN}{\libtag{gray}{own code}}
+\usepackage{hyperref}
+\usepackage{fontawesome5}
+\usepackage{multicol}
+\usepackage{appendixnumberbeamer}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+
+% colours (close to the GUI's)
+\definecolor{syzblue}{HTML}{1E3A5F}
+\definecolor{syzaccent}{HTML}{D97706}
+\setbeamercolor{frametitle}{bg=syzblue, fg=white}
+\setbeamercolor{progress bar}{fg=syzaccent, bg=syzblue!20}
+\setbeamercolor{title separator}{fg=syzaccent}
+\setbeamercolor{alerted text}{fg=syzaccent}
+

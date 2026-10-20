@@ -1,0 +1,22 @@
+% PySyzygos: how a prediction is computed (the math slides on their own).
+% Build: make   (runs check_xref.py, then latexmk -pdf)   The same slides are part of the author's talk.
+\documentclass[aspectratio=169,11pt]{beamer}
+\input{preamble}
+\graphicspath{{figures/}{../../src/pysyzygos/}}
+
+\title{PySyzygos: how a prediction is computed}
+\subtitle{From the Gaia catalog to a hit: astrometry and the exact solver}
+\author{Percy Zahl}
+\institute{\faGithub\ \href{https://github.com/pyzahl/PySyzygos}{github.com/pyzahl/PySyzygos}}
+\date{\today}
+\titlegraphic{\vspace*{-0.6cm}\hfill\includegraphics[height=1.8cm]{pysyzygos_logo.png}}
+
+\begin{document}
+\maketitle
+
+\section{How it works}
+\input{math_slides}
+
+\appendix
+\IfFileExists{xref_table.tex}{\input{xref_table}}{}
+\end{document}

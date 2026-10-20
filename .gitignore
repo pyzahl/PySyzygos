@@ -59,3 +59,17 @@ owc_cache.json
 /offline/
 /occult_data/
 /logs/
+
+# math slides (docs/math): LaTeX build files; the PDF is built with make there
+/docs/math/*.aux
+/docs/math/*.log
+/docs/math/*.nav
+/docs/math/*.out
+/docs/math/*.snm
+/docs/math/*.toc
+/docs/math/*.fls
+/docs/math/*.fdb_latexmk
+/docs/math/*.synctex.gz
+/docs/math/*.vrb
+/docs/math/pysyzygos_math.pdf
+/docs/math/xref_table.tex.tmp

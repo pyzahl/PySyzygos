@@ -42,6 +42,7 @@ GAIA_SPIN = np.array([
     (12.25, 12.5, 25.7, 73.6, 1.0), (12.5, 12.75, 27.3, 76.6, 0.5), (12.75, 13.0, 34.9, 68.9, -2.9)])
 
 
+# Math: ST1.1 (slide ST1): the bright-star frame spin removed from Gaia's proper motions.
 def gaia_pm_bias(pmra, pmdec, ra, dec, g):
     """Gaia DR3 proper motions (pmra* = pmra cos dec, pmdec; mas/yr) corrected for the bright-star frame spin
     (Cantat-Gaudin & Brandt 2021, edr3ToICRF, vectorised): unchanged for G >= 13 or a missing G. ra, dec in degrees.
@@ -67,6 +68,7 @@ def angle_mas(a, b):
     return float(np.arctan2(np.linalg.norm(np.cross(a, b)), np.dot(a, b)) * RAD2MAS)
 
 
+# Math: ST2.2 (slide ST2): f(q) times 2GM/(c^2 E) for one body; q = p for the star, q_b for the asteroid.
 def deflect(p, obs_from_body_km, q, gm):
     """Deflection vector (to add to p) of a source in direction p (unit), observer at obs_from_body_km from the body,
     q = unit vector from the body to the source (q = p for a star at infinity)."""
@@ -80,6 +82,7 @@ def deflect(p, obs_from_body_km, q, gm):
     return (2.0 * gm / (C_KM_S ** 2 * E)) * (e * float(np.dot(p, q)) - q * float(np.dot(p, e))) / den
 
 
+# Math: ST2.1 (slide ST2): the star seen from the Earth's centre instead of the barycentre.
 def parallax_dir(u_bary, plx_mas, earth_from_ssb_km):
     """The star's direction from the Earth instead of the barycentre (unchanged if the parallax is not > 0)."""
     if not plx_mas or not np.isfinite(plx_mas) or plx_mas <= 0:
@@ -87,6 +90,8 @@ def parallax_dir(u_bary, plx_mas, earth_from_ssb_km):
     return unit(np.asarray(u_bary, float) * (1000.0 / plx_mas) * PC_KM - np.asarray(earth_from_ssb_km, float))
 
 
+# Math: ST2.1-ST2.3 (slide ST2): parallax, deflection star minus asteroid summed over the bodies,
+# then the unit vector s used by the solver.
 def corrected_star_dir(spice, u_bary, plx_mas, et, target, parallax=True, deflection=True, bodies=("10", "5", "6")):
     """(direction, info): the star's corrected J2000 direction at et (unit vector) and the sizes of the corrections,
     info = {'parallax_mas', 'deflection_mas', 'deflection_by': {body: mas}}. target: the asteroid's SPICE name/id."""
