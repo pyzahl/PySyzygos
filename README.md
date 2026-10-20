@@ -108,7 +108,9 @@ everything: `pysyzygos` (the web interface) or `pysyzygos <command>`, e.g. `pysy
 
 See [ABOUT.md](ABOUT.md) for the computations, data sources and open points, and
 [VERIFICATION.md](VERIFICATION.md) for how the predictions were checked against OccultWatcher Cloud and Occult
-(same stars, times within a few seconds) and the differences found.
+(same stars, times within a few seconds) and the differences found. The computation step by step, as slides with
+numbered formulas (each cited in the code that implements it, `# Math: FP.2`): [docs/math](docs/math) (LaTeX
+source; the PDF comes with each release, or `make` there with a LaTeX installation).
 
 # Quick start
 
