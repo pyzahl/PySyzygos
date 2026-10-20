@@ -138,12 +138,21 @@ def path_error(target_id, utc_time):
     dict(sigma3_km = 3-sigma RSS converted to km at the asteroid, smaa_mas / smia_mas = the 1-sigma error ellipse's
     semi-axes (mas), pa_deg = position angle of its major axis, from north through east), the ellipse values None
     where Horizons gives none. None if Horizons has no covariance for the object or the query fails.
-    Horizons' Theta is measured from the RA axis (east) towards north, so PA = 90 - Theta (as OccultWatcher shows it)."""
+    Horizons' Theta is measured from the RA axis (east) towards north, so PA = 90 - Theta (as OccultWatcher shows it).
+    A busy Horizons (HTTP 503, e.g. several queries at once) is asked again up to 3 times after a short pause."""
     from astroquery.jplhorizons import Horizons
     from astropy.time import Time
+    import time as _time
     try:
-        eph = Horizons(id=str(target_id), id_type='smallbody', location='500',
-                       epochs=Time(utc_time, scale='utc').jd).ephemerides(quantities='20,37,38')
+        for k in range(4):
+            try:
+                eph = Horizons(id=str(target_id), id_type='smallbody', location='500',
+                               epochs=Time(utc_time, scale='utc').jd).ephemerides(quantities='20,37,38')
+                break
+            except Exception as e:
+                if "503" not in str(e) or k == 3:
+                    raise
+                _time.sleep(1.5 * (k + 1))
         names = list(eph.colnames)
         col = next((c for c in names if 'RSS' in c.upper()), None) or \
               next((c for c in names if '3SIGMA' in c.upper() or 'POS' in c.upper()), None)

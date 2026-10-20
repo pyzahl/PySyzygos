@@ -56,7 +56,10 @@ sub = cands.sort_values('et_guess').head(60)
 class _ET(list): pass
 ns['_et'] = [float(sub.et_guess.iloc[0])]
 size = dict(r_km=10.0, r_min_km=5.0, r_max_km=15.0, source="test", H=12.0, G=0.15)
-n = ns['target_test_corridor'](Loc, plan, 'X', size, stars_cands=(stars, sub))
+n_found = ns['target_test_corridor'](Loc, plan, 'X', size, stars_cands=(stars, sub))
+assert ns['RUN']['hits'] == 0 and len(ns['PENDING']) == n_found       # asteroid hits wait for their path uncertainty
+n = ns['finish_pending']()                                              # (the driver does this after pass 2)
+assert n == n_found and not ns['PENDING']
 pysyzygos_db.export(_con, out_csv)                                      # as the run summary does after a run
 log = pd.read_csv(out_csv)
 print("candidates", len(sub), "gate calls", calls['gate'], "solver calls", calls['star_test'], "propagations", calls['propagate'], "logged", n, "csv rows", len(log))

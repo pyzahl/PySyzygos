@@ -302,6 +302,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
   `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`. Galbraith: "as Occult"
   line on Occult's centre to 0.19 km. tests/test_pmcheck.py (stand-in TSV of Galbraith's rows).
+- Search hit flow (1.3.3): `handle_star` solves and checks, then for asteroids appends (target, best_utc, finish) to
+  `PENDING`; `finish(perr)` (inner function: sigma, chance, star fields, db.add_event, maps) runs in `finish_pending()`
+  after pass 2 (corridor and windows mode): `path_error` for all hits PATH_ERROR_WORKERS (2) at a time in threads
+  (network only; 3 at once gave ~40 % HTTP 503), None ones once more alone, then each finish in the main thread
+  (SPICE). Planets/moons finish at once. DEFER_HITS = False restores the old one-by-one flow. `paths.path_error`
+  retries a 503 up to 3 times. `prefetch_sizes` (SBDB, 4 threads, one retry, cache written once in the caller) runs in
+  a thread beside `prefetch_orbits`. Verified 2026-10-19: 8 targets with maps and 200 targets: identical records
+  (and KML) to the old flow; uncertainties 48 s vs 103 s for 201 hits. tests/test_patch.py calls finish_pending.
 - `pysyzygos/steps.py` (1.3.3): `Steps(tool)`: add / step (context) / wrap (timed function: time and calls add up),
   group = parent step (listed under it), placeholders fix the order, "other" = total since PYSYZYGOS_T0 minus the
   top-level steps; `emit` prints a table and the line `PYSYZYGOS-STEPS {json}` (`parse`). Used by pick

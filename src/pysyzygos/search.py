@@ -842,6 +842,60 @@ def target_test(loc, event_time_utc, time_span, target_id, size, mag_lim=20.0, m
 
 
 RUN = dict(candidates=0, gated=0, solves=0, hits=0, maps_s=0.0, calc_s=0.0)      # run statistics (see run_summary)
+PENDING = []             # asteroid hits waiting for their path uncertainty (handle_star -> finish_pending)
+DEFER_HITS = True        # False: each hit finished at once (one Horizons query at a time, as before 1.3.3)
+PATH_ERROR_WORKERS = 2   # parallel Horizons queries for the path uncertainties (3 at once: ~40 % answered 503)
+
+
+def finish_pending():
+    """Finish the collected asteroid hits: their path uncertainties from JPL Horizons, PATH_ERROR_WORKERS at a time
+    (network only: threads), a failed one asked again once on its own, then each hit completed in the order found, in
+    the main thread (SPICE). Returns the number of hits logged."""
+    if not PENDING:
+        return 0
+    from concurrent.futures import ThreadPoolExecutor
+    items = list(PENDING)
+    PENDING.clear()
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=min(PATH_ERROR_WORKERS, len(items))) as ex:
+        perrs = list(ex.map(lambda it: path_error(it[0], it[1]), items))     # network only (astroquery)
+    again = [k for k, p in enumerate(perrs) if p is None]
+    for k in again:                                          # busy server or no covariance: once more, alone
+        time.sleep(1.0)
+        perrs[k] = path_error(items[k][0], items[k][1])
+    dt = time.time() - t0
+    STEPS.add("hit: path uncertainty (JPL Horizons)", dt, len(items), "hits", group=P2)
+    print(f"path uncertainties: {len(items)} from JPL Horizons in {dt:.1f} s ({PATH_ERROR_WORKERS} at a time"
+          + (f"; {len(again)} asked again, {sum(perrs[k] is None for k in again)} without" if again else "") + ")")
+    return sum(bool(fin(perr)) for (_, _, fin), perr in zip(items, perrs))
+
+
+def prefetch_sizes(targets, workers=4):
+    """Fetch the SBDB data of the targets whose cached copy is missing or stale, several at a time (network only:
+    threads); the cache file is then written once, here in the calling thread. sbdb_phys finds them afterwards."""
+    from concurrent.futures import ThreadPoolExecutor
+    age = getattr(config, "sbdb_max_age_days", 30)
+    todo = [str(t).strip() for t in targets
+            if not bodies.is_body(t) and not sbdb_cache.get(str(t).strip(), config.cache_path, age)[1]]
+    if len(todo) < 2:
+        return 0
+
+    def one(n):
+        for k in range(2):                                    # a busy server: once more after a pause
+            try:
+                resp = requests.get(U.URL_JPL_SBDB_API, params={"sstr": n, "phys-par": 1}, timeout=30)
+                resp.raise_for_status()
+                return n, sbdb_cache.entry_from_api(resp.json())
+            except (requests.RequestException, ValueError):
+                time.sleep(1.0)
+        return n, None                                        # sbdb_phys tries again (messages, fallbacks)
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=min(workers, len(todo))) as ex:
+        got = {n: e for n, e in ex.map(one, todo) if e}
+    if got:
+        sbdb_cache.put(got, config.cache_path)
+    print(f"sizes: {len(got)} of {len(todo)} from JPL SBDB in {time.time() - t0:.1f} s ({workers} at a time)")
+    return len(got)
 from pysyzygos.steps import Steps
 STEPS = Steps("search")                  # where the time goes, per step (table + GUI run summary; wrap_steps)
 P1, P2 = "asteroid data (pass 1)", "stars, scan and solve (pass 2)"
@@ -850,13 +904,14 @@ P1, P2 = "asteroid data (pass 1)", "stars, scan and solve (pass 2)"
 def wrap_steps():
     """Time the corridor run's steps: the functions each step calls are replaced by timed versions (steps.py); the
     callers stay as they are. Parts of pass 1 and 2 are listed under them; per-hit work is marked 'hit:'."""
-    global prefetch_orbits, load_orbit, get_asteroid_size, window_is_observable, star_test, path_error
+    global prefetch_orbits, prefetch_sizes, load_orbit, get_asteroid_size, window_is_observable, star_test, path_error
     global event_context, online_double_check
     W = STEPS.wrap
     for name in ("start-up (Python, kernels, catalog)", "setup (targets, catalog, site)", P1, P2,
                  "online double check (Gaia archive)", "results (database, CSV export)"):
         STEPS.add(name, 0.0)                                         # the table's order
     prefetch_orbits = W("orbits (JPL Horizons, downloads)", prefetch_orbits, group=P1)
+    prefetch_sizes = W("sizes (JPL SBDB, downloads)", prefetch_sizes, group=P1)
     load_orbit = W("orbits (load)", load_orbit, "asteroids", group=P1)
     get_asteroid_size = W("sizes (JPL SBDB)", get_asteroid_size, "asteroids", group=P1)
     corridor.plan_corridor = W("corridor plans", corridor.plan_corridor, "asteroids", group=P1)
@@ -866,7 +921,8 @@ def wrap_steps():
     astrometry.corrected_star_dir = W("star corrections (parallax, deflection)", astrometry.corrected_star_dir,
                                       "candidates", group=P2)
     star_test = W("exact solve (SciPy, SPICE)", star_test, "solves", group=P2)
-    path_error = W("hit: path uncertainty (JPL Horizons)", path_error, "hits", group=P2)
+    if not DEFER_HITS:
+        path_error = W("hit: path uncertainty (JPL Horizons)", path_error, "hits", group=P2)
     event_context = W("hit: event data", event_context, "hits", group=P2)
     from pysyzygos import pmcheck
     pmcheck.estimates = W("hit: proper-motion check (VizieR)", pmcheck.estimates, "stars", group=P2)
@@ -1068,135 +1124,143 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                                    years, rad)
         flags = doubles.star_flags(near, row.source_id, years)      # format-2 catalog with its quality part
     record.update(doubles.fields(comps, row.phot_g_mean_mag, m_ast, "local" if LOCAL is not None else "none", flags))
-    # chance that the shadow covers the site, from the path uncertainty (Horizons 3-sigma RSS, else the default)
-    if bodies.is_body(target_id):                        # planet or moon: no Horizons RSS; rough per-body value
-        sigma3_h, src = bodies.sigma3_km(target_id), "ephemeris estimate"
-    else:
-        perr = path_error(target_id, res['best_utc'])
-        sigma3_h, src = (perr or {}).get("sigma3_km"), "Horizons"
-    sigma3 = sigma3_h or config.default_sigma3_km
-    ast_sigma1 = sigma3 / 3.0
-    # supplement star: its own position uncertainty at the event date (no or a poor proper motion) widens the path
-    star_kind = int(getattr(row, "star_kind", 0) or 0)
-    s_mas = gaia_local.star_sigma_mas(star_kind, getattr(row, "ruwe", None), getattr(row, "pos_err", None),
-                                      getattr(row, "pm_err", None),
-                                      2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
-    s_km, pm_alts = None, []
-    if star_kind >= gaia_local.KIND_2P and getattr(config, "pm_alternatives", True):
-        # 2-parameter star: the other proper-motion estimates (VizieR); their spread is the realistic uncertainty
-        try:
-            from pysyzygos import pmcheck
-            yrs = 2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR
-            pe = getattr(row, "pos_err", None)
-            pm_alts = pmcheck.estimates(float(row.ra), float(row.dec), float(row.phot_g_mean_mag),
-                                        used=(float(row.pmra), float(row.pmdec)), years=yrs, ra_err=pe, dec_err=pe)
-            spread = pmcheck.spread_mas(pm_alts)
-            if spread and spread > (s_mas or 0.0):
-                s_mas = spread
-        except Exception as ex:                                       # offline: the quoted error only
-            print(f" --- proper-motion estimates not checked: {ex}")
-            pm_alts = []
-    if s_mas:
-        d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', '399')[0]))
-        s_km = s_mas * d_km * np.pi / 648000000.0
-        sigma3 = 3.0 * float(np.hypot(ast_sigma1, s_km))
-        if not record.get("star_err_smaa_mas"):                # the star's error ellipse (circle) for the favorites
-            record.update(star_err_smaa_mas=s_mas, star_err_smia_mas=s_mas, star_err_pa_deg=0.0)
-    record.update(path_sigma1_km=sigma3 / 3.0, sigma_source=(src if sigma3_h else "default") + (" + star" if s_km else ""),
-                  p_site=site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
-    contacts = []
-    record["kind"] = bodies.kind(target_id)
-    if bodies.is_body(target_id):                        # disappearance and reappearance at the site
-        ct = contact_times(res['best_et'], res['min_distance'], size['r_km'], met['speed_kms'], star_dir, obs_geo,
-                           target_id)
-        record.update(d_utc=spice.et2utc(ct[0], "ISOC", 2) if ct else "", r_utc=spice.et2utc(ct[1], "ISOC", 2) if ct else "",
-                      duration_s=(ct[1] - ct[0]) if ct else 0.0)
-        if ct:
-            contacts = [("D", record["d_utc"], ct[0], None), ("R", record["r_utc"], ct[1], None)]
-    if not bodies.is_body(target_id) and perr and perr.get("smaa_mas") is not None:   # error ellipse (1 sigma)
-        record.update(ast_err_smaa_mas=perr["smaa_mas"], ast_err_smia_mas=perr["smia_mas"], ast_err_pa_deg=perr["pa_deg"])
-    try:                                                 # OWC-style event data (favorites panel); never fatal
-        record.update(event_context(res['best_et'], star_dir, target_id, size['r_km'], row.phot_g_mean_mag, m_ast))
-    except Exception as ex:
-        print(f"(event data skipped: {ex})")
-    RUN_RECORDS.append(record)
-    # supplement stars (gaia_local: RUWE >= 1.4 or 2-parameter): flagged; new fields at the end of the record
-    kind_, ruwe_ = int(getattr(row, "star_kind", 0) or 0), getattr(row, "ruwe", float("nan"))
-    record.update(star_kind=kind_, star_ruwe=float(ruwe_) if ruwe_ is not None else float("nan"),
-                  star_flag=gaia_local.star_flag(kind_, ruwe_), ast_sigma1_km=ast_sigma1,
-                  star_sigma_mas=s_mas if s_mas else float("nan"), star_sigma_km=s_km if s_km else float("nan"))
-    record.update(star_az=az_deg(res['best_et'], star_dir, obs_geo))     # the report's compass direction (exact UT1)
-    pm_e = getattr(row, "pm_err", float("nan"))                         # the catalog's proper motion and its source
-    record.update(star_pmra=float(getattr(row, "pmra", float("nan"))), star_pmdec=float(getattr(row, "pmdec", float("nan"))),
-                  star_pm_err=float(pm_e) if pm_e is not None else float("nan"),
-                  star_pm_source=gaia_local.pm_source(kind_))
-    if pm_alts:                                                       # the other estimates (pmcheck)
-        from pysyzygos import pmcheck
-        sp = pmcheck.spread_mas(pm_alts)
-        record.update(star_pm_spread_mas=round(sp, 1),
-                      star_pm_spread_km=round(sp * s_km / s_mas, 1) if s_km and s_mas else float("nan"),
-                      star_pm_alts=pmcheck.summary(pm_alts, gaia_local.pm_source(kind_)))
-    names = dict(star_ucac4="", star_tyc="", star_hip="")             # the star's other names (catalog part xref)
-    if near is not None and "ucac4" in near:
-        me = near[near["source_id"].astype("int64") == int(row.source_id)]
-        if len(me):
-            names = dict(star_ucac4=me["ucac4"].iloc[0], star_tyc=me["tyc"].iloc[0], star_hip=me["hip"].iloc[0])
-    record.update(names)
-    # the site's own horizon (horizon.py, OccultWatcher's [User Horizon]): behind it / near it, as a warning
-    site_ = getattr(config, "site", None) or {}
-    hz_flag, hz_alt, hz_sep = horizon.assess(site_.get("horizon") or [], record.get("star_alt"), record.get("star_az"),
-                                             float(site_.get("horizon_margin", 15.0)))
-    record.update(horizon_flag=hz_flag, horizon_alt=float("nan") if hz_alt is None else round(hz_alt, 1),
-                  horizon_sep_deg=float("nan") if hz_sep is None else round(hz_sep, 1))
-    if hz_flag == "behind" and site_.get("horizon_filter"):
-        print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
-              f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there): left out (horizon_filter)")
-        return False
-    print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
-          + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
-             + ")" if record["star_flag"] else ""))
-    db.add_event(DB, RUN_ID, record, kind=record["kind"], contacts=contacts)   # hits_log.csv: exported after the run
-    RUN["hits"] += 1
-    RUN["calc_s"] += record["calc_s"]
-
-    t_map = time.time()
-    from pysyzygos.report import file_id                  # P:Jupiter -> P-Jupiter (no ':' in file names)
-    stem = f"{file_id(target_id)}_{res['best_utc'][:16].replace(':','').replace('-','')}"     # KML and preview
-    if config.write_maps and res['min_distance'] < r_search + config.max_shadow_dist:   # shadow + reach, as logged
-        os.makedirs(config.map_dir, exist_ok=True)
-        paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
-                            sat_km=binaries.zone_km(target_id))    # known satellite: its zone on the map
-        paths["pm_alts"] = []                                         # the centre line with each other proper motion
-        for e in pm_alts:
-            if abs(e["east"]) + abs(e["north"]) < 1.0:
-                continue
+    def finish(perr):
+        """The rest of the hit, with the path uncertainty perr (paths.path_error, None for planets and moons): sigma,
+        chance, star fields, database, maps. Asteroid hits are collected and finished after pass 2 (finish_pending:
+        the Horizons queries in parallel, then this in the main thread, SPICE), planets and moons at once."""
+        # chance that the shadow covers the site, from the path uncertainty (Horizons 3-sigma RSS, else the default)
+        if bodies.is_body(target_id):                        # planet or moon: no Horizons RSS; rough per-body value
+            sigma3_h, src = bodies.sigma3_km(target_id), "ephemeris estimate"
+        else:
+            sigma3_h, src = (perr or {}).get("sigma3_km"), "Horizons"
+        sigma3 = sigma3_h or config.default_sigma3_km
+        ast_sigma1 = sigma3 / 3.0
+        # supplement star: its own position uncertainty at the event date (no or a poor proper motion) widens the path
+        star_kind = int(getattr(row, "star_kind", 0) or 0)
+        s_mas = gaia_local.star_sigma_mas(star_kind, getattr(row, "ruwe", None), getattr(row, "pos_err", None),
+                                          getattr(row, "pm_err", None),
+                                          2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
+        s_km, pm_alts = None, []
+        if star_kind >= gaia_local.KIND_2P and getattr(config, "pm_alternatives", True):
+            # 2-parameter star: the other proper-motion estimates (VizieR); their spread is the realistic uncertainty
             try:
                 from pysyzygos import pmcheck
-                alt = shadow_path(target_id, pmcheck.shifted_dir(star_dir, e["east"], e["north"]), res['best_et'],
-                                  size['r_km'], sigma3)
-                paths["pm_alts"].append((e["label"], alt["center"]))
-            except Exception as ex:
-                print(f" --- no path for proper motion {e['label']}: {ex}")
-        write_shadow_kml(paths, f"{config.map_dir}/{stem}.kml",
-                         f"{record['target_name']} / Gaia {row.source_id}", observer=(config.LON, config.LAT))
-        if getattr(config, "debug_save_paths", False):               # debug: the geodetic path for later checks
-            try:
-                save_path_debug(f"{config.map_dir}/{stem}_path.npz", paths, record, target_id, star_dir, sigma3)
-            except Exception as ex:                                   # never stops the search
-                print(f" --- no path debug file: {ex}")
-        if getattr(config, "write_globes", True):
-            try:
-                write_globe(record, target_id, stem, star_dir, paths, sigma3, size, corr)
-            except Exception as ex:                                   # a plot must never stop the search
-                print(f" --- no globe plot: {ex}")
-    if getattr(config, "write_previews", False) and LOCAL is not None:
-        try:
-            write_preview(record, target_id, stem)
-        except Exception as ex:                                       # a preview must never stop the search
-            print(f" --- no preview: {ex}")
-    RUN["maps_s"] += time.time() - t_map
-    return True
+                yrs = 2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR
+                pe = getattr(row, "pos_err", None)
+                pm_alts = pmcheck.estimates(float(row.ra), float(row.dec), float(row.phot_g_mean_mag),
+                                            used=(float(row.pmra), float(row.pmdec)), years=yrs, ra_err=pe, dec_err=pe)
+                spread = pmcheck.spread_mas(pm_alts)
+                if spread and spread > (s_mas or 0.0):
+                    s_mas = spread
+            except Exception as ex:                                       # offline: the quoted error only
+                print(f" --- proper-motion estimates not checked: {ex}")
+                pm_alts = []
+        if s_mas:
+            d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', '399')[0]))
+            s_km = s_mas * d_km * np.pi / 648000000.0
+            sigma3 = 3.0 * float(np.hypot(ast_sigma1, s_km))
+            if not record.get("star_err_smaa_mas"):                # the star's error ellipse (circle) for the favorites
+                record.update(star_err_smaa_mas=s_mas, star_err_smia_mas=s_mas, star_err_pa_deg=0.0)
+        record.update(path_sigma1_km=sigma3 / 3.0, sigma_source=(src if sigma3_h else "default") + (" + star" if s_km else ""),
+                      p_site=site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
+        contacts = []
+        record["kind"] = bodies.kind(target_id)
+        if bodies.is_body(target_id):                        # disappearance and reappearance at the site
+            ct = contact_times(res['best_et'], res['min_distance'], size['r_km'], met['speed_kms'], star_dir, obs_geo,
+                               target_id)
+            record.update(d_utc=spice.et2utc(ct[0], "ISOC", 2) if ct else "", r_utc=spice.et2utc(ct[1], "ISOC", 2) if ct else "",
+                          duration_s=(ct[1] - ct[0]) if ct else 0.0)
+            if ct:
+                contacts = [("D", record["d_utc"], ct[0], None), ("R", record["r_utc"], ct[1], None)]
+        if not bodies.is_body(target_id) and perr and perr.get("smaa_mas") is not None:   # error ellipse (1 sigma)
+            record.update(ast_err_smaa_mas=perr["smaa_mas"], ast_err_smia_mas=perr["smia_mas"], ast_err_pa_deg=perr["pa_deg"])
+        try:                                                 # OWC-style event data (favorites panel); never fatal
+            record.update(event_context(res['best_et'], star_dir, target_id, size['r_km'], row.phot_g_mean_mag, m_ast))
+        except Exception as ex:
+            print(f"(event data skipped: {ex})")
+        RUN_RECORDS.append(record)
+        # supplement stars (gaia_local: RUWE >= 1.4 or 2-parameter): flagged; new fields at the end of the record
+        kind_, ruwe_ = int(getattr(row, "star_kind", 0) or 0), getattr(row, "ruwe", float("nan"))
+        record.update(star_kind=kind_, star_ruwe=float(ruwe_) if ruwe_ is not None else float("nan"),
+                      star_flag=gaia_local.star_flag(kind_, ruwe_), ast_sigma1_km=ast_sigma1,
+                      star_sigma_mas=s_mas if s_mas else float("nan"), star_sigma_km=s_km if s_km else float("nan"))
+        record.update(star_az=az_deg(res['best_et'], star_dir, obs_geo))     # the report's compass direction (exact UT1)
+        pm_e = getattr(row, "pm_err", float("nan"))                         # the catalog's proper motion and its source
+        record.update(star_pmra=float(getattr(row, "pmra", float("nan"))), star_pmdec=float(getattr(row, "pmdec", float("nan"))),
+                      star_pm_err=float(pm_e) if pm_e is not None else float("nan"),
+                      star_pm_source=gaia_local.pm_source(kind_))
+        if pm_alts:                                                       # the other estimates (pmcheck)
+            from pysyzygos import pmcheck
+            sp = pmcheck.spread_mas(pm_alts)
+            record.update(star_pm_spread_mas=round(sp, 1),
+                          star_pm_spread_km=round(sp * s_km / s_mas, 1) if s_km and s_mas else float("nan"),
+                          star_pm_alts=pmcheck.summary(pm_alts, gaia_local.pm_source(kind_)))
+        names = dict(star_ucac4="", star_tyc="", star_hip="")             # the star's other names (catalog part xref)
+        if near is not None and "ucac4" in near:
+            me = near[near["source_id"].astype("int64") == int(row.source_id)]
+            if len(me):
+                names = dict(star_ucac4=me["ucac4"].iloc[0], star_tyc=me["tyc"].iloc[0], star_hip=me["hip"].iloc[0])
+        record.update(names)
+        # the site's own horizon (horizon.py, OccultWatcher's [User Horizon]): behind it / near it, as a warning
+        site_ = getattr(config, "site", None) or {}
+        hz_flag, hz_alt, hz_sep = horizon.assess(site_.get("horizon") or [], record.get("star_alt"), record.get("star_az"),
+                                                 float(site_.get("horizon_margin", 15.0)))
+        record.update(horizon_flag=hz_flag, horizon_alt=float("nan") if hz_alt is None else round(hz_alt, 1),
+                      horizon_sep_deg=float("nan") if hz_sep is None else round(hz_sep, 1))
+        if hz_flag == "behind" and site_.get("horizon_filter"):
+            print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
+                  f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there): left out (horizon_filter)")
+            return False
+        print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
+              + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
+                 + ")" if record["star_flag"] else ""))
+        db.add_event(DB, RUN_ID, record, kind=record["kind"], contacts=contacts)   # hits_log.csv: exported after the run
+        RUN["hits"] += 1
+        RUN["calc_s"] += record["calc_s"]
 
+        t_map = time.time()
+        from pysyzygos.report import file_id                  # P:Jupiter -> P-Jupiter (no ':' in file names)
+        stem = f"{file_id(target_id)}_{res['best_utc'][:16].replace(':','').replace('-','')}"     # KML and preview
+        if config.write_maps and res['min_distance'] < r_search + config.max_shadow_dist:   # shadow + reach, as logged
+            os.makedirs(config.map_dir, exist_ok=True)
+            paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
+                                sat_km=binaries.zone_km(target_id))    # known satellite: its zone on the map
+            paths["pm_alts"] = []                                         # the centre line with each other proper motion
+            for e in pm_alts:
+                if abs(e["east"]) + abs(e["north"]) < 1.0:
+                    continue
+                try:
+                    from pysyzygos import pmcheck
+                    alt = shadow_path(target_id, pmcheck.shifted_dir(star_dir, e["east"], e["north"]), res['best_et'],
+                                      size['r_km'], sigma3)
+                    paths["pm_alts"].append((e["label"], alt["center"]))
+                except Exception as ex:
+                    print(f" --- no path for proper motion {e['label']}: {ex}")
+            write_shadow_kml(paths, f"{config.map_dir}/{stem}.kml",
+                             f"{record['target_name']} / Gaia {row.source_id}", observer=(config.LON, config.LAT))
+            if getattr(config, "debug_save_paths", False):               # debug: the geodetic path for later checks
+                try:
+                    save_path_debug(f"{config.map_dir}/{stem}_path.npz", paths, record, target_id, star_dir, sigma3)
+                except Exception as ex:                                   # never stops the search
+                    print(f" --- no path debug file: {ex}")
+            if getattr(config, "write_globes", True):
+                try:
+                    write_globe(record, target_id, stem, star_dir, paths, sigma3, size, corr)
+                except Exception as ex:                                   # a plot must never stop the search
+                    print(f" --- no globe plot: {ex}")
+        if getattr(config, "write_previews", False) and LOCAL is not None:
+            try:
+                write_preview(record, target_id, stem)
+            except Exception as ex:                                       # a preview must never stop the search
+                print(f" --- no preview: {ex}")
+        RUN["maps_s"] += time.time() - t_map
+        return True
+
+
+    if bodies.is_body(target_id) or not DEFER_HITS:
+        return finish(None if bodies.is_body(target_id) else path_error(target_id, res['best_utc']))
+    PENDING.append((target_id, res['best_utc'], finish))
+    return True
 
 def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     """Print the run statistics and the site/limits, and append them as one JSON line to <hits log>.runs.jsonl
@@ -1373,6 +1437,7 @@ if __name__ == "__main__":
             print(f"Estimated/known target {t} size: {size['r_max_km']:.1f} km (H={size.get('H')}, G={size.get('G')})")
             for ctp in periods:
                 target_test(obs_loc, ctp, config.spn + 600, t, size, mag_min)   # +10 min so windows overlap
+        finish_pending()                                               # the collected hits: uncertainties, maps
         run_summary("windows", t_main, 0.0, time.time() - t_w, len(config.targets))
         spice.kclear()
         sys.exit(0)
@@ -1404,7 +1469,11 @@ if __name__ == "__main__":
     STEPS.add("setup (targets, catalog, site)", time.time() - t_main)
     t_p1 = time.time()
     plans = {}
+    import threading as _th                                         # sizes (SBDB) while the orbits download
+    _sizes = _th.Thread(target=prefetch_sizes, args=(config.targets,), daemon=True)
+    _sizes.start()
     prefetch_orbits(config.targets, epochs)                         # missing orbit files: several downloads at once
+    _sizes.join()
     for t in config.targets:
         mag_lim = mag_min
         if bodies.is_body(t):                                      # planet or moon: kernel from Horizons, radii
@@ -1436,7 +1505,9 @@ if __name__ == "__main__":
     )
     for t, (size, plan) in plans.items():
         n = target_test_corridor(obs_loc, plan, t, size, local=local)
-        print(f"{t}: {n} hit(s) logged")
+        print(f"{t}: {n} hit(s) found")
+    n_fin = finish_pending()                                         # path uncertainties in parallel, then the rest
+    print(f"{n_fin} hit(s) logged")
     t_p2 = time.time() - t_p2
     online_double_check(RUN_RECORDS)
     run_summary("corridor", t_main, t_p1, t_p2, len(plans))

@@ -29,6 +29,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   `world-prescreens/` with `prescreens.json`), downloaded instead of built (hours): one `<name>.tar.xz` +
   `.sha256`, resumable, SHA-256 checked, only the listed files unpacked and checked again, the meta file last. The first: 2026-10-01 + 40 days, G <= 16.
 
+### Changed
+- **Faster searches, same results**: the path uncertainties from JPL Horizons (one query per hit, the largest part of a
+  search) now run 2 at a time after the exact solves (the hits are completed afterwards, in order); the asteroid sizes
+  from SBDB are fetched 4 at a time while the orbits download. A 200-asteroid search: path uncertainties 48 s instead
+  of 103 s; all 201 events identical field by field. A busy Horizons (HTTP 503) is asked again after a pause instead
+  of falling back to the default uncertainty.
+
 ### Fixed
 - **Searches of more than about 160 asteroids** stopped with SPICE(TOOMANYPAIRS) ("no room available for adding ...
   to the list of name/code pairs"): each asteroid number was registered as a SPICE body name with `boddef`, and this
