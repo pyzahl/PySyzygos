@@ -103,7 +103,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   archive_bytes/_sha256, files [name, bytes, sha256], meta file last), `remote_list` / `fetch` (URL_PRESCREEN_MIRRORS
   = BNL box world-prescreens/ + env PYSYZYGOS_PRESCREEN_MIRROR, file:// for tests; GL._fetch_resume, only the
   listed members extracted and checked, nothing downloaded if intact). GUI Pick
-  "Download shared" (`prescreen_shared`). tests/test_prescreen_share.py.
+  "Download shared" (`prescreen_shared`). tests/test_prescreen_share.py. Verified 2026-10-19: global__2026-10-01_40d_G16
+  (1.57 GB tar.xz) from the BNL mirror on Linux (identical files) and macOS (interrupted download resumed; pick
+  "auto" used it at a newly added site, then search).
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via
@@ -163,6 +165,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `supplement_pm_step` (3c). `star_sigma_mas` -> search: star_sigma_km combined into path sigma (lines, p_site,
   star_err_* ellipse); report `star_uncertain` red badge when > r_km. Pre-screens built before this used pm 0 for
   2-parameter stars: rebuild. The Zenodo supplement (version 2) has no pm yet: setup adds it locally.
+  Catalog record version 2.1 (published 2026-10-19, doi 10.5281/zenodo.23428079, 14 files: the four
+  gaia_dr3_g16_v2_* parts of data version 2.1, checked against ARCHIVE_SHA256, + the version-2 old-format archives
+  for PySyzygos < 1.3.0, which reads the newest version). Before:
   On Zenodo since 2026-10-11 (catalog record version 2, doi 10.5281/zenodo.23298192; concept DOI unchanged):
   `gaia_dr3_g18_supplement_g16.tar.xz` (+ .sha256), `ZENODO_SUPPLEMENT`, `fetch_zenodo(dir, 16, supplement=True)`
   unpacks into dir/supplement (works for any catalog folder); setup/`gaia supplement` default to Zenodo, `--source esa`
@@ -297,6 +302,15 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
   `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`. Galbraith: "as Occult"
   line on Occult's centre to 0.19 km. tests/test_pmcheck.py (stand-in TSV of Galbraith's rows).
+- `pysyzygos/steps.py` (1.3.3): `Steps(tool)`: add / step (context) / wrap (timed function: time and calls add up),
+  group = parent step (listed under it), placeholders fix the order, "other" = total since PYSYZYGOS_T0 minus the
+  top-level steps; `emit` prints a table and the line `PYSYZYGOS-STEPS {json}` (`parse`). Used by pick
+  (`print_timing` from T + counts N), search (`STEPS`, `wrap_steps()` in the corridor driver replaces the step
+  functions by timed versions: P1/P2 parts, 'hit:' per-hit work; `run_summary` adds passes, maps, results, emits),
+  prescreen build. GUI `run_process`: `open_run_log` -> logs/<stamp>_<cmd>.log (LOG_KEEP_DAYS 30; cleanup OUTPUTS,
+  .gitignore), the summary line goes to HOOKS["steps"] = `show_steps` (table under the log, not the raw JSON).
+  tests/test_steps.py. First numbers (2026-10-19, 8 targets x 10 d): path uncertainty from Horizons 0.5 s per hit
+  uncached, maps 0.3 s per hit, exact solve ~5 ms.
 - `pysyzygos/cameras.py`: `SENSORS` (sensor, px w, px h, pixel um, camera names) for the Site tab's "Sensor (cameras)"
   list; sizes = pixels x pixel size (`sensor_mm`); one entry per sensor, cameras searchable in the label.
 - `pysyzygos/occultations.py`: earlier occultations from NASA PDS "Small Bodies Occultations" V4.0 (doi

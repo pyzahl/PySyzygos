@@ -841,6 +841,35 @@ def target_test(loc, event_time_utc, time_span, target_id, size, mag_lim=20.0, m
 
 
 RUN = dict(candidates=0, gated=0, solves=0, hits=0, maps_s=0.0, calc_s=0.0)      # run statistics (see run_summary)
+from pysyzygos.steps import Steps
+STEPS = Steps("search")                  # where the time goes, per step (table + GUI run summary; wrap_steps)
+P1, P2 = "asteroid data (pass 1)", "stars, scan and solve (pass 2)"
+
+
+def wrap_steps():
+    """Time the corridor run's steps: the functions each step calls are replaced by timed versions (steps.py); the
+    callers stay as they are. Parts of pass 1 and 2 are listed under them; per-hit work is marked 'hit:'."""
+    global prefetch_orbits, load_orbit, get_asteroid_size, window_is_observable, star_test, path_error
+    global event_context, online_double_check
+    W = STEPS.wrap
+    for name in ("start-up (Python, kernels, catalog)", "setup (targets, catalog, site)", P1, P2,
+                 "online double check (Gaia archive)", "results (database, CSV export)"):
+        STEPS.add(name, 0.0)                                         # the table's order
+    prefetch_orbits = W("orbits (JPL Horizons, downloads)", prefetch_orbits, group=P1)
+    load_orbit = W("orbits (load)", load_orbit, "asteroids", group=P1)
+    get_asteroid_size = W("sizes (JPL SBDB)", get_asteroid_size, "asteroids", group=P1)
+    corridor.plan_corridor = W("corridor plans", corridor.plan_corridor, "asteroids", group=P1)
+    corridor.corridor_candidates = W("stars and candidate scan", corridor.corridor_candidates, "asteroids", group=P2)
+    window_is_observable = W("early gate (Sun, altitude)", window_is_observable, "candidates", group=P2)
+    corridor.propagate_exact = W("star motion (astropy)", corridor.propagate_exact, "candidates", group=P2)
+    astrometry.corrected_star_dir = W("star corrections (parallax, deflection)", astrometry.corrected_star_dir,
+                                      "candidates", group=P2)
+    star_test = W("exact solve (SciPy, SPICE)", star_test, "solves", group=P2)
+    path_error = W("hit: path uncertainty (JPL Horizons)", path_error, "hits", group=P2)
+    event_context = W("hit: event data", event_context, "hits", group=P2)
+    from pysyzygos import pmcheck
+    pmcheck.estimates = W("hit: proper-motion check (VizieR)", pmcheck.estimates, "stars", group=P2)
+    online_double_check = W("online double check (Gaia archive)", online_double_check, "runs")
 RUN_RECORDS = []         # this run's hits (for the online double-star check after the search)
 DB, RUN_ID = None, None  # results database (db.py) and this run's id, set by the driver
 LOCAL = None             # the local Gaia catalog (set by the driver), for the event previews
@@ -1205,10 +1234,21 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     if SKIPPED:
         s["skipped_targets"] = list(SKIPPED)
         print(f"  skipped (no orbit from JPL Horizons, e.g. a mistyped number): {', '.join(SKIPPED)}")
+    t_db = time.time()
     db.finish_run(DB, RUN_ID, s)                         # results database; then the exports of the current series
     n = db.export(DB, config.hits_output_cvs_file, lst=getattr(config, "results_list", "main"))
     print(f"  results: {getattr(config, 'results_db', db.DEFAULT)}, current series {n} event(s) -> "
           f"{config.hits_output_cvs_file}")
+    STEPS.add("start-up (Python, kernels, catalog)", t_main - STEPS.t0)
+    if mode == "corridor":
+        STEPS.add(P1, t_pass1, n_targets, "asteroids")
+        STEPS.add(P2, t_pass2, s["candidates"], "candidates")
+        STEPS.add("hit: maps (KML, preview, globe)", RUN["maps_s"], s["hits"], "hits", group=P2)
+    else:
+        STEPS.add("search (windows mode)", t_pass2, n_targets, "asteroids")
+    STEPS.add("results (database, CSV export)", time.time() - t_db, n, "events in the list")
+    STEPS.info.update(hits=s["hits"], solves=s["solves"], candidates=s["candidates"], targets=n_targets)
+    STEPS.emit()
     return s
 
 
@@ -1359,6 +1399,8 @@ if __name__ == "__main__":
         f"Pass 1 (serial, SPICE): sizes, SPKs and one corridor plan per target"
     )
 
+    wrap_steps()
+    STEPS.add("setup (targets, catalog, site)", time.time() - t_main)
     t_p1 = time.time()
     plans = {}
     prefetch_orbits(config.targets, epochs)                         # missing orbit files: several downloads at once

@@ -270,6 +270,7 @@ def main(argv=None):
     fields, data, fetched = fetch_sbdb(hmax, a.sbdb_cache)
     rows = build_rows(fields, data, hmax)
     T["list"] = time.time()
+    N = {"list": len(rows)}                             # counts for the step summary
     import spiceypy as spice
     from pysyzygos import screen as SC
     SC.load_kernels(spice, HOME)
@@ -318,6 +319,7 @@ def main(argv=None):
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"
     T["select"] = time.time()
+    N["screened"] = len(rows)
     a.site = c("site") if (a.lat, a.lon) == (c("lat"), c("lon")) else None
     print(f"{len(rows)} asteroids, {a.start} + {a.days:g} d, site {a.site or ''} {a.lat:.4f} {a.lon:.4f}, reach {a.reach:g} km, "
           f"G <= {a.cam_limit:g}, {a.workers} workers", file=sys.stderr)
@@ -325,11 +327,12 @@ def main(argv=None):
     ev = run_screen(rows, et0, et1, opt, (a.catalog, a.cam_limit, a.lat, a.lon, a.ele), a.workers, mp_start=a.mp_start)
     print(f"screened in {time.time() - t0:.0f} s: {len(ev)} events", file=sys.stderr)
     T["screen"] = time.time()
+    N["events"] = len(ev)
 
     E = pd.DataFrame(ev)
     if E.empty:
         print("no events found")
-        print_timing(T, a.prescreen)
+        print_timing(T, a.prescreen, N)
         return 0
     E["utc"] = [spice.et2utc(x, "ISOC", 0) for x in E.et]
     E = E.sort_values(SORT_KEYS[a.sort], ascending=SORT_ASC[a.sort]).reset_index(drop=True)
@@ -364,12 +367,14 @@ def main(argv=None):
     if saved:
         print(f"saved for site {a.site}, {a.start} + {a.days:g} d: {saved} (+ .csv); searches of this site and window use it")
     print(f"size data of {n_put} targets -> {sbdb.cache_file(c('cache'))}", file=sys.stderr)
-    print_timing(T, a.prescreen)
+    N["targets"] = len(best)
+    print_timing(T, a.prescreen, N)
     return 0
 
 
-def print_timing(T, prescreen):
-    """One line: where the pick's time went (start-up = Python and imports, from when the command started)."""
+def print_timing(T, prescreen, N=None):
+    """One line: where the pick's time went (start-up = Python and imports, from when the command started), and the
+    step summary (steps.py: a table, and the line the GUI shows as the run summary). N: counts per step."""
     T["output"] = time.time()
     t0 = float(os.environ.get("PYSYZYGOS_T0") or T["start"])
     d = lambda a, b: T[b] - T[a]
@@ -377,6 +382,20 @@ def print_timing(T, prescreen):
           f"{d('start', 'list'):.1f} + kernels {d('list', 'kernels'):.1f} + "
           f"{'pre-screen' if prescreen else 'asteroid choice'} {d('kernels', 'select'):.1f} + screen (workers incl.) "
           f"{d('select', 'screen'):.1f} + output {d('screen', 'output'):.1f} s", file=sys.stderr)
+    from pysyzygos.steps import Steps
+    N, S = N or {}, Steps("pick")
+    S.t0 = t0
+    S.add("start-up (Python, modules)", T["start"] - t0)
+    S.add("asteroid list (JPL SBDB)", d("start", "list"), N.get("list"), "asteroids")
+    S.add("kernels (SPICE)", d("list", "kernels"))
+    S.add("pre-screen site test" if prescreen else "asteroid choice", d("kernels", "select"), N.get("screened"),
+          "asteroids kept")
+    if "screen" in T:
+        S.add("screen (workers)", d("select", "screen"), N.get("events"), "events")
+        S.add("output (tables, targets)", d("screen", "output"), N.get("targets"), "targets")
+    if prescreen:
+        S.info["prescreen"] = os.path.basename(str(prescreen))
+    S.emit()
 
 
 if __name__ == "__main__":

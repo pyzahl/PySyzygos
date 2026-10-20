@@ -327,6 +327,8 @@ It can be installed two ways, with the same result:
 * **zenodo** (recommended, G <= 16): download the ready-made catalog from Zenodo,
   [doi:10.5281/zenodo.23113337](https://doi.org/10.5281/zenodo.23113337) (CC BY-NC 4.0, the terms of the Gaia data it
   contains), one archive per part. Setup checks each SHA-256 and unpacks it; parts can be added or removed later.
+  The concept DOI always leads to the newest version; the current one is catalog data version 2.1
+  ([doi:10.5281/zenodo.23428079](https://doi.org/10.5281/zenodo.23428079)).
   The same archives are on mirrors (listed in `pysyzygos/urls.py`, `URL_CATALOG_MIRRORS`; add your own, e.g. a club's
   copy, with `PYSYZYGOS_CATALOG_MIRROR=<folder address>`): setup measures each source and downloads from the fastest,
   continues an interrupted download from another source, and checks every file against the SHA-256 stored in
@@ -1121,6 +1123,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser
 pysyzygos --port 8090 --no-browser
 ```
 
+* **Log and run summary**: every run's output appears in the log under the tabs and is also saved as
+  `logs/<date>-<time>_<command>.log` in the data folder (kept 30 days). After a pick, search or pre-screen build, a
+  **Run summary** table under the log shows where the time went: each step (asteroid list, orbits, star scan, exact
+  solves, per-hit queries such as the path uncertainty from JPL Horizons, maps, ...) with its time, share and count.
+  The command line prints the same table at the end of a run.
 * **Site for all runs** and **Catalog** (top right, on every tab): the site and the local Gaia catalog the search
   and the pick tool use (every complete catalog in the project folder is offered); the GUI remembers both for the next start (`gui_state.json` in the data folder). The Search and Pick tabs repeat
   the site.

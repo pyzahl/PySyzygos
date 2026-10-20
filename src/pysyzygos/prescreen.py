@@ -394,6 +394,8 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     from pysyzygos.home import HOME
     from pysyzygos import pick as P, screen as SC, gaia_local as L
     say = lambda *a: print(*a, file=sys.stderr, flush=True)
+    from pysyzygos.steps import Steps
+    S, t_s = Steps("pre-screen build"), time.time()
     fields, data, fetched = P.fetch_sbdb(hmax, sbdb_cache or os.path.join(tempfile.gettempdir(), "PySyzygos_sbdb_cache.json"))
     rows = P.build_rows(fields, data, hmax)
     del fields, data
@@ -403,7 +405,9 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     et1 = et0 + days * 86400.0
     opt = dict(cam_limit=cam_limit, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
                region=region)
-    L.open_index(catalog, L.index_gmax(cam_limit))                  # build missing indexes here, once
+    S.add("asteroid list (JPL SBDB), kernels", time.time() - t_s, len(rows), "asteroids")
+    with S.step("star index (catalog)"):
+        L.open_index(catalog, L.index_gmax(cam_limit))              # build missing indexes here, once
     supplement = bool(L.use_supplement() and L.has_supplement(catalog))
     name = name or ("global" if region is None else "region")
     out = out or os.path.join(DIR, f"{name}__{start}_{days:g}d_G{cam_limit:g}" + (".global.npy" if region is None
@@ -502,6 +506,8 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
             f"{partial} - rerun the same command to resume")
         raise
     ex.shutdown()
+    S.add("screen (workers)", time.time() - t0, n_done, "asteroids this run")
+    t_w = time.time()
     meta = dict(name=name, start=start, days=days, et0=et0, et1=et1, region=region, cam_limit=cam_limit,
                 hmax=hmax, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
                 asteroids_screened=len(rows), sbdb_fetched=fetched, built=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
@@ -511,8 +517,10 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
         n_ev, n_ast = _write_global(con, out, meta)
         con.close()
         os.remove(partial)
+        S.add("write", time.time() - t_w, n_ev, "events")
         say(f"  indexing (a lat/lon box per track, for fast site and region queries) ...")
-        index(out, w)
+        with S.step("index (lat/lon box per track)", n_ev, "events"):
+            index(out, w)
     else:
         with con:
             con.execute("DELETE FROM meta")
@@ -523,6 +531,9 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
         n_ev, n_ast = con.execute("SELECT COUNT(*), COUNT(DISTINCT number) FROM events").fetchone()
         con.close()
         L_replace(partial, out)
+        S.add("write", time.time() - t_w, n_ev, "events")
+    S.info.update(events=n_ev, asteroids=n_ast, resumed=bool(done_nums), output=os.path.basename(out))
+    S.emit()
     say(f"pre-screen written: {out}: {n_ev} events of {n_ast} asteroids (of {len(rows)}), {_hms(time.time() - t0)}")
     return out, n_ev, n_ast
 

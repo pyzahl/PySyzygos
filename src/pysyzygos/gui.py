@@ -132,6 +132,30 @@ def restart_app():
     asyncio.get_event_loop().call_later(1.0, again)
 
 
+LOG_DIR, LOG_KEEP_DAYS = "logs", 30          # every GUI run's output, one file per run (<data folder>/logs)
+HOOKS = {}                                   # set by the page: "steps" (show a run's step summary)
+
+
+def open_run_log(args):
+    """A new log file for a run: logs/<YYYYmmdd-HHMMSS>_<command>.log (files older than LOG_KEEP_DAYS deleted).
+    Returns (file or None, its path relative to the data folder)."""
+    d = os.path.join(ROOT, LOG_DIR)
+    try:
+        os.makedirs(d, exist_ok=True)
+        cut = time.time() - LOG_KEEP_DAYS * 86400
+        for f in os.listdir(d):
+            p = os.path.join(d, f)
+            if f.endswith(".log") and os.path.getmtime(p) < cut:
+                os.remove(p)
+        words = [x for x in args[args.index("pysyzygos") + 1:] if not x.startswith(("-", "{"))] \
+            if "pysyzygos" in args else [os.path.basename(args[0])]
+        cmd = "_".join(words[:2]) if words[:1] in (["run"], ["prescreen"], ["catalog"]) else (words or ["run"])[0]
+        rel = os.path.join(LOG_DIR, time.strftime("%Y%m%d-%H%M%S") + f"_{re.sub(r'[^A-Za-z0-9_.-]', '_', cmd)}.log")
+        return open(os.path.join(ROOT, rel), "w", encoding="utf-8"), rel
+    except OSError:
+        return None, ""
+
+
 async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, slot="proc"):
     """Run a PySyzygos command as a subprocess, its output into log. slot: "proc" (the main job: one at a time) or
     "fav" (the Favorites tab's tasks: one at a time among themselves, independent of the main job)."""
@@ -156,8 +180,20 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
         except RuntimeError:
             pass
 
-    push(f"$ {' '.join(args)}" + (f"   (site {env_site})" if env_site else "")
-         + (f"   (catalog {env_catalog})" if env_catalog else ""))
+    flog, rel = open_run_log(args)
+
+    def keep(text):                                          # the run's log file (logs/)
+        if flog:
+            try:
+                flog.write(text + "\n")
+                flog.flush()
+            except OSError:
+                pass
+
+    head = (f"$ {' '.join(args)}" + (f"   (site {env_site})" if env_site else "")
+            + (f"   (catalog {env_catalog})" if env_catalog else ""))
+    push(head)
+    keep(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  PySyzygos {__version__}\n{head}")
     t0 = time.time()
     proc = await asyncio.create_subprocess_exec(*args, cwd=ROOT, env=env, stdout=asyncio.subprocess.PIPE,
                                                 stderr=asyncio.subprocess.STDOUT,
@@ -165,10 +201,25 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
     # without it the run inherits the terminal the GUI was started from, and setup's questions (no line end, so
     # not shown in the log) wait forever (found 2026-10-17 with "Install the new catalog")
     setattr(Job, slot, proc)
+    from pysyzygos import steps as STP
     async for line in proc.stdout:
-        push(line.decode(errors="replace").rstrip())
+        text = line.decode(errors="replace").rstrip()
+        keep(text)
+        summary = STP.parse(text)
+        if summary is not None:                              # the step summary: shown as a table, not as JSON
+            summary["log"] = rel
+            if HOOKS.get("steps") and slot == "proc":
+                try:
+                    HOOKS["steps"](summary)
+                except RuntimeError:
+                    pass
+            continue
+        push(text)
     rc = await proc.wait()
-    push(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s")
+    push(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s" + (f"; log saved: {rel}" if rel else ""))
+    keep(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s")
+    if flog:
+        flog.close()
     if on_done:
         try:
             await on_done(rc)
@@ -808,6 +859,32 @@ def index():
             ui.label("Log").classes("font-semibold")
             ui.button("Clear", on_click=lambda: log.clear()).props("flat dense")
         log = ui.log(max_lines=3000).classes("w-full h-64 text-xs")
+        steps_box = ui.column().classes("w-full gap-1")
+
+    def show_steps(sm):
+        """The run summary under the log: the steps of the last pick, search or pre-screen build."""
+        steps_box.clear()
+        total = sm.get("total_s") or 0.0
+        with steps_box:
+            with ui.row().classes("items-center gap-3"):
+                ui.label(f"Run summary: {sm.get('tool', '')}, {total:.1f} s").classes("font-semibold")
+                if sm.get("log"):
+                    ui.label(f"full log: {sm['log']}").classes("text-xs text-slate-500")
+                ui.button("Hide", on_click=steps_box.clear).props("flat dense")
+            rows = []
+            for r in sm.get("steps", []):
+                pct = 100.0 * r["s"] / total if total else 0.0
+                rows.append(dict(step=("\u2003" if r.get("group") else "") + r["name"], s=f"{r['s']:.1f}",
+                                 pct=f"{pct:.0f} %", bar="\u2588" * int(round(pct / 4)),
+                                 n=(f"{r['n']} {r['unit']}".strip() if r.get("n") is not None else "")))
+            cols = [dict(name="step", label="Step", field="step", align="left"),
+                    dict(name="s", label="Time (s)", field="s", align="right"),
+                    dict(name="pct", label="Share", field="pct", align="right"),
+                    dict(name="bar", label="", field="bar", align="left", classes="text-amber-600"),
+                    dict(name="n", label="Count", field="n", align="left")]
+            ui.table(columns=cols, rows=rows, row_key="step").props("flat dense").classes("w-full text-xs")
+
+    HOOKS["steps"] = show_steps
     # the Favorites tab has its own log (its tasks only): the main one is not shown there
     tabs.on_value_change(lambda e: log_card.set_visibility(e.value not in (t_fav, "Favorites")))
     log_card.set_visibility(tabs.value not in (t_fav, "Favorites"))

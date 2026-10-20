@@ -15,6 +15,15 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   occultations" come from it (updated continuously) instead of the yearly NASA PDS extract. "Check for updates"
   compares the installed files with the server. Reference data only: the predictions do not use them yet.
   `pysyzygos info` and the System tab's "Data in use" list them; `pysyzygos cleanup` removes them.
+- **Run summary and run logs**: pick, search and pre-screen build end with a table of their steps (time, share,
+  count; `steps.py`), e.g. for a search: start-up, setup, orbits, sizes, corridor plans, star scan, early gate, star
+  motion, corrections, exact solves, and per hit the path uncertainty (JPL Horizons), event data and maps, then the
+  online double check and the results. The GUI shows it as a table under the log, and saves every run's output to
+  `logs/<date>-<time>_<command>.log` (30 days; `cleanup` removes the folder).
+- **Catalog data version 2.1 on Zenodo** (doi:10.5281/zenodo.23428079): the G <= 16 catalog with the epoch proper
+  motions (core, quality, extras, star names), checked against the SHA-256 sums built into PySyzygos; the old-format
+  archives stay in it for versions before 1.3.0. Setup and catalog updates now find it on Zenodo as well as on the
+  mirror.
 - **Shared world pre-screens** (`pysyzygos prescreen remote | fetch [name|latest] | publish`, Pick tab
   "Pre-screens -> Download shared"): whole-Earth pre-screens on the mirror (`URL_PRESCREEN_MIRRORS`, folder
   `world-prescreens/` with `prescreens.json`), downloaded instead of built (hours): one `<name>.tar.xz` +
