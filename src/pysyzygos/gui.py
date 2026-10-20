@@ -521,9 +521,13 @@ def index():
                         "and download one instead of building it (about 1.5 GB for 40 days at G 16; any site)")
                 ps_cols = [dict(name=k, label=lbl, field=k, sortable=True, align="left") for k, lbl in
                            (("name", "Name"), ("window", "Window"), ("region", "Region"), ("sites", "Sites inside"),
-                            ("limits", "Limits"), ("found", "Asteroids / events"), ("age", "Built"), ("fits", "This pick"))]
+                            ("limits", "For picks up to"), ("found", "Asteroids / events"), ("age", "Built"), ("fits", "This pick"))]
                 ps_table = ui.table(columns=ps_cols, rows=[], row_key="path", selection="multiple").classes(
                     "w-full").props("flat dense")
+                ui.label("'For picks up to': a pre-screen keeps every event a pick with these or stricter limits can "
+                         "find (fainter stars, a larger reach or H would need events it left out). Reach is the "
+                         "observer's travel distance across the shadow path; a whole-Earth pre-screen has no region, "
+                         "only these limits. 'This pick' says why one does not fit.").classes("text-xs text-slate-500")
             with ui.row().classes("w-full items-center gap-4"):
                 p_saved = ui.select({}, label="Saved picks of this site").classes("w-96")
                 ui.button("Use for search", on_click=lambda: use_saved()).props("outline").tooltip(
@@ -1414,7 +1418,7 @@ def index():
                              region="whole Earth" if not reg else f"lat {reg['lat_min']:.0f}..{reg['lat_max']:.0f}, "
                                                                   f"lon {reg['lon_min']:.0f}..{reg['lon_max']:.0f}",
                              sites=", ".join(inside) or "-",
-                             limits=f"G <= {m['cam_limit']:g}, H < {m.get('hmax')}, reach {m['reach_km']:g} km",
+                             limits=f"G \u2264 {m['cam_limit']:g}, H < {m.get('hmax')}, reach \u2264 {m['reach_km']:g} km",
                              found=f"{n_ast} / {n_ev}",
                              age="?" if age is None else (f"{age:.0f} d ago" + (" (old: rebuild)" if age > 30 else "")),
                              fits="fits" if not bad else "; ".join(bad)))
@@ -1449,7 +1453,8 @@ def index():
             for e in reversed(man["prescreens"]):
                 mb = e["archive_bytes"] / 1e6
                 with ui.row().classes("items-center gap-3"):
-                    ui.label(f"{e['start']} + {e['days']:g} d, G \u2264 {e['cam_limit']:g}, {e['n_asteroids']} "
+                    ui.label(f"{e['start']} + {e['days']:g} d, for picks up to G {e['cam_limit']:g} and reach "
+                             f"{e['reach_km']:g} km, {e['n_asteroids']} "
                              f"asteroids / {e['n_events']} events, built {str(e.get('built'))[:10]}, "
                              f"{mb:.0f} MB").classes("text-sm")
                     if e["name"] + ".global.npy" in here:

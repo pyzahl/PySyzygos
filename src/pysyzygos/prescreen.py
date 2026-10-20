@@ -992,8 +992,8 @@ def describe(path, meta=None):
     reg = m.get("region")
     where = "whole Earth" if not reg else (f"lat {reg['lat_min']:.1f}..{reg['lat_max']:.1f}, "
                                            f"lon {reg['lon_min']:.1f}..{reg['lon_max']:.1f}")
-    return (f"{m.get('name', '?')}: {m['start']} + {m['days']:g} d, {where}, G <= {m['cam_limit']:g}, "
-            f"reach {m['reach_km']:g} km, H < {m.get('hmax')}, built {m.get('built', '?')[:16]}")
+    return (f"{m.get('name', '?')}: {m['start']} + {m['days']:g} d, {where}, for picks up to G {m['cam_limit']:g}, "
+            f"reach {m['reach_km']:g} km, H {m.get('hmax')}; built {m.get('built', '?')[:16]}")
 
 
 def main(argv=None):
@@ -1085,8 +1085,8 @@ def main(argv=None):
         for e in man.get("prescreens", []):
             mb = e["archive_bytes"] / 1e6
             print(f"  {e['name']}{'  [installed]' if e['name'] + '.global.npy' in here else ''}\n"
-                  f"    {e['start']} + {e['days']:g} d, whole Earth, G <= {e['cam_limit']:g}, reach "
-                  f"{e['reach_km']:g} km, {e['n_events']} events of {e['n_asteroids']} asteroids, built "
+                  f"    {e['start']} + {e['days']:g} d, whole Earth, for picks up to G {e['cam_limit']:g}, reach "
+                  f"{e['reach_km']:g} km; {e['n_events']} events of {e['n_asteroids']} asteroids, built "
                   f"{str(e.get('built'))[:10]} ({e.get('version')}), download {mb:.0f} MB")
         return 0
     if a.cmd == "fetch":
