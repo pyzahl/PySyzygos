@@ -147,6 +147,7 @@ def _track(px, py, tau, sdir, fr, r_km, reach_km, sin_alt, sin_sun, latlon=True)
     return out
 
 
+# Math: RE.1-RE.3 (slide RE): plane reach rho -> largest ground distance; altitude from |proj| = R cos h.
 def ground_reach(sin_h, rho_km, sin_min):
     """The largest ground distance (km) between the shadow axis's ground point A, where the star is at altitude h
     (sin_h), and an observer P within rho_km of the axis in the fundamental plane who sees the star at least at

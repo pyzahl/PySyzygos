@@ -3,6 +3,7 @@
 % (\tag, \eqtag) are cited in the code as "# Math: <ID>.<n>"; run docs/math/check_xref.py after changes.
 
 % workflow as in the code: data -> screen.py (linear pm, RK4 orbits) -> pick / prescreen -> search.py -> hit
+\subsection{Workflow: from catalogs to a hit}
 \begin{frame}{Workflow: from catalogs to a hit}
   \centering\vspace*{-2ex}
   \begin{tikzpicture}[
@@ -43,7 +44,7 @@
 \end{frame}
 
 % ------------------------------------------------------------------------------------------------- the need for speed
-\subsection{Finding candidates fast}
+\subsection{Need for speed}
 % numbers: a pick + search of one site, 2026-10-20 + 20 days (step tables of the runs, the user's Mac, 1.3.3)
 \begin{frame}{The need for speed}\slideid{SP}
   \small
@@ -72,10 +73,8 @@
 
 % ------------------------------------------------------------------------------------------------- the corridor
 % As in corridor.py: plan_corridor (CO.1, CO.2), find_candidates (CO.3), limiting_star_mag (CO.4), solver_bracket_s (CO.5)
-\begin{frame}{The search corridor}\slideid{CO}
-  \begin{columns}[c]
-    \begin{column}{0.47\textwidth}
-      \centering
+% the corridor figure: shared by this slide and the talk's plain-words version (\TalkCorridor = its file)
+\newcommand{\corridorfigure}{%
       \begin{tikzpicture}[font=\scriptsize, scale=0.95]
         % the asteroid's path on the sky, sampled every step; the strip: overlapping segments of half-width w_j
         \foreach \x/\y/\w in {0/0/0.55, 1.4/0.35/0.6, 2.8/0.55/0.68, 4.2/0.6/0.78, 5.6/0.5/0.9}
@@ -95,6 +94,13 @@
         \node[syzaccent, anchor=west, align=left] at (-0.6,2.25) {candidate: closest approach\\between samples (refined)};
         \node[anchor=west, syzblue] at (-0.6,-1.45) {path every \SI{600}{s} (10 min), from the Earth's centre};
       \end{tikzpicture}
+}
+\ifdefined\TalkCorridor\input{\TalkCorridor}\else
+\begin{frame}{The search corridor}\slideid{CO}
+  \begin{columns}[c]
+    \begin{column}{0.47\textwidth}
+      \centering
+      \corridorfigure
     \end{column}
     \begin{column}{0.53\textwidth}
       \footnotesize
@@ -107,12 +113,15 @@
         T = 2 \cdot 1.3\, \mathrm{margin}/v \tag{CO.5}
       \end{gather*}
       \vspace*{-1ex}
-      {\scriptsize $\Delta_j$: distance at $t_j$; $\mu_{\max}$ \SI{1500}{mas/yr} (faster stars added apart).
+      {\scriptsize $R_\oplus$: Earth's equatorial radius (WGS84, \SI{6378.137}{km}); $r_{\max}$: the asteroid's
+      largest radius (nominal $+3\sigma$, top of the albedo range, or the largest extent);
+      $\Delta_j$: distance at $t_j$; $\mu_{\max}$ \SI{1500}{mas/yr} (faster stars added apart).
       CO.3: none slips between samples; then refined, kept below $1.05\,$margin.
       CO.4: 2.54 mag for a 0.1 mag drop. CO.5: the solver's bracket.}
     \end{column}
   \end{columns}
 \end{frame}
+\fi
 
 % ------------------------------------------------------------------------------------------------- pre-screens and picks
 % As in prescreen.build_chunk, shadowtrack.fit / positions (PS.1), shadowtrack.site_mask (PS.2), screen.screen (pick)
@@ -153,12 +162,61 @@
   \end{columns}
 \end{frame}
 
+% reach in the plane vs on the ground (shadowtrack.ground_reach): why the screens widen it near the Earth's edge
+\begin{frame}{Reach over the Earth's edge}\slideid{RE}
+  \begin{columns}[c]
+    \begin{column}{0.46\textwidth}
+      \centering
+      \begin{tikzpicture}[font=\scriptsize, scale=1.0]
+        % side view: the star far to the left, its light parallel; the fundamental plane = the vertical through the centre
+        \def\R{1.9}
+        \fill[syzblue!8] (0,0) circle (\R);
+        \draw[syzblue!50] (0,0) circle (\R);
+        \draw[black!35, densely dashed] (0,-2.15) -- (0,2.25) node[above, black!60] {fundamental plane};
+        \draw[<-, black!60] (-3.0,-1.55) -- (-2.2,-1.55) node[right] {to the star};
+        % the same band of width rho in the plane, near the centre and near the edge
+        \foreach \ya/\yb/\c in {0.15/0.65/syzblue, 1.3/1.8/syzaccent} {
+          \fill[\c!15] (-3.0,\ya) rectangle (0,\yb);
+          \draw[\c!70, thin] (-3.0,\ya) -- ({-sqrt(\R*\R-\ya*\ya)},\ya);
+          \draw[\c!70, thin] (-3.0,\yb) -- ({-sqrt(\R*\R-\yb*\yb)},\yb);
+          \draw[\c, line width=2.2pt] ({180-asin(\ya/\R)}:\R) arc[start angle={180-asin(\ya/\R)}, end angle={180-asin(\yb/\R)}, radius=\R];
+        }
+        \draw[<->, syzaccent] (0.18,1.3) -- (0.18,1.8) node[midway, right] {$\rho$};
+        \draw[<->, syzblue] (0.18,0.15) -- (0.18,0.65) node[midway, right] {$\rho$};
+        \node[syzblue, anchor=east] at (-2.05,0.4) {star high};
+        \node[syzaccent, anchor=south east, align=right] at (-1.05,2.0) {star low: long arc};
+        \node[syzblue!70] at (0.9,-0.9) {Earth};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.52\textwidth}
+      \footnotesize
+      The screens measure $\rho = r + \mathrm{reach}$ \emph{in the plane}. Seen from the star the Earth is a disk:
+      near its edge, where the star is low, the same $\rho$ covers far more ground.
+      \begin{gather*}
+        |\text{proj}| = R_\oplus\cos h \tag{RE.1}\\
+        c^2 = \rho^2 + R_\oplus^2(\sin h_P - \sin h_A)^2 \tag{RE.2}\\
+        d = 2R_\oplus \arcsin\frac{c}{2R_\oplus} \tag{RE.3}
+      \end{gather*}
+      {\scriptsize $h$: star altitude, at the shadow axis ($h_A$) and at an observer within $\rho$ ($h_P$, from RE.1);
+      $d$: the largest ground distance.}\\[0.5ex]
+      \begin{tabular}{@{}lrrrr@{}}
+        star altitude $h_A$ & \SI{90}{\degree} & \SI{50}{\degree} & \SI{20}{\degree} & \SI{0}{\degree}\\
+        $\rho = \SI{210}{km}$ on the ground & 210 & 280 & 730 & \SI{1640}{km}
+      \end{tabular}\\[0.5ex]
+      {\scriptsize The region boxes and the index widen by $d$, not $\rho$: no event near the edge is lost.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 % ------------------------------------------------------------------------------------------------- the exact solver
 % As in src/pysyzygos/search.py (1.3.x): handle_star -> star_test -> get_besselian_miss_distance -> besselian_offsets
 % (spkcpo, light time from the site), observable, event_metrics. Star direction: astrometry.corrected_star_dir.
 % ------------------------------------------------------------------------------------------------- star corrections
 % As in corridor.propagate_exact / gaia_pm (frame spin), astrometry.corrected_star_dir (parallax, deflection).
-\subsection{Astrometry}
+% the second half: its own section (outline entry and title page listing its subsections)
+\section{The precision solver}
+
+\subsection{Definitions}
 % conventions: time scales, frames, software terms used on the following slides
 \begin{frame}{Conventions and definitions}
   \scriptsize
@@ -232,6 +290,7 @@
   \end{columns}
 \end{frame}
 
+\subsection{Astrometry}
 \begin{frame}{Astrometry: the star from the Gaia catalog to the event}\slideid{ST1}
   \footnotesize
   \setlength{\leftmargini}{1.4em}
@@ -299,7 +358,7 @@
   \end{itemize}
 \end{frame}
 
-\subsection{The exact solver}
+\subsection{Solver}
 
 \begin{frame}{The exact solver: inputs}\slideid{IN}
   \small
@@ -356,28 +415,8 @@
   \end{itemize}
 \end{frame}
 
-% the classical construction (Wikimedia Commons figure, CC BY-SA 3.0; credit as an unnumbered footnote)
-\begin{frame}{The classical construction: Besselian elements}
-  \begin{columns}[c]
-    \begin{column}{0.48\textwidth}
-      \centering
-      \includegraphics[height=0.74\textheight]{BesselianElementsForTotalEclipse3D-en.pdf}
-    \end{column}
-    \begin{column}{0.50\textwidth}
-      \small
-      \begin{itemize}\setlength{\itemsep}{1ex}
-        \item Solar eclipse: the Moon's shadow is a \alert{cone} (penumbra, umbra); the fundamental plane
-              ($x$, $y$) through the Earth's centre, perpendicular to the shadow axis
-        \item Occultation of a star: the star is at infinity, so the asteroid's shadow is a \alert{cylinder}
-              of the asteroid's size
-        \item Our solver: the plane through \alert{the observer}, the asteroid's light time from the site
-              (next slide)
-      \end{itemize}
-    \end{column}
-  \end{columns}
-  {\renewcommand{\thefootnote}{}\footnotetext{\tiny Figure: By G.~Pieper, enhanced by User:Iridos, Uploader: Cactus26
-   - Own work, CC BY-SA 3.0, \url{https://commons.wikimedia.org/w/index.php?curid=12020673}}}
-\end{frame}
+% the classical construction: its own file, so the talk can show it earlier (\BesselianShown set there)
+\ifdefined\BesselianShown\else\input{besselian_frame}\fi
 
 % the fundamental plane, oblique 3-D view: z = s (to the star) to the right, y (north) up, x (east) toward the viewer
 \begin{frame}{The fundamental plane: geometry}\slideid{FG}

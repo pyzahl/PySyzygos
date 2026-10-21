@@ -40,3 +40,24 @@
 \setbeamercolor{title separator}{fg=syzaccent}
 \setbeamercolor{alerted text}{fg=syzaccent}
 
+
+% section page: metropolis' progressbar template plus the section's own subsections (from the table of contents,
+% so they always match the outline), styled like the outline's subsection entries
+\makeatletter
+\setbeamertemplate{section page}{%
+  \centering
+  \begin{minipage}{22em}
+    \raggedright
+    \usebeamercolor[fg]{section title}\usebeamerfont{section title}%
+    \insertsectionhead\\[-1ex]
+    \usebeamertemplate*{progress bar in section page}
+    \par\vspace*{0.8ex}
+    {\usebeamercolor[fg]{subsection title}\usebeamerfont{subsection title}%
+     \setbeamertemplate{subsection in toc}{{\color{syzblue}\scriptsize$\blacktriangleright$}~\inserttocsubsection\par
+       \vspace*{0.5ex}}%
+     \tableofcontents[currentsection, sectionstyle=hide/hide, subsectionstyle=show/show/hide]}
+  \end{minipage}
+  \par
+  \vspace{\baselineskip}
+}
+\makeatother
