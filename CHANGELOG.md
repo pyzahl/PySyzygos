@@ -36,6 +36,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   of 103 s; all 201 events identical field by field. A busy Horizons (HTTP 503) is asked again after a pause instead
   of falling back to the default uncertainty.
 
+- **"Check OWC Feeds" on by default** (GUI Results and Favorites, renamed from "Check OWC"): looks the events up
+  in OccultWatcher Cloud (prediction feeds, signed-up stations), on click only, one request per second. Config
+  `owc_feeds` (True; False hides the buttons); the old experimental `owc_lookup` is ignored.
+- **Path check, step by step**: the asteroid section also gives the geometric barycentric state at t (asteroid
+  position and velocity, the Earth's position, asteroid minus Earth; no light time), for checks against an
+  ephemeris without the light-time iteration (asked for by S. Preston).
+
 ### Fixed
 - **Searches of more than about 160 asteroids** stopped with SPICE(TOOMANYPAIRS) ("no room available for adding ...
   to the list of name/code pairs"): each asteroid number was registered as a SPICE body name with `boddef`, and this

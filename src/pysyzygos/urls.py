@@ -53,7 +53,7 @@ URL_PDS_OCCULTATIONS_ZIP = "https://sbnarchive.psi.edu/pds4/non_mission/smallbod
 URL_PDS_BINARIES_ZIP = "https://sbnarchive.psi.edu/pds4/non_mission/ast_binary_parameters_compilation_V3_0.zip"
 URL_JOHNSTON_ASTEROID_MOONS = "https://www.johnstonsarchive.net/astro/asteroidmoons.html"   # current list (web)
 
-# --- OccultWatcher Cloud (pysyzygos/owc.py; experimental, config owc_lookup): the interface of its public event pages
+# --- OccultWatcher Cloud (pysyzygos/owc.py; config owc_feeds): the interface of its public event pages
 URL_OWC_API = "https://www.occultwatcher.net/api2/v1/owc"                     # + events/?astNo=&dt=&bf=, event/<id>
 URL_OWC_EVENT_PAGE = "https://cloud.occultwatcher.net/event/"                  # + event id (web page)
 

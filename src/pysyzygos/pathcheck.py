@@ -810,6 +810,20 @@ def steps(out, folder_key=None):
                  f"({bary[0]:.3f}, {bary[1]:.3f}, {bary[2]:.3f}) | {np.linalg.norm(bary - e_ - a) * 1000:.3f} | "
                  f"{dsun[0]:+.3f}, {dsun[1]:+.3f} |")
         rows.append((name, et, a))
+    L += ["", "**Geometric barycentric positions at t** (no light time, no aberration; ICRF, km and km/s; SPICE "
+              "spkezr(..., 'J2000', 'NONE', '0'), i.e. the instantaneous states at the same TDB instant t, for checking "
+              "against an ephemeris without the light-time iteration):", "",
+          "| Instant | Asteroid x, y, z (km) | Asteroid vx, vy, vz (km/s) | Earth x, y, z (km) | Asteroid - Earth, geometric (km) |",
+          "|---|---|---|---|---|"]
+    geo_rows = []
+    for name, et, _ in rows:
+        st = np.asarray(spice.spkezr(tid, et, "J2000", "NONE", "0")[0])
+        e_ = np.asarray(spice.spkpos("399", et, "J2000", "NONE", "0")[0])
+        d_ = st[:3] - e_
+        L.append(f"| {name} | ({st[0]:.3f}, {st[1]:.3f}, {st[2]:.3f}) | ({st[3]:.6f}, {st[4]:.6f}, {st[5]:.6f}) | "
+                 f"({e_[0]:.3f}, {e_[1]:.3f}, {e_[2]:.3f}) | ({d_[0]:.3f}, {d_[1]:.3f}, {d_[2]:.3f}) |")
+        geo_rows.append(dict(instant=name, et=et, tdb=tdb(et), asteroid_km=st[:3].tolist(), asteroid_kms=st[3:].tolist(),
+                             earth_km=e_.tolist(), asteroid_minus_earth_km=d_.tolist()))
     L += ["", "At a point on the Earth the light time is that point's own (shorter by up to 21 ms), with the asteroid "
               "moving at its barycentric velocity in between (SPICE spkcpo per site and per path point).", "",
           "## 4. Fundamental plane (Besselian elements)", "",
@@ -848,7 +862,7 @@ def steps(out, folder_key=None):
     L += ["", f"Shadow radius {r_km:.3f} km (diameter {2 * r_km:.2f} km); 3-sigma {s3:.3f} km.", ""]
     data = dict(meta=meta, star=dict(source_id=sid, steps={k: _radec(v) for k, v in
                 (("catalog", cat), ("pm", p1), ("pm_bias", p2), ("rv", p3), ("parallax", p4), ("deflection", p5),
-                 ("used", p6))}), besselian=bess)
+                 ("used", p6))}), besselian=bess, asteroid_geometric=geo_rows)
     return "\n".join(L), data
 
 

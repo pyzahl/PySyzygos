@@ -652,8 +652,8 @@ def index():
         with ui.tab_panel(t_res):
             with ui.row().classes("items-center"):
                 ui.button("Rebuild report", on_click=lambda: build_report()).props("outline")
-                if getattr(config, "owc_lookup", False):                  # experimental, set in pysyzygos_config.py
-                    ui.button("Check OWC", on_click=lambda: owc_check("results")).props("outline dense").tooltip(
+                if getattr(config, "owc_feeds", True):                    # config owc_feeds (on by default)
+                    ui.button("Check OWC Feeds", on_click=lambda: owc_check("results")).props("outline dense").tooltip(
                         "Look these events up in OccultWatcher Cloud: prediction feeds (tags) and signed-up stations, "
                         "shown under the asteroid with a link to the OWC event page (one request per second)")
                 ui.link("Open in a new tab", "/out/hits_report.html", new_tab=True)
@@ -680,8 +680,8 @@ def index():
                     "Download all favorites as a table, named favorites_<today>.csv."
                     " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added). "
                     "The full table with all columns stays in favorites/favorites.csv")
-                if getattr(config, "owc_lookup", False):                  # experimental, set in pysyzygos_config.py
-                    ui.button("Check OWC", on_click=lambda: owc_check("favorites")).props("outline dense").tooltip(
+                if getattr(config, "owc_feeds", True):                    # config owc_feeds (on by default)
+                    ui.button("Check OWC Feeds", on_click=lambda: owc_check("favorites")).props("outline dense").tooltip(
                         "Look the favorites up in OccultWatcher Cloud: prediction feeds (tags) and signed-up stations "
                         "(one request per second)")
             ui.label("Add events with the ☆ button in the Results report (opened from this GUI). Each favorite keeps "

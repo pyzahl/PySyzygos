@@ -29,8 +29,9 @@ star_rv = True             # radial velocity (Gaia DR3) of fast nearby stars in 
 gaia_pm_bias = True        # Gaia DR3 proper motions of stars brighter than G 13 corrected for the frame spin of the
                            # bright stars (Cantat-Gaudin & Brandt 2021; up to 80 micro-arcsec/yr)
 companion_radius_arcsec = 4.0   # close and double stars: neighbours within this blend into the star image (drop is smaller)
-owc_lookup = False         # experimental: "Check OWC" buttons (GUI Results, Favorites) look the events up in OccultWatcher
-                           # Cloud (feeds, signed-up stations); set True here to try it (no GUI switch)
+owc_feeds = True           # "Check OWC Feeds" buttons (GUI Results, Favorites): look the events up in OccultWatcher Cloud
+                           # (prediction feeds, signed-up stations), on click only, one request per second. False: no
+                           # buttons. (Before 1.3.3 this was owc_lookup, off by default; that old key is ignored.)
 gaia_online_check = True   # after a search: check the event stars in the Gaia archive (doubles, neighbours the local
                            # catalog leaves out); one query per run, skipped when offline
 min_mag_drop = 0.1         # mag; events with a smaller drop are not logged (also sets the Gaia magnitude cap per asteroid)

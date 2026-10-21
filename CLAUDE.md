@@ -216,11 +216,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `search.online_double_check` after pass 2: one async ADQL job (OR of circles, daemon thread, 120 s timeout) ->
   `online_fields` -> `db.update_events` (this run's events in the results database).
   New record fields go at the END of the hit record (the log is appended; mixed headers otherwise).
-- `pysyzygos/owc.py` (experimental, hidden: config `owc_lookup = False`, only by editing the config; the user is
-  introducing it to IOTA people step by step, so keep it low-key): OccultWatcher Cloud lookup through the public
+- `pysyzygos/owc.py` (on by default since 1.3.3, user's decision 2026-10-20: low request volume; config `owc_feeds`
+  (template True), GUI button "Check OWC Feeds" in Results and Favorites; the old key `owc_lookup` is ignored, since
+  every config copy carried `owc_lookup = False`; still say little about it in public docs until IOTA/OWC agree): OccultWatcher Cloud lookup through the public
   event pages' interface `URL_OWC_API` (`events/?astNo=&dt=&bf=` then `event/<id>`; no login; `my-events` needs
   login: not used). Match by Gaia id (`gaia.id`) else time (10 min); 1 s pause, User-Agent PySyzygos; on click only
-  (GUI "Check OWC" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
+  (GUI "Check OWC Feeds" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
   under the asteroid (tags, station count, hover: observer, signed distance km, commitment).
 - `pysyzygos/binaries.py`: known asteroid satellites, `data/binaries.json` from Johnston's PDS compilation V3.0
   (fixed-width `binarytable.tab`, layout read from its PDS4 label) + SAT_* columns of the occultations archive's
@@ -248,7 +249,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   lon/lat d m s + UT; alt/az/sun and limits optional); compare computes a missing star_alt (SPICE), date or nearest
   day to best_utc, w_occ NaN without limits. Old and new parser identical on the Phaethon/Galbraith listings. `export`: shadow_path at 1.45 s in Occult's
   layout (fmt_dms/fmt_ut). `steps`: star catalog -> each correction (amounts) -> direction used (checked against the
-  search's), asteroid geo/bary/lt/own deflection, Besselian elements (ICRF axes and of date via erfa.pnm06a/gst06a,
+  search's), asteroid geo/bary(t - lt)/lt/own deflection + geometric barycentric states at t (asteroid, Earth, difference; S.
+  Preston's request 2026-10-20), Besselian elements (ICRF axes and of date via erfa.pnm06a/gst06a,
   d, mu) at touch-down/centre/leaving (bisection on the centre line, minimize for the centre), geodetic points ->
   steps_<stamp>.md/.json. `run` deletes the target's cached SPKs first (search reuses same-name cache files up to orbit_max_age_days)
   and keeps only the newly downloaded. GUI: Favorites checkbox `pc_chk` (gui_state path_check), block `f_pc`, dialog,

@@ -1,6 +1,6 @@
 """owc.py - look up events in OccultWatcher Cloud (OWC): the prediction feeds (tags such as IBEROC) and the
-observers who signed up (stations). Experimental and off by default: config `owc_lookup = True` (set by editing
-pysyzygos_config.py) shows a "Check OWC" button in the GUI's Results and Favorites tabs.
+observers who signed up (stations). On by default since 1.3.3 (config `owc_feeds`, before: `owc_lookup`, off): the
+"Check OWC Feeds" button in the GUI's Results and Favorites tabs.
 
 It uses the interface behind OWC's public event pages (no login; undocumented, so it can change): per event one
 search by asteroid number and date, `events/?astNo=&dt=&bf=`, and one detail request, `event/<id>`. The OWC event is
