@@ -421,7 +421,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `GETTING_STARTED.md` (2026-10-17): beginners' walk-through (install, site, pick, search, results, favorites; why the
   first runs are slow, caches); linked at the top of README's Quick start. Keep it in step with GUI labels.
 - `docs/math/` (2026-10-20, tracked): the math slides on their own (beamer): `pysyzygos_math.tex` (main),
-  `math_slides.tex` (the slides, single source: workflow, conventions, who computes what, notation, astrometry ST1 ST2
+  `math_slides.tex` (the slides, single source: workflow, need for speed SP (funnel), search corridor CO
+  (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, astrometry ST1 ST2
   AS, solver IN OB LT, Besselian figure, FG FP CA OV), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
   library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
   (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The

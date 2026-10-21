@@ -150,6 +150,8 @@ def _init(folder, catalog_dir, cam_limit):
     _W.update(spice=spice, index=L.open_index(catalog_dir, L.index_gmax(cam_limit)))
 
 
+# Math: CO.1-CO.3, PS.1 (slides CO, PS): the world pre-screen, a corridor for the whole Earth and
+# the shadow elements per event.
 def build_chunk(spice, rows, et0, et1, index, opt, step_s=600.0, n_track=ST.N_TRACK):
     """The pre-screen events of these asteroids (pick.build_rows dicts). opt: cam_limit, min_drop, reach_km,
     max_sun_alt, min_alt, region (box dict, or None = global). A region build returns a list of event tuples (the
@@ -512,7 +514,7 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
                 hmax=hmax, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
                 asteroids_screened=len(rows), sbdb_fetched=fetched, built=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
                 build_s=round(time.time() - t0), catalog=os.path.basename(str(catalog)), version=__version__,
-                resumed=bool(done_nums), supplement=supplement)
+                resumed=bool(done_nums), supplement=supplement, workers=w)
     if region is None:
         n_ev, n_ast = _write_global(con, out, meta)
         con.close()

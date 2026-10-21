@@ -129,6 +129,7 @@ def solve_site(spice, site, g_of_t, sdir, t0, half_bracket, iters=6, dt=5.0):
 
 
 # ----------------------------------------------------------------------------------------------- the screen
+# Math: CO.1-CO.4 (slide CO), the pick of slide PS: own orbits, corridor scan, site solve.
 def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, progress=None):
     """rows: list of dicts with number, name, H, G, D_km, D_max_km, a, e, i, om, w, ma, epoch (JD TDB).
     opt: reach_km, min_alt, max_sun_alt, min_drop, min_dur, cam_limit, aperture, frames, mag_adjust, extinction. Returns a list of event dicts (one per asteroid/star/time)."""

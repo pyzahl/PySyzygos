@@ -16,7 +16,7 @@
 \newcommand{\slideid}[1]{\begin{tikzpicture}[remember picture, overlay]
   \node[anchor=east, draw=white, line width=0.6pt, rounded corners=2pt, inner sep=2.5pt, text=white,
         font=\footnotesize\bfseries] at ([xshift=-3mm, yshift=-0.55cm]current page.north east) {#1};
-  \end{tikzpicture}}
+  \end{tikzpicture}\ignorespaces}
 \newcommand{\eqtag}[1]{\hfill{\scriptsize\textcolor{syzblue}{(#1)}}}
 \newcommand{\grp}[1]{\multicolumn{2}{@{}l}{\footnotesize\textbf{#1}} \\}   % group heading row (conventions table)
 % which library computes a step (tags on the astrometry and solver slides)

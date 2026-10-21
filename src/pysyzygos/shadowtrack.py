@@ -72,6 +72,7 @@ def frames(spice, t0, t1, step_s=600.0):
 
 
 # ---------------------------------------------------------------- elements
+# Math: PS.1 (slide PS): the shadow elements, a quadratic in time fitted at -half, 0, +half.
 def fit(px, py, half):
     """Quadratic elements from plane positions px, py (c,9) at dt = half * linspace(-1, 1, 9). Returns dict of
     x0, y0, vx, vy, ax, ay (c,) and err (c,): the largest misfit (km) at the 9 points."""
@@ -89,6 +90,7 @@ def fit(px, py, half):
     return out
 
 
+# Math: PS.1 (slide PS): the shadow axis in the plane from the stored elements.
 def positions(ev, tau):
     """Plane positions (c,n) of the shadow axis of events ev (DTYPE array) at times tau (c,n)."""
     dt = tau - ev["et"][:, None]
@@ -312,6 +314,7 @@ def region_mask(spice, ev, box, reach_km, min_alt, max_sun_alt, block=5000):
 
 
 # ---------------------------------------------------------------- site test
+# Math: PS.2 (slide PS): the site test, shadow line within r + reach + err of the site, star up, Sun down.
 def site_mask(spice, ev, lat, lon, ele_m, reach_km, min_alt, max_sun_alt, block=20000):
     """Events (DTYPE array) whose shadow passes within radius + reach (+ err + TOL_KM) of the site while the star is
     above min_alt and the Sun below max_sun_alt there (limits widened by TOL_DEG). Returns keep (c,)."""

@@ -45,6 +45,7 @@ def _basis(c):
 
 
 # ----------------------------------------------------------------------------------------------- magnitude cap
+# Math: CO.4 (slide CO): the faintest useful star from the drop rule (+0.5 mag safety).
 def limiting_star_mag(H, G, ast_from_sun_au, ast_from_earth_au, mag_limit, min_drop=0.1, safety=0.5):
     """Faintest Gaia G worth querying for this asteroid over the run.
 
@@ -84,12 +85,14 @@ def asteroid_path(target_id, et0, et1, step_s=600.0):
 
 
 # ----------------------------------------------------------------------------------------------- the plan
+# Math: CO.2 (slide CO): the proper-motion pad of the strip, mu_max |t - 2016.0| + 2 arcsec.
 def pad_for_pm(pm_pad_mas, ets):
     """Pad (arcsec) so that every star with proper motion <= pm_pad_mas/yr stays inside the strip through the run."""
     last_year = 2000.0 + float(np.max(ets)) / (365.25 * 86400.0)
     return pm_pad_mas / 1000.0 * abs(last_year - GAIA_EPOCH_YEAR) + 2.0
 
 
+# Math: CO.1, CO.2 (slide CO): margin = Earth radius + r_max + reach; strip half-width per sample.
 def plan_corridor(target_id, et0, et1, size, mag_lim, max_shadow_dist, min_drop=0.1, step_s=600.0,
                   pm_pad_mas=1500.0, path=None):
     """Everything that needs SPICE. size needs r_max_km and optional H, G. Strip half-width per path sample:
@@ -116,6 +119,8 @@ def propagate_linear(df, years):
     return ra % 360.0, de
 
 
+# Math: CO.3 (slide CO): the coarse cut at the samples, then the refined minimum (kept below 1.05
+# margin).
 def find_candidates(stars, path, margin_km, slack=1.05, block_cells=2.5e7):
     """Scan all stars against all path samples at once. Returns a DataFrame with one row per local minimum:
     star (row in `stars`), j (grid index), et_guess (parabolic estimate), d_km (estimated geocentric miss).
@@ -191,6 +196,7 @@ def _refine_candidates(S, U, D, ets, step, pairs, limit_km, n_tau=121, chunk=400
     return pd.DataFrame(rows, columns=cols)
 
 
+# Math: CO.5 (slide CO): the exact solver's bracket around a candidate, 2 x 1.3 margin / v.
 def solver_bracket_s(plan, j, factor=1.3, max_s=4 * 3600.0):
     """Full width (s) of the exact solver's search interval around a candidate at grid index j.
 

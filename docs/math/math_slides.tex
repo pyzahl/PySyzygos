@@ -42,6 +42,117 @@
   \end{tikzpicture}
 \end{frame}
 
+% ------------------------------------------------------------------------------------------------- the need for speed
+\subsection{Finding candidates fast}
+% numbers: a pick + search of one site, 2026-10-20 + 20 days (step tables of the runs, the user's Mac, 1.3.3)
+\begin{frame}{The need for speed}\slideid{SP}
+  \small
+  Every asteroid against every star, for one site: far too much for exact solving. Each stage keeps a superset and
+  hands it to a more exact (and more expensive) one:\\[0.6ex]
+  \centering
+  \begin{tikzpicture}[font=\footnotesize, every node/.style={inner sep=2pt}]
+    \foreach \w/\y/\n/\c in {4.6/0/{464{,}740 asteroids}/syzblue!85, 3.9/-0.6/{12{,}808 asteroids}/syzblue!70,
+                            3.2/-1.2/{1{,}195 events}/syzblue!55, 2.5/-1.8/{400 targets}/syzaccent!70,
+                            1.8/-2.4/{430 hits}/syzaccent}
+      \node[fill=\c, text=white, minimum width=\w cm, minimum height=0.5cm, rounded corners=2pt] at (0,\y) {\n};
+    \foreach \y/\t in {0/{all of JPL SBDB with $H < 17$},
+                       -0.6/{world pre-screen, site test: 17.7\,s {\scriptsize(built once for 40 days: 7.8\,h\footnotemark)}},
+                       -1.2/{pick: own orbits, corridor scan, site solve: 16.6\,s},
+                       -1.8/{the best events of the pick},
+                       -2.4/{search: 3{,}035 candidates, 1{,}301 exact solves: 70\,s}}
+      \node[anchor=west, text=black!75] at (2.6,\y) {\t};
+  \end{tikzpicture}\\[0.6ex]
+  \raggedright
+  {\scriptsize One site, 20 days, stars to $G = 15$ (2026-10-20), on the author's Mac. Only the last stage uses
+  JPL Horizons orbits, the full astrometry (ST) and the exact solver (IN--OV).}
+  \footnotetext{\scriptsize World pre-screen 2026-10-01 + 40 days, G $\le$ 16: 464{,}740 asteroids screened,
+    19.3 million events of 461{,}867 asteroids, 1.5 GB; built in 28{,}152\,s on an Intel Core i7-6700K
+    (4 cores / 8 threads, 4.0\,GHz), 32\,GB RAM, Linux, 4 worker processes.}
+\end{frame}
+
+% ------------------------------------------------------------------------------------------------- the corridor
+% As in corridor.py: plan_corridor (CO.1, CO.2), find_candidates (CO.3), limiting_star_mag (CO.4), solver_bracket_s (CO.5)
+\begin{frame}{The search corridor}\slideid{CO}
+  \begin{columns}[c]
+    \begin{column}{0.47\textwidth}
+      \centering
+      \begin{tikzpicture}[font=\scriptsize, scale=0.95]
+        % the asteroid's path on the sky, sampled every step; the strip: overlapping segments of half-width w_j
+        \foreach \x/\y/\w in {0/0/0.55, 1.4/0.35/0.6, 2.8/0.55/0.68, 4.2/0.6/0.78, 5.6/0.5/0.9}
+          \fill[syzblue!12] (\x,\y) circle (\w);
+        \draw[syzblue!40, densely dashed] plot[smooth] coordinates {(-0.4,-0.55) (1.4,-0.25) (2.8,-0.13) (4.2,-0.18) (5.6,-0.4) (6.3,-0.6)};
+        \draw[syzblue!40, densely dashed] plot[smooth] coordinates {(-0.4,0.53) (1.4,0.95) (2.8,1.23) (4.2,1.38) (5.6,1.4) (6.3,1.35)};
+        \draw[thick, syzblue, ->] plot[smooth] coordinates {(-0.5,-0.1) (0,0) (1.4,0.35) (2.8,0.55) (4.2,0.6) (5.6,0.5) (6.3,0.4)};
+        \foreach \x/\y/\l in {0/0/{t_{j-2}}, 1.4/0.35/{t_{j-1}}, 2.8/0.55/{t_j}, 4.2/0.6/{t_{j+1}}, 5.6/0.5/{t_{j+2}}}
+          \fill[syzblue] (\x,\y) circle (1.4pt) node[below=2pt, syzblue] {$\l$};
+        \draw[<->, syzaccent] (4.2,0.6) -- (4.2,1.38) node[midway, right] {$w_{j+1}$};
+        % stars: inside the strip (candidates) and outside
+        \foreach \x/\y in {0.7/-0.75, 2.0/1.6, 3.4/-0.7, 4.9/2.0, 6.0/-1.0, 1.0/1.5}
+          \node[gray] at (\x,\y) {$\star$};
+        \foreach \x/\y in {2.2/0.85, 5.0/0.1}
+          \node[syzaccent] at (\x,\y) {\large$\star$};
+        \draw[syzaccent, densely dotted] (2.2,0.85) -- (2.25,0.46);
+        \node[syzaccent, anchor=west, align=left] at (-0.6,2.25) {candidate: closest approach\\between samples (refined)};
+        \node[anchor=west, syzblue] at (-0.6,-1.45) {path every \SI{600}{s} (10 min), from the Earth's centre};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.53\textwidth}
+      \footnotesize
+      \vspace*{-1ex}
+      \begin{gather*}
+        \mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach} \tag{CO.1}\\
+        w_j = \frac{\mathrm{margin}}{\Delta_j} + \mu_{\max}\,|t - 2016.0| + 2'' \tag{CO.2}\\
+        d_j < \sqrt{\mathrm{margin}^2 + (v_{\max}\,\Delta t/2)^2} \tag{CO.3}\\
+        m_\star \le m_{\mathrm{ast}} + 2.5\log_{10}\frac{1}{10^{0.4\,\Delta m_{\min}} - 1} + 0.5 \tag{CO.4}\\
+        T = 2 \cdot 1.3\, \mathrm{margin}/v \tag{CO.5}
+      \end{gather*}
+      \vspace*{-1ex}
+      {\scriptsize $\Delta_j$: distance at $t_j$; $\mu_{\max}$ \SI{1500}{mas/yr} (faster stars added apart).
+      CO.3: none slips between samples; then refined, kept below $1.05\,$margin.
+      CO.4: 2.54 mag for a 0.1 mag drop. CO.5: the solver's bracket.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------------------------------------- pre-screens and picks
+% As in prescreen.build_chunk, shadowtrack.fit / positions (PS.1), shadowtrack.site_mask (PS.2), screen.screen (pick)
+\begin{frame}{Pre-screens and picks}\slideid{PS}
+  \begin{columns}[c]
+    \begin{column}{0.56\textwidth}
+      \footnotesize
+      \textbf{World pre-screen} (built once, shared): no site, the corridor covers the whole Earth (CO.1); each event
+      kept in \SI{80}{bytes} as \emph{shadow elements}, its track over the plane, quadratic in time:
+      \begin{equation*}
+        x(t) = x_0 + v_x \Delta t + a_x \Delta t^2,\quad y(t) = y_0 + v_y \Delta t + a_y \Delta t^2 \tag{PS.1}
+      \end{equation*}
+      {\scriptsize $\Delta t = t - t_c$, while it crosses the Earth; misfit $\le$ \SI{0.3}{km}.}\\[0.4ex]
+      \textbf{Site test} (any site, seconds; star up, Sun down there):
+      \begin{equation*}
+        |\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + \mathrm{err} \tag{PS.2}
+      \end{equation*}
+      \textbf{Pick}: own orbits (\SI{\sim 2}{km}), corridor scan, site solve $\to$ targets.
+      \textbf{Search}: Horizons orbits, full astrometry, exact solver.
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \centering
+      \begin{tikzpicture}[font=\scriptsize, scale=0.95]
+        \fill[syzblue!8] (0,0) circle (1.8);
+        \draw[syzblue!50] (0,0) circle (1.8);
+        \node[syzblue!70] at (0,-1.2) {Earth};
+        % shadow track (quadratic), its band of r + reach
+        \fill[syzaccent!20] plot[smooth] coordinates {(-2.3,0.35) (-1,0.93) (0.3,1.28) (1.6,1.38) (2.4,1.28)}
+             -- plot[smooth] coordinates {(2.4,0.68) (1.6,0.78) (0.3,0.68) (-1,0.33) (-2.3,-0.25)} -- cycle;
+        \draw[very thick, syzaccent, ->] plot[smooth] coordinates {(-2.3,0.05) (-1,0.63) (0.3,0.98) (1.6,1.08) (2.4,0.98)};
+        \node[syzaccent, anchor=south] at (0,1.9) {shadow track $x(t), y(t)$};
+        \draw[<->, syzaccent] (2.25,0.67) -- (2.25,1.27) node[midway, right] {$r{+}\mathrm{reach}$};
+        \fill[black] (-0.6,0.62) circle (1.6pt) node[below=2pt] {site A: test};
+        \fill[black!60] (0.7,-0.5) circle (1.6pt) node[below=2pt, black!60] {site B: no};
+        \node[anchor=north] at (0,-1.95) {fundamental plane through the Earth's centre};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 % ------------------------------------------------------------------------------------------------- the exact solver
 % As in src/pysyzygos/search.py (1.3.x): handle_star -> star_test -> get_besselian_miss_distance -> besselian_offsets
 % (spkcpo, light time from the site), observable, event_metrics. Star direction: astrometry.corrected_star_dir.
