@@ -286,18 +286,62 @@ def _spk_file(target_id, epochs, cache_dir=config.cache_path):
 
 def _spk_stale(fn):
     """Missing, or older than orbit_max_age_days: to be downloaded."""
-    max_age = float(getattr(config, "orbit_max_age_days", 1)) * 86400.0
+    max_age = float(getattr(config, "orbit_max_age_days", 7)) * 86400.0
     return not fn.is_file() or time.time() - fn.stat().st_mtime > max_age
+
+
+def _fresh_spk(target_id, epochs, cache_dir=config.cache_path):
+    """A cached orbit file of this asteroid, at most orbit_max_age_days old, whose span covers this window: the
+    window's own file, else the newest one downloaded for another window that includes it (e.g. a longer search
+    before). Path or None (then it is downloaded)."""
+    fn = _spk_file(target_id, epochs, cache_dir)
+    if not _spk_stale(fn):
+        return fn
+    from pysyzygos import offline
+    start, stop = str(epochs['start'])[:10], str(epochs['stop'])[:10]
+    hits = []
+    for f in Path(cache_dir).glob(f"PySyzygos_asteroid_{target_id}_*.bsp"):
+        m = offline.SPK_RE.search(f.name)
+        if m and m[1] == str(target_id) and m[2] <= start and stop <= m[3] and not _spk_stale(f):
+            hits.append((f.stat().st_mtime, str(f)))
+    return Path(max(hits)[1]) if hits else None
+
+
+HORIZONS = {}            # "up": whether JPL Horizons takes connections in this run (horizons_up; False after a failure)
+
+
+def horizons_up(connect_s=10):
+    """Whether JPL Horizons accepts connections: probed once per run (connect_s at most), False from the first failed
+    connection on. When it does not, the run takes cached orbit files and the default path uncertainty at once instead
+    of waiting for every request (an outage cost ~1 min per target before). Network only: safe in threads."""
+    if "up" not in HORIZONS:
+        import socket
+        from urllib.parse import urlparse
+        host = urlparse(U.URL_JPL_HORIZONS_API).hostname
+        try:
+            socket.create_connection((host, 443), timeout=connect_s).close()
+            HORIZONS["up"] = True
+        except OSError as e:
+            HORIZONS["up"] = False
+            print(f"WARNING: JPL Horizons ({host}) does not answer ({type(e).__name__}: {str(e)[:60]}): orbits from "
+                  f"cached files that cover the window, default path uncertainties", flush=True)
+    return HORIZONS["up"]
 
 
 def _horizons_spk(target_id, epochs, timeout=60):
     """The asteroid's SPK from JPL Horizons as bytes (network only, no SPICE: safe in threads). Raises
-    requests.RequestException (network) or RuntimeError (no such object, no SPK)."""
+    requests.RequestException (network) or RuntimeError (no such object, no SPK). A connection that fails marks
+    Horizons as down for the rest of the run (horizons_up)."""
     for k in range(3):                                        # Horizons answers 503 to too many requests at once
-        resp = requests.get(U.URL_JPL_HORIZONS_API,
-                            params={'format': 'json', 'COMMAND': str(target_id) + ';', 'EPHEM_TYPE': 'SPK',
-                                    'MAKE_EPHEM': 'YES', 'START_TIME': epochs['start'], 'STOP_TIME': epochs['stop'],
-                                    'OBJ_DATA': 'NO'}, timeout=timeout)
+        try:
+            resp = requests.get(U.URL_JPL_HORIZONS_API,
+                                params={'format': 'json', 'COMMAND': str(target_id) + ';', 'EPHEM_TYPE': 'SPK',
+                                        'MAKE_EPHEM': 'YES', 'START_TIME': epochs['start'],
+                                        'STOP_TIME': epochs['stop'], 'OBJ_DATA': 'NO'},
+                                timeout=(10, timeout))         # connect within 10 s, the answer within timeout
+        except requests.ConnectionError:                      # refused or connect timeout: no more requests this run
+            HORIZONS["up"] = False
+            raise
         if resp.status_code != 503 or k == 2:
             break
         time.sleep(1.0 + k)
@@ -323,16 +367,21 @@ def prefetch_orbits(targets, epochs, workers=2):
     """Download the missing or stale orbit files of these asteroids in parallel (network only, threads; SPICE loads
     them later in the main thread). Failures are left to fetch_target_orbit (fallbacks, messages). Returns the count."""
     from concurrent.futures import ThreadPoolExecutor
-    todo = [str(t) for t in targets if not bodies.is_body(t) and _spk_stale(_spk_file(t, epochs))]
-    if len(todo) < 2:
+    todo = [str(t) for t in targets if not bodies.is_body(t) and _fresh_spk(t, epochs) is None]
+    if len(todo) < 2 or not horizons_up():
         return 0
 
     def one(t):
+        if not HORIZONS["up"]:                                # failed meanwhile: the rest from the cache at once
+            return 0
         try:
             _save_spk(_spk_file(t, epochs), _horizons_spk(t, epochs))
             return 1
-        except Exception:
+        except Exception as e:
+            print(f"orbits: {t}: no answer from JPL Horizons ({type(e).__name__}: {str(e)[:80]})", flush=True)
             return 0
+    print(f"orbits: asking JPL Horizons for {len(todo)} orbit file(s), {workers} at a time "
+          f"(a request waits up to 60 s if Horizons does not answer) ...", flush=True)
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=min(workers, len(todo))) as ex:
         n = sum(ex.map(one, todo))
@@ -342,20 +391,25 @@ def prefetch_orbits(targets, epochs, workers=2):
 
 def fetch_target_orbit(target_id, epochs, cache_dir=config.cache_path):
     target_id = str(target_id)
-    fn = _spk_file(target_id, epochs, cache_dir)
+    fn = _fresh_spk(target_id, epochs, cache_dir) or _spk_file(target_id, epochs, cache_dir)
     from pysyzygos import offline
     blob = None
-    if _spk_stale(fn):                                         # missing or older than orbit_max_age_days
-        try:
-            blob = _horizons_spk(target_id, epochs)
-        except requests.RequestException as e:                    # no network: this file even if old, else a copy
+    if _spk_stale(fn):                                         # none recent enough that covers the window
+        err = requests.ConnectionError("JPL Horizons does not answer in this run")
+        if horizons_up():
+            print(f"orbit of {target_id}: asking JPL Horizons ...", flush=True)
+            try:
+                blob = _horizons_spk(target_id, epochs)
+            except requests.RequestException as e:
+                err = e
+        if blob is None:                                       # no network: this file even if old, else a copy
             old = str(fn) if fn.is_file() else offline.spk_fallback(target_id, str(epochs['start'])[:10],
                                                                    str(epochs['stop'])[:10], (cache_dir,))
             if old is None:
-                raise
-            print(f"WARNING: JPL Horizons not reachable ({str(e)[:60]}): orbit of {target_id} from "
+                raise err
+            print(f"WARNING: JPL Horizons not reachable ({str(err)[:60]}): orbit of {target_id} from "
                   f"{os.path.basename(old)} (downloaded {time.strftime('%Y-%m-%d', time.gmtime(os.path.getmtime(old)))})")
-            fn, blob = Path(old), None
+            fn = Path(old)
     if blob is not None:                                       # downloaded now
         _save_spk(fn, blob)
     if target_id not in _loaded:
@@ -828,6 +882,10 @@ def finish_pending():
     items = list(PENDING)
     PENDING.clear()
     t0 = time.time()
+    if not horizons_up():                                    # outage: the default uncertainty for all, no waiting
+        print(f"path uncertainties: JPL Horizons does not answer: the default for {len(items)} hit(s)", flush=True)
+        STEPS.add("hit: path uncertainty (JPL Horizons)", time.time() - t0, len(items), "hits", group=P2)
+        return sum(bool(fin(None)) for (_, _, fin) in items)
     with ThreadPoolExecutor(max_workers=min(PATH_ERROR_WORKERS, len(items))) as ex:
         perrs = list(ex.map(lambda it: path_error(it[0], it[1]), items))     # network only (astroquery)
     again = [k for k, p in enumerate(perrs) if p is None]
@@ -857,9 +915,12 @@ def prefetch_sizes(targets, workers=4):
                 resp = requests.get(U.URL_JPL_SBDB_API, params={"sstr": n, "phys-par": 1}, timeout=30)
                 resp.raise_for_status()
                 return n, sbdb_cache.entry_from_api(resp.json())
-            except (requests.RequestException, ValueError):
+            except (requests.RequestException, ValueError) as e:
+                err = e
                 time.sleep(1.0)
+        print(f"sizes: {n}: no answer from JPL SBDB ({type(err).__name__}: {str(err)[:80]})", flush=True)
         return n, None                                        # sbdb_phys tries again (messages, fallbacks)
+    print(f"sizes: asking JPL SBDB for {len(todo)} asteroid(s), {workers} at a time ...", flush=True)
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=min(workers, len(todo))) as ex:
         got = {n: e for n, e in ex.map(one, todo) if e}

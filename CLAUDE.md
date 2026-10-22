@@ -100,6 +100,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `near_site`/`hits_box` add `_reach_pad` = max ground_reach over the track's altitude range (not monotonic in h:
   33 points + 3 %) for the query's reach/min_alt, TOL margins; validated 2026-10-10: 0 dropped at all tested
   sites/limits, passes 14-26 % of events). Named regions `REGIONS` / `parse_region`.
+  Whole-Earth pre-screens have no reach limit (2026-10-21, user's decision): `check` skips reach_km when the meta has
+  no region (inside the disk every event is kept at any reach; reach_km = `EDGE_KM` 200 = the margin beyond the
+  Earth's edge and the day/night line only); the site test uses the pick's reach; describe/GUI show no reach for them.
   Shared (1.3.3): `publish` (release/world-prescreens/: <name>.tar.xz via tar + xz -T0 or tarfile, .sha256,
   prescreens.json with SHARE_KEYS settings, catalog_info (catalog.json of the folder or its .new/.old twin), archive,
   archive_bytes/_sha256, files [name, bytes, sha256], meta file last), `remote_list` / `fetch` (URL_PRESCREEN_MIRRORS
@@ -179,7 +182,18 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `pysyzygos.search.sbdb_phys()` (per-object API) and by `pysyzygos/pick.py` for its top targets (bulk rows: size fields only); `get_full()` fetches the per-object
   record (rotation, pole, extent, type) for favorites; standard library only.
 - `pysyzygos/gui.py`: NiceGUI web interface (127.0.0.1 only); runs scripts as subprocesses via `pysyzygos/runner.py`
-  (JSON config overrides per run). `pysyzygos/geo.py`: IP/place/elevation lookups (setup + GUI). `pysyzygos/preview.py`:
+  (JSON config overrides per run). Split by tab (2026-10-21, no behaviour change; checked: the served page is
+  identical to the old one's): `gui.py` = main() (start-up, backfills, API routes), quit/restart, index() (header,
+  About/quit dialogs, tab bar, log card, header wiring, page-wide catalog_ok/download_csv/results_db); one module per
+  tab, `gui_site`, `gui_pick`, `gui_bodies`, `gui_search`, `gui_results`, `gui_favorites` (incl. path verification),
+  `gui_system`, each with `panel(pg)` (controls), `handlers(pg)` (functions and state) and, where needed,
+  `connect(pg)` (wiring and first fill); `gui_common` = what they share (Job, run_process/stop_process, run logs,
+  gui_state, mag_limit/fov, catalog_options, resizable_box, PRE_FIXED, KSTARS_OPT, today_utc, ...). `pg` (a
+  SimpleNamespace made per page load) holds every element and function used by more than one part: a tab's
+  function is `pg.<name> = <name>` after its def and is called as `pg.<name>()` anywhere, so the names in these
+  notes (show_site, prescreen_options, ...) are attributes of pg. index() calls all panels, then all handlers, then
+  the connects in the old order (site, header, search, pick, system, favorites): elements are created in the same
+  order as before. A new element or function used by another tab: assign it to pg. `pysyzygos/geo.py`: IP/place/elevation lookups (setup + GUI). `pysyzygos/preview.py`:
   event preview SVG per hit (`maps/<target>_<stamp>.svg`), shown by the report's Preview button.
 - `pysyzygos/bodies.py` (2026-10-08): planets/moons as targets, prefix + name (`P:Jupiter`, `M:Io`; `L:Moon` later),
   REGISTRY (NAIF id, centre = system barycentre, kind, V(1,0), phase coeff, rough sigma3), GROUPS ("jupiter").
@@ -252,7 +266,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   search's), asteroid geo/bary(t - lt)/lt/own deflection + geometric barycentric states at t (asteroid, Earth, difference; S.
   Preston's request 2026-10-20), Besselian elements (ICRF axes and of date via erfa.pnm06a/gst06a,
   d, mu) at touch-down/centre/leaving (bisection on the centre line, minimize for the centre), geodetic points ->
-  steps_<stamp>.md/.json. `run` deletes the target's cached SPKs first (search reuses same-name cache files up to orbit_max_age_days)
+  steps_<stamp>.md/.json. `run` deletes the target's cached SPKs first (search reuses covering cache files up to orbit_max_age_days)
   and keeps only the newly downloaded. GUI: Favorites checkbox `pc_chk` (gui_state path_check), block `f_pc`, dialog,
   expansion `f_pc_steps`. Bodies: not yet.
 - `pysyzygos/starrv.py` (2026-10-16): Gaia DR3 radial velocities of fast nearby stars (data/gaia_dr3_rv_fast.npy,
@@ -497,7 +511,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   rename, and rename finished files with `gaia_local.replace_file` (retries ~10 s: virus scanners). Tests check
   /proc/self/maps at the rename (test_gaia_local, test_shadowtrack). Found 2026-10-12 in the first Windows install.
 - Write cache files atomically (temp file + `os.replace`). Every cache (asteroid SPKs, SBDB bulk list, per-asteroid SBDB size data
-  `PySyzygos_sbdb_phys.json`; both SBDB caches refetched after `sbdb_max_age_days`; Horizons orbit SPKs after `orbit_max_age_days`, default 1, stale file used offline) goes to `config.cache_path`
+  `PySyzygos_sbdb_phys.json`; both SBDB caches refetched after `sbdb_max_age_days`; Horizons orbit SPKs after `orbit_max_age_days`, default 7 (2026-10-21; was 1): search `_fresh_spk` also reuses a file of another window that covers this one; `horizons_up()` probes Horizons once per run (10 s connect; False after a failed connection): when down, no requests, cached covering files of any age with a WARNING line, default path uncertainties (an outage cost ~1 min per target before); tests/test_orbit_cache.py) goes to `config.cache_path`
   (`/dev/shm` if present, else the system temp folder); never hard-code a path. Gaia is not cached: corridor mode
   reads the local catalog, the old windows mode queries the archive uncached.
 - Historic Earth orientation (2026-10-12): `kernels.historic_earth_pck` (newest `earth_1962_*_combined.bpc`, NAIF

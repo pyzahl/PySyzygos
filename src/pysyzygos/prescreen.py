@@ -360,6 +360,9 @@ def _settings(start, days, region, cam_limit, hmax, min_drop, reach_km, max_sun_
                 format=FORMAT)
 
 
+EDGE_KM = 200.0          # default build reach; for a whole-Earth pre-screen the margin beyond the Earth's edge (check)
+
+
 def open_partial(path, settings, fresh=False):
     """The progress file of a build (SQLite: events so far, done asteroid numbers, the settings). An existing one
     with the same settings is resumed; with other settings it is refused unless fresh (then it starts over)."""
@@ -384,7 +387,7 @@ def open_partial(path, settings, fresh=False):
     return con
 
 
-def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km=200.0, max_sun_alt=0.0,
+def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km=EDGE_KM, max_sun_alt=0.0,
           min_alt=0.0, workers=4, out=None, catalog=None, sbdb_cache=None, name=None, chunk=None, mp_start="spawn",
           max_mem=None, mem_frac=0.6, fresh=False):
     """Build a pre-screen and write it to out (SQLite). Progress is saved after every chunk in out + '.partial'; a
@@ -740,7 +743,9 @@ def extract(path, box, out=None, start=None, days=None, gmax=None, name=None):
 
 def check(meta, et0, et1, lat, lon, opt):
     """Problems (list of str) using this pre-screen for a pick: window, region, and limits tighter than the pick's
-    (then the pick could miss events the full screen finds)."""
+    (then the pick could miss events the full screen finds). A whole-Earth pre-screen has no reach limit: inside the
+    Earth's disk it holds every event at any reach; its reach_km is only the margin beyond the Earth's edge and the
+    day/night line (EDGE_KM, plane km), which covers grazes and edge cases, so the pick's own reach is used."""
     out = []
     if et0 < meta["et0"] - 1 or et1 > meta["et1"] + 1:
         out.append(f"window not covered (pre-screen {meta['start']} + {meta['days']:g} d)")
@@ -751,6 +756,8 @@ def check(meta, et0, et1, lat, lon, opt):
                             ("min_drop", "minimum drop", lambda p, b: p < b - 1e-9),
                             ("max_sun_alt", "Sun limit", lambda p, b: p > b + 1e-9),
                             ("min_alt", "minimum altitude", lambda p, b: p < b - 1e-9)):
+        if k == "reach_km" and not meta.get("region"):        # whole Earth: no reach limit (see above)
+            continue
         if k in opt and worse(opt[k], meta[k]):
             out.append(f"{label} {opt[k]:g} beyond the pre-screen's {meta[k]:g}")
     if opt.get("supplement") and not meta.get("supplement"):
@@ -1006,7 +1013,7 @@ def describe(path, meta=None):
     where = "whole Earth" if not reg else (f"lat {reg['lat_min']:.1f}..{reg['lat_max']:.1f}, "
                                            f"lon {reg['lon_min']:.1f}..{reg['lon_max']:.1f}")
     return (f"{m.get('name', '?')}: {m['start']} + {m['days']:g} d, {where}, for picks up to G {m['cam_limit']:g}, "
-            f"reach {m['reach_km']:g} km, H {m.get('hmax')}; built {m.get('built', '?')[:16]}")
+            + (f"reach {m['reach_km']:g} km, " if reg else "") + f"H {m.get('hmax')}; built {m.get('built', '?')[:16]}")
 
 
 def main(argv=None):
@@ -1041,7 +1048,9 @@ def main(argv=None):
     b.add_argument("--hmax", type=float, default=c("hmax", 17.0))
     b.add_argument("--all", action="store_true", help="all numbered asteroids, any H")
     b.add_argument("--min-drop", type=float, default=0.1)
-    b.add_argument("--reach", type=float, default=200.0, help="largest reach (km) a pick will use")
+    b.add_argument("--reach", type=float, default=EDGE_KM,
+                   help="regional: the largest reach (km) a pick will use; whole Earth (--global): the margin beyond "
+                        "the Earth's edge and the day/night line, any pick reach then fits (default %(default)g)")
     b.add_argument("--max-sun-alt", type=float, default=0.0, help="loosest Sun limit a pick will use (deg)")
     b.add_argument("--min-alt", type=float, default=0.0, help="lowest star altitude a pick will use (deg)")
     b.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))

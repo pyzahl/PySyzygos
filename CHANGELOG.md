@@ -4,6 +4,24 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [1.3.4] "Beyond Horizons" - 2026-10-21
+
+### Changed
+- **Orbit files kept a week, and a JPL Horizons outage no longer stalls a search**: cached orbit files are reused for
+  up to 7 days (`orbit_max_age_days`, was 1), also those of an earlier search whose window covers this one. A search
+  first checks whether Horizons answers (10 s); if not, it says so and takes the cached orbit files that cover the
+  window, however old (each named with its download date in the log), and the default path uncertainty, instead of
+  waiting about a minute per target (on 2026-10-21 Horizons refused connections for hours: a 40-target search sat in
+  pass 1). The log now says when it asks JPL SBDB and Horizons and which requests got no answer. *Download orbits
+  again* (System tab) still fetches today's orbits.
+- **Whole-Earth pre-screens fit any reach**: a site with a reach above 200 km no longer falls back to screening all
+  asteroids. Inside the Earth's disk such a pre-screen holds every event at any reach; its 200 km (`EDGE_KM`) is only
+  the margin beyond the Earth's edge and the day/night line. Regional pre-screens still check the reach (it widens
+  their box). The Pick tab and the shared list no longer show a reach for whole-Earth pre-screens.
+- **GUI code split by tab** (no change in what it does): `gui.py` (start-up, page frame, restart and quit) and one
+  module per tab (`gui_site`, `gui_pick`, `gui_bodies`, `gui_search`, `gui_results`, `gui_favorites`,
+  `gui_system`) plus `gui_common` (runs, run logs, GUI state); the served page is identical to the one before.
+
 ## [1.3.3] "Beyond Horizons" - 2026-10-19
 
 ### Added

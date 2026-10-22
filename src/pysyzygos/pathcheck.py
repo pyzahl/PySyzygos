@@ -397,7 +397,7 @@ def run(key, folder=None):
               results_db=os.path.join(work, "check.db"), hits_output_cvs_file=os.path.join(work, "hits.csv"),
               results_new_series=True, gaia_online_check=False)
     env = dict(os.environ, PYSYZYGOS_HOME=home.HOME)
-    # a fresh orbit: the search reuses a cached orbit file of the same name up to orbit_max_age_days old, so remove
+    # a fresh orbit: the search reuses a cached orbit file covering its window up to orbit_max_age_days old, so remove
     # this asteroid's cached files first (the search then downloads today's from JPL Horizons) and keep only the new one
     tid = str(r["target_id"])
     from pysyzygos.report import file_id

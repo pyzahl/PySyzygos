@@ -144,7 +144,7 @@ def asteroids(cache_path):
         out.append(("Asteroid list (SBDB, cache)", f"none in {cache_path} (the next pick downloads it)"))
     out.append(("Size data (SBDB, cache)", f"{len(sbdb.load(cache_path))} asteroids"))
     spk = glob.glob(os.path.join(cache_path, "PySyzygos_asteroid_*.bsp"))
-    max_d = float(_config("orbit_max_age_days", 1))
+    max_d = float(_config("orbit_max_age_days", 7))
     oldest = (f"; oldest downloaded {_age(min(os.path.getmtime(f) for f in spk))}, a search downloads orbits "
               f"older than {max_d:g} day{'s' if max_d != 1 else ''} again" if spk else "")
     out.append(("Orbit files (Horizons, cache)", f"{len(spk)} files, {_gb(_size(spk))} (from searches since the "

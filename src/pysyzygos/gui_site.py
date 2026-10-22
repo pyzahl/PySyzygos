@@ -1,0 +1,548 @@
+"""gui_site.py - Site tab: the observing sites (sites.py) on a map, their equipment and view, the star limits of the
+runs, the horizon (OccultWatcher file or 360-degree photo).
+
+Part of the GUI (gui.py builds the page): panel(pg) adds the tab's controls, handlers(pg) its functions, connect(pg)
+wires them up; pg holds the page's elements and functions shared between the tabs.
+"""
+import math, os, re
+
+from pysyzygos import cameras, geo, starcat
+from pysyzygos.home import HOME as ROOT
+from nicegui import run, ui
+from pysyzygos.sitesfile import load_sites, save_sites
+from pysyzygos.gui_common import SITE_KEYS, fov, load_ui_state, mag_limit, save_ui_state
+
+
+def panel(pg):
+    """The site tab's controls (inside its ui.tab_panel)."""
+    with ui.tab_panel(pg.t_site):
+        with ui.row().classes("w-full items-end gap-4"):
+            pg.site_title = ui.label().classes("text-lg font-semibold")
+            pg.new_name = ui.input("New site name").classes("w-48")
+            ui.button("Add site", on_click=lambda: pg.add_site()).props("outline")
+            pg.is_default = ui.checkbox("Default for command-line runs").tooltip(
+                "default_site in sites.py: used by `pysyzygos search` / `pysyzygos pick` run without the GUI")
+            ui.button("Save sites.py", on_click=lambda: pg.save()).props("color=primary")
+            ui.button("Remove site", on_click=lambda: pg.remove_site()).props("outline color=negative").tooltip(
+                "Remove the site selected at the top right from sites.py (asks first; saved at once)")
+            pg.unsaved = ui.label().classes("text-sm text-amber-700")
+        with ui.row().classes("w-full no-wrap gap-4"):
+            with ui.column().classes("w-1/2"):
+                pg.m = ui.leaflet(center=(40.7, -74.0), zoom=9).classes("w-full").style("height: 430px")
+                pg.marker = pg.m.marker(latlng=(40.7, -74.0))
+                with ui.row().classes("w-full items-end"):
+                    pg.q = ui.input("Find a place").classes("grow")
+                    ui.button("Search", on_click=lambda: pg.find_place()).props("outline")
+                    ui.button("My IP location", on_click=lambda: pg.ip_loc()).props("outline")
+                pg.hits = ui.column().classes("w-full gap-1")
+                pg.occ = geo.mpc_observatories()               # MPC observatory codes (downloaded once into data/)
+                with ui.row().classes("w-full no-wrap gap-4"):
+                    pg.occ_sel = ui.select({i: f"{x['code']} {x['name']}" for i, x in enumerate(pg.occ)},  # searchable:
+                                                                                  # code and name only
+                                           with_input=True, clearable=True,
+                                           label="MPC observatory (type code or name)" if pg.occ else
+                                           "MPC observatory list: not available (offline?)").classes("w-1/2").props(
+                        "dense options-dense" + ("" if pg.occ else " disable")).tooltip(
+                        f"{len(pg.occ)} observatories with their official MPC codes (Minor Planet Center): sets position, "
+                        "elevation, description and MPC code; the equipment stays as it is")
+                    pg.cam_sel = ui.select({i: cameras.label(c) for i, c in enumerate(cameras.SENSORS)},
+                                           with_input=True, clearable=True,
+                                           label="Sensor (cameras; type a name)").classes(
+                        "grow").props("dense options-dense").tooltip(
+                        "Sensors common in occultation work, each with the cameras built with it (MM / MC, M / C: "
+                        "the mono and color versions of a camera, same sensor size). Picking one fills sensor "
+                        "width and height, computed from pixel count and pixel size. Not listed, or a cropped "
+                        "readout: enter width and height yourself")
+                ui.button("Add as new site", on_click=lambda: pg.add_site()).props("outline").tooltip(
+                    "Add the current map site (position, description, MPC code and the equipment in the form) as a "
+                    "new site to the site selector at the top right, named as in 'New site name'; saved at once")
+                ui.label("Click the map to set the position; the elevation is looked up. "
+                         "Use an exact position (GPS, map) for observing.").classes("text-xs text-slate-500")
+            with ui.column().classes("w-1/2"):
+                with ui.row().classes("w-full no-wrap gap-4"):
+                    pg.desc = ui.input("Description").classes("grow")
+                    pg.mpc = ui.input("MPC code").classes("w-28").tooltip(
+                           "The site's official Minor Planet Center observatory code, if it has one (kept in sites.py "
+                        "as mpc_code; filled in when you pick an observatory below)")
+                with ui.row():
+                    paste_tip = ("Paste coordinates in any usual format into Latitude, Longitude or Elevation, "
+                                 "e.g. Lng: -121° 57' 19\", Lat: +37° 01' 27\", Alt: 132 m  or  37.02417, "
+                                 "-121.95528  or  37°01'27\"N 121°57'19\"W: all three fields are filled (the "
+                                 "elevation is looked up if not given)")
+                    pg.lat = ui.number("Latitude (°)", format="%.5f", step=0.0001).tooltip(paste_tip)
+                    pg.lon = ui.number("Longitude (°, east +)", format="%.5f", step=0.0001).tooltip(paste_tip)
+                    pg.ele = ui.number("Elevation (m)", format="%.0f", step=1).tooltip(paste_tip)
+                    pg.ele_ref = ui.select({"msl": "above sea level", "ellipsoid": "above WGS84 ellipsoid"},
+                                           value="msl", label="Elevation is").tooltip(
+                        "Maps, Open-Meteo and most GPS displays give the height above mean sea level; PySyzygos "
+                        "adds the geoid's height there (EGM96, saved in sites.py as geoid_m). MPC observatory "
+                        "codes (and GPS set to ellipsoid height) give it above the WGS84 ellipsoid already.")
+                pg.fields = {}
+                with ui.grid(columns=3).classes("w-full"):
+                    for key, label, default, step in SITE_KEYS:
+                        pg.fields[key] = ui.number(label, value=default, step=step)
+                pg.derived = ui.label().classes("text-sm text-slate-600")
+                with ui.expansion("Horizon (optional): trees, buildings, hills").classes("w-full") as hz_exp:
+                    ui.label("Load OccultWatcher's UserHorizon.txt (the same file works in both programs) for "
+                             "the site in this form, then save the site: events whose star is behind your horizon "
+                             "are marked \u26f0 yellow, those closer to it than the margin red, in the results and "
+                             "favorites. A file with several stations: the one named like the site, else the "
+                             "first.").classes(
+                        "text-xs text-slate-500")
+                    with ui.row().classes("items-center gap-3"):
+                        ui.upload(label="Load UserHorizon.txt", auto_upload=True,
+                                  on_upload=lambda e: pg.hz_upload(e)).props("accept=.txt flat dense").classes("w-56")
+                        pg.hz_margin = ui.number("Margin (°)", value=15, min=0, max=45, step=1).classes("w-28").tooltip(
+                            "A star closer than this to the horizon line, in any direction, is marked (red); "
+                            "OccultWatcher's default warning threshold is 15°")
+                        pg.hz_filter = ui.checkbox("leave out events behind it").tooltip(
+                            "Otherwise they are kept and marked yellow (as OccultWatcher does)")
+                        ui.button("Remove", on_click=lambda: pg.hz_set(None)).props("flat dense color=negative")
+                    with ui.row().classes("items-center gap-3"):
+                        ui.upload(label="Load a 360° photo", auto_upload=True,
+                                  on_upload=lambda e: pg.pano_upload(e)).props(
+                            "accept=.jpg,.jpeg,.png flat dense").classes("w-56").tooltip(
+                            "Equirectangular (2:1), as a 360° camera or a phone's photo sphere saves it, taken "
+                            "level at the telescope. With the sky made transparent (PNG), the horizon line can be "
+                            "read from it")
+                        pg.hz_az = ui.number("Azimuth at the photo's left edge (°)", value=0, min=0, max=360,
+                                             step=0.5).classes("w-56").on_value_change(lambda e: pg.hz_draw())
+                        pg.hz_fit = ui.button("Fit to the horizon line", on_click=lambda: pg.pano_fit()).props(
+                            "flat dense").tooltip("Turn the photo so that its horizon lies best on the horizon "
+                                                  "points above (needs a photo with transparent sky)")
+                        pg.hz_from = ui.button("Horizon from the photo", on_click=lambda: pg.pano_points()).props(
+                            "flat dense").tooltip("The horizon points from the photo's transparent sky (whole "
+                                                  "degrees, as UserHorizon.txt); replaces the points above")
+                        pg.hz_dl = ui.button("UserHorizon.txt", on_click=lambda: pg.hz_download()).props(
+                            "flat dense").tooltip("Download the horizon as OccultWatcher's UserHorizon.txt")
+                        ui.button("Remove photo", on_click=lambda: pg.pano_set(None)).props(
+                            "flat dense color=negative")
+                    pg.hz_info = ui.label().classes("text-sm text-slate-600")
+                    pg.hz_pic = ui.html("")
+
+
+def handlers(pg):
+    """The site tab's functions and state, as attributes of pg."""
+    def show_site(name):
+        s = pg.sites[name]
+        pg.state["name"] = name
+        pg.lat.value, pg.lon.value, pg.ele.value, pg.desc.value = s["lat"], s["lon"], s["ele"], s.get("name", name)
+        pg.ele_ref.value = s.get("ele_ref", "msl")
+        pg.mpc.value = str(s.get("mpc_code", "") or "")
+        for key, _, default, _ in SITE_KEYS:
+            if key == "sensor_w_mm":
+                pg.fields[key].value = s.get("sensor_mm", (5.6, 3.2))[0]
+            elif key == "sensor_h_mm":
+                pg.fields[key].value = s.get("sensor_mm", (5.6, 3.2))[1]
+            else:
+                pg.fields[key].value = s.get(key, default)
+        pg.is_default.value = name == pg.state.get("default", pg.default_site)
+        pg.hz_margin.value = s.get("horizon_margin", 15)
+        pg.hz_filter.value = bool(s.get("horizon_filter", False))
+        pg.HZ["image"] = s.get("horizon_image") if s.get("horizon_image") and os.path.isfile(s["horizon_image"]) else None
+        pg.hz_az.value = float(s.get("horizon_image_az", 0.0))
+        pg.hz_set([tuple(p) for p in s.get("horizon") or []] or None, s.get("horizon_name", ""))
+        pg.site_title.text = f"Site: {name}"
+        try:
+            pg.load_pick()
+            pg.prescreen_options()
+        except NameError:                         # first call, while the page is built: load_pick() runs later
+            pass
+        for note in (pg.site_note_s, pg.site_note_p, pg.site_note_b):
+            note.text = (f"Runs use site {name} ({s['lat']:.4f}, {s['lon']:.4f}, {s.get('aperture_cm', 25):g} cm); "
+                         f"change it at the top right.")
+        pg.marker.move(s["lat"], s["lon"])
+        pg.m.set_center((s["lat"], s["lon"]))
+        pg.update_derived()
+    pg.show_site = show_site
+
+    pg.HZ = dict(pts=None, name="", image=None)                     # the horizon in the form (horizon.py, panorama.py)
+
+    def hz_draw():
+        from pysyzygos import horizon, panorama
+        pts, img = pg.HZ["pts"], pg.HZ["image"]
+        prof = panorama.load_meta(img).get("profile") if img else None
+        pg.hz_fit.set_visibility(bool(img and prof and pts))
+        pg.hz_from.set_visibility(bool(img and prof))
+        pg.hz_dl.set_visibility(bool(pts))
+        if img:
+            pg.hz_pic.content = panorama.svg(img, float(pg.hz_az.value or 0), pts, float(pg.hz_margin.value or 15), width=900)
+        else:
+            pg.hz_pic.content = horizon.svg(pts, width=540, height=110) if pts else ""
+        txt = (f"{pg.HZ['name'] or 'horizon'}: {len(pts)} points, highest {max(h for _, h in pts)}°" if pts
+               else "no horizon: a flat horizon is assumed")
+        pg.hz_info.text = txt + (f" · photo {os.path.basename(img)}" if img else "") + " (saved with the site)"
+        try:
+            pg.update_derived()                                         # marks "unsaved changes"
+        except NameError:                                            # while the page is built
+            pass
+    pg.hz_draw = hz_draw
+
+    def hz_set(pts, name=""):
+        pg.HZ["pts"], pg.HZ["name"] = (pts, name) if pts else (None, "")
+        pg.hz_draw()
+    pg.hz_set = hz_set
+
+    def pano_set(img):
+        pg.HZ["image"] = img
+        pg.hz_draw()
+    pg.pano_set = pano_set
+
+    async def pano_upload(e):
+        from pysyzygos import panorama
+        data = await e.file.read()
+        e.sender.reset()
+        try:
+            img, meta = await run.io_bound(panorama.save, data, pg.state["name"], source=e.file.name)
+        except Exception as ex:
+            ui.notify(f"Not loaded: {ex}", type="warning", timeout=8000)
+            return
+        pg.HZ["image"] = img
+        if meta.get("profile") and pg.HZ["pts"]:
+            pg.pano_fit()
+        pg.hz_draw()
+        ui.notify(f"Photo set for site {pg.state['name']}" + ("" if meta.get("profile") else
+                  " (no transparent sky: set the azimuth at its left edge by hand)") + ": save the site to keep it",
+                  type="positive", timeout=8000)
+    pg.pano_upload = pano_upload
+
+    def pano_fit():
+        from pysyzygos import panorama
+        prof = panorama.load_meta(pg.HZ["image"]).get("profile") if pg.HZ["image"] else None
+        if not (prof and pg.HZ["pts"]):
+            return
+        az0, d = panorama.fit_az_left(prof, pg.HZ["pts"])
+        pg.hz_az.value = az0
+        ui.notify(f"Azimuth at the left edge {az0:g}° (photo and horizon points differ by {d:.1f}° in the median)",
+                  type="info", timeout=8000)
+    pg.pano_fit = pano_fit
+
+    def pano_points():
+        from pysyzygos import panorama
+        prof = panorama.load_meta(pg.HZ["image"]).get("profile") if pg.HZ["image"] else None
+        if prof:
+            pg.hz_set(panorama.points(prof, float(pg.hz_az.value or 0)), f"{pg.state['name']} (from the photo)")
+    pg.pano_points = pano_points
+
+    def hz_download():
+        from pysyzygos import horizon
+        if pg.HZ["pts"]:
+            ui.download(horizon.to_text(pg.HZ["name"] or pg.state["name"], pg.HZ["pts"]).encode(), "UserHorizon.txt")
+    pg.hz_download = hz_download
+
+    async def hz_upload(e):
+        from pysyzygos import horizon
+        text = (await e.file.read()).decode("utf-8-sig", errors="replace")
+        e.sender.reset()                                             # the same file can be loaded again
+        try:
+            stations = horizon.parse(text)
+        except horizon.HorizonError as ex:
+            ui.notify(f"Not loaded: {ex}", type="warning", timeout=8000)
+            return
+        site = pg.state["name"]
+        names = list(stations)
+        key = lambda x: "".join(ch for ch in x.lower() if ch.isalnum())
+        pick = next((n for n in names if key(n) == key(site)), None) or \
+            next((n for n in names if key(site) and key(site) in key(n)), None) or names[0]
+        pg.hz_set(stations[pick], pick)
+        more = f" (of {len(names)} stations in the file: {', '.join(names)})" if len(names) > 1 else ""
+        ui.notify(f"Horizon '{pick}' set for site {site}{more}: save the site to keep it", type="positive",
+                  timeout=8000)
+    pg.hz_upload = hz_upload
+
+    def collect():
+        s = dict(lat=float(pg.lat.value or 0), lon=float(pg.lon.value or 0), ele=float(pg.ele.value or 0),
+                 name=pg.desc.value or pg.state["name"])
+        if pg.HZ["pts"]:
+            s.update(horizon=[list(p) for p in pg.HZ["pts"]], horizon_name=pg.HZ["name"],
+                     horizon_margin=float(pg.hz_margin.value or 15), horizon_filter=bool(pg.hz_filter.value))
+        if pg.HZ["image"]:
+            s.update(horizon_image=pg.HZ["image"].replace(os.sep, "/"), horizon_image_az=float(pg.hz_az.value or 0))
+        if pg.ele_ref.value == "ellipsoid":
+            s["ele_ref"] = "ellipsoid"                            # else above sea level: geoid_m added when saved
+        if (pg.mpc.value or "").strip():
+            s["mpc_code"] = pg.mpc.value.strip()
+        for key, _, default, _ in SITE_KEYS:
+            v = pg.fields[key].value
+            if key in ("sensor_w_mm", "sensor_h_mm") or v is None or v == "":
+                continue
+            s[key] = int(v) if key == "frames" else float(v)
+        s["sensor_mm"] = (float(pg.fields["sensor_w_mm"].value or 5.6), float(pg.fields["sensor_h_mm"].value or 3.2))
+        from pysyzygos import geoid
+        return geoid.fill(s)                              # geoid_m as saving would set it (an older file differs)
+    pg.collect = collect
+
+    def pick_mag_default(s):
+        """Faintest star for the pick: the site's telescope limit, capped at the selected catalog's G limit."""
+        return round(min(mag_limit(s), pg.cat_gmax.get(pg.cat_sel.value, 18.0)), 1)
+    pg.pick_mag_default = pick_mag_default
+
+    # the star G limits of Pick, Search and Planets & Moons: the site's default unless overridden (kept until reset with
+    # the ↺ button, also across restarts: gui_state mag_override); a note says where the value comes from
+    pg.MAG = dict(setting=False, override={k: float(v) for k, v in (load_ui_state().get("mag_override") or {}).items()})
+    pg.INDEX_GB = {15: 1.2, 16: 2.6, 17: 5.0, 18: 10.0}             # bright-star index sizes on disk (measured: 15, 16, 18)
+
+    def mag_fields():
+        return {"pick": (pg.p_mag, pg.p_mag_note), "search": (pg.s_mag, pg.s_mag_note), "bodies": (pg.b_mag, pg.b_mag_note)}
+    pg.mag_fields = mag_fields
+
+    def mag_source(s):
+        lim, cap = mag_limit(s), pg.cat_gmax.get(pg.cat_sel.value, 18.0)
+        how = (f"mag_limit {float(s['mag_limit']):g} in sites.py" if s.get("mag_limit") else
+               f"{s.get('aperture_cm', 25.0):g} cm, {int(s.get('frames', 4))} frames, longest exposure "
+               f"{s.get('max_exp_s', 0.64):g} s, MagAdjust {s.get('mag_adjust', 0.0):+g}")
+        return (f"Star limit from site {pg.state['name']}: {how} → G {lim:.1f}"
+                + (f", capped at the catalog's {cap:g}" if lim > cap else ""))
+    pg.mag_source = mag_source
+
+    def mag_apply(s=None):
+        s = s or pg.collect()
+        d = pg.pick_mag_default(s)
+        pg.MAG["setting"] = True
+        try:
+            for kind, (f, note) in pg.mag_fields().items():
+                ov = pg.MAG["override"].get(kind)
+                f.value = d if ov is None else ov
+                v = float(f.value or d)
+                text = (f"Star limit G {v:g}: your override (site default {d:g}; ↺ resets)" if ov is not None
+                        else pg.mag_source(s))
+                if kind == "pick":
+                    n = max(15, math.ceil(v - 1e-9))
+                    cd = os.path.join(ROOT, pg.cat_sel.value or "")
+                    if not starcat.is_format2(cd) and not os.path.isfile(os.path.join(cd, f"bright_G{float(n):.1f}.v2.npy")):
+                        text += (f" · the G ≤ {n} star index is not built yet: the next pick builds it once "
+                                 f"(several minutes, ~{pg.INDEX_GB.get(n, 10):g} GB on disk)")
+                note.text = text
+        finally:
+            pg.MAG["setting"] = False
+    pg.mag_apply = mag_apply
+
+    def mag_changed(kind, e):
+        if pg.MAG["setting"]:
+            return
+        d = pg.pick_mag_default(pg.collect())
+        v = e.value
+        pg.MAG["override"][kind] = None if v in (None, "") or abs(float(v) - d) < 1e-9 else float(v)
+        save_ui_state(mag_override={k: x for k, x in pg.MAG["override"].items() if x is not None})
+        pg.mag_apply()
+    pg.mag_changed = mag_changed
+
+    def mag_reset(kind):
+        pg.MAG["override"][kind] = None
+        save_ui_state(mag_override={k: x for k, x in pg.MAG["override"].items() if x is not None})
+        pg.mag_apply()
+    pg.mag_reset = mag_reset
+
+    def update_derived(*_):
+        s = pg.collect()
+        pg.unsaved.text = "" if pg.saved_site(pg.state["name"]) == pg.effective(s, pg.state["name"]) else "unsaved changes"
+        w, h = fov(s)
+        pg.mag_apply(s)
+        pg.derived.text = (f"Stars searched to G {mag_limit(s):.1f} · camera field {w:.1f}′ × {h:.1f}′ "
+                           f"(focal {s.get('focal_mm') or 100 * s.get('aperture_cm', 25):.0f} mm)")
+    pg.update_derived = update_derived
+
+    def set_position(la, lo, el=None):
+        pg.lat.value, pg.lon.value = round(la, 5), round(lo, 5)
+        if el is not None:
+            pg.ele.value = round(el)
+        pg.marker.move(la, lo)
+    pg.set_position = set_position
+
+    async def on_click(e):
+        ll = e.args.get("latlng", {})
+        pg.set_position(ll["lat"], ll["lng"])
+        el = await run.io_bound(geo.elevation, ll["lat"], ll["lng"])
+        if el is not None:
+            pg.ele.value = round(el)
+            pg.ele_ref.value = "msl"                                 # Open-Meteo: above sea level
+    pg.on_click = on_click
+
+    # pasted coordinates: a number field drops text, so text that is not a plain number is taken from the paste
+    # event in the browser and parsed here (geo.parse_coords: DMS, decimal, N/S/E/W, labels, heights)
+    pg.PASTE_JS = ("(e) => { const t = (e.clipboardData || window.clipboardData).getData('text'); "
+                   "if (!/^\\s*[+-]?\\d*\\.?\\d+\\s*$/.test(t)) { e.preventDefault(); emit(t); } }")
+
+    async def on_paste(field, e):
+        text = e.args if isinstance(e.args, str) else (e.args[0] if e.args else "")
+        if re.fullmatch(r"\s*[+-]?\d+,\d+\s*", text):           # one number with a decimal comma (German, Swiss)
+            text = text.replace(",", ".")                      # the fields always use the decimal point
+        try:
+            c = geo.parse_coords(text, field)
+        except ValueError as ex:
+            ui.notify(f"Coordinates not understood: {ex}", type="warning")
+            return
+        la = c["lat"] if c["lat"] is not None else pg.lat.value
+        lo = c["lon"] if c["lon"] is not None else pg.lon.value
+        if c["ele"] is not None:
+            pg.ele.value = round(c["ele"])
+        if la is None or lo is None:
+            if c["lat"] is not None:
+                pg.lat.value = round(c["lat"], 5)
+            if c["lon"] is not None:
+                pg.lon.value = round(c["lon"], 5)
+            return
+        pg.set_position(float(la), float(lo))
+        pg.m.set_center((float(la), float(lo)))
+        got = ", ".join(k for k in ("lat", "lon", "ele") if c[k] is not None)
+        if c["ele"] is None and c["lat"] is not None and c["lon"] is not None:
+            el = await run.io_bound(geo.elevation, float(la), float(lo))
+            if el is not None:
+                pg.ele.value = round(el)
+                got += " (elevation looked up)"
+        ui.notify(f"Pasted coordinates: {got}: {float(la):.5f}, {float(lo):.5f}"
+                  + (f", {pg.ele.value:.0f} m" if pg.ele.value is not None else ""), type="positive")
+    pg.on_paste = on_paste
+
+    async def pick_occult(e):
+        if e.value is None:
+            return
+        x = pg.occ[e.value]
+        pg.set_position(x["lat"], x["lon"], x["ele"] if x["ele_ok"] else None)
+        pg.ele_ref.value = "ellipsoid" if x["ele_ok"] else "msl"     # MPC parallax constants: height above WGS84
+        pg.m.set_center((x["lat"], x["lon"]))
+        pg.desc.value, pg.mpc.value = x["name"], x["code"]
+        auto = f"{x['code']} {x['name'].split(',')[0].strip()}"
+        if not (pg.new_name.value or "").strip() or pg.new_name.value == pg.state.get("auto_name"):   # keep a name you typed
+            pg.new_name.value = auto
+        pg.state["auto_name"] = auto
+        if not x["ele_ok"]:                                       # old low-precision entry: look the height up
+            el = await run.io_bound(geo.elevation, x["lat"], x["lon"])
+            if el is not None:
+                pg.ele.value = round(el)
+        ui.notify(f"MPC {x['code']} {x['name']}: shown on the map and in the form. 'Add as new site' adds it to the "
+                  f"site selector; 'Save sites.py' would instead move {pg.state['name']} there.",
+                  multi_line=True, timeout=9000)
+    pg.pick_occult = pick_occult
+
+    def pick_camera(e):
+        if e.value is None:
+            return
+        c = cameras.SENSORS[e.value]
+        w, h = cameras.sensor_mm(c)
+        pg.fields["sensor_w_mm"].value, pg.fields["sensor_h_mm"].value = w, h       # updates the camera field line too
+        ui.notify(f"{c[0]} ({c[4]}): sensor {w:.2f} × {h:.2f} mm; 'Save sites.py' keeps it for this site",
+                  timeout=6000)
+    pg.pick_camera = pick_camera
+
+    async def find_place():
+        pg.hits.clear()
+        res = await run.io_bound(geo.places, pg.q.value or "")
+        with pg.hits:
+            if not res:
+                ui.label("No place found (or offline)").classes("text-sm text-slate-500")
+            for la, lo, el, label in res:
+                ui.button(f"{label}: {la:.4f}, {lo:.4f}, {el or 0:.0f} m",
+                          on_click=lambda la=la, lo=lo, el=el: (pg.set_position(la, lo, el), pg.m.set_center((la, lo)),
+                                                                pg.hits.clear())).props("flat dense no-caps align=left")
+    pg.find_place = find_place
+
+    async def ip_loc():
+        r = await run.io_bound(geo.ip_location)
+        if r is None:
+            ui.notify("IP lookup failed", type="warning")
+            return
+        pg.set_position(r[0], r[1], r[2])
+        pg.m.set_center((r[0], r[1]))
+        ui.notify(f"Approximate (from your IP address): {r[3]}")
+    pg.ip_loc = ip_loc
+
+    def add_site():
+        """The position and settings in the form as a new site (name from 'New site name'), selected and saved."""
+        name = (pg.new_name.value or "").strip()
+        if not name or name in pg.sites:
+            ui.notify("Enter a new, unused site name (field 'New site name' at the top)", type="warning")
+            return
+        pg.sites[name] = pg.collect()                                   # keeps the description from the form
+        pg.sel.options = list(pg.sites)
+        pg.sel.update()
+        pg.sel.value = name                                          # shows it (show_site) and makes it the run site
+        pg.new_name.value, pg.state["auto_name"] = "", None
+        save_sites(pg.sites, pg.state.get("default", pg.default_site))
+        pg.unsaved.text = ""
+        ui.notify(f"Site {name} added and saved in sites.py; it is now selected for all runs (top right)",
+                  type="positive")
+    pg.add_site = add_site
+
+    def effective(s, name):
+        """A site with every optional key filled in with its default, for comparing form and file."""
+        e = {k: (tuple(v) if isinstance(v, list) else v) for k, v in s.items()}
+        e.setdefault("name", name)
+        e.setdefault("sensor_mm", (5.6, 3.2))
+        for key, _, default, _ in SITE_KEYS:
+            if key not in ("sensor_w_mm", "sensor_h_mm") and default is not None:
+                e.setdefault(key, default)
+        return e
+    pg.effective = effective
+
+    def saved_site(name):
+        """The site as it is in sites.py now (what a run will use), with defaults filled in; None if not there."""
+        try:
+            s = load_sites()[0].get(name)
+        except Exception:
+            return None
+        return pg.effective(s, name) if s else None
+    pg.saved_site = saved_site
+
+    def ensure_saved():
+        """Runs read sites.py: save the selected site first if it was edited or is new."""
+        s = pg.collect()
+        if not os.path.isfile("sites.py") or pg.saved_site(pg.state["name"]) != pg.effective(s, pg.state["name"]):
+            pg.save()
+            ui.notify(f"Saved the changes to site {pg.state['name']} for this run", type="info")
+    pg.ensure_saved = ensure_saved
+
+    async def remove_site():
+        name = pg.state["name"]
+        if len(pg.sites) < 2:
+            ui.notify("This is the only site: add another one before removing it", type="warning")
+            return
+        with ui.dialog() as dlg, ui.card():
+            ui.label(f"Remove site {name} ({pg.sites[name].get('name', name)}) from sites.py?")
+            with ui.row():
+                ui.button("Remove", on_click=lambda: dlg.submit(True)).props("color=negative")
+                ui.button("Cancel", on_click=lambda: dlg.submit(False)).props("flat")
+        if not await dlg:
+            return
+        del pg.sites[name]
+        default = pg.state.get("default", pg.default_site)
+        note = ""
+        if default == name or default not in pg.sites:
+            default = pg.state["default"] = next(iter(pg.sites))
+            note = f"; {default} is now the default for command-line runs"
+        save_sites(pg.sites, default)
+        pg.sel.options = list(pg.sites)
+        pg.sel.update()
+        pg.sel.value = default                                       # shows it (show_site)
+        pg.unsaved.text = ""
+        ui.notify(f"Site {name} removed from sites.py{note}", type="positive")
+    pg.remove_site = remove_site
+
+    def save():
+        pg.sites[pg.state["name"]] = pg.collect()
+        if pg.is_default.value:
+            pg.state["default"] = pg.state["name"]
+        save_sites(pg.sites, pg.state.get("default", pg.default_site))
+        ui.notify(f"sites.py saved (default site: {pg.state.get('default', pg.default_site)})", type="positive")
+        pg.unsaved.text = ""
+    pg.save = save
+
+
+def connect(pg):
+    """Wire the tab up and fill it (run after all tabs' handlers)."""
+    for _kind, (_f, _n) in pg.mag_fields().items():
+        _f.on_value_change(lambda e, k=_kind: pg.mag_changed(k, e))
+
+    for el in [pg.lat, pg.lon, pg.ele, pg.mpc, *pg.fields.values()]:
+        el.on_value_change(pg.update_derived)
+
+    pg.m.on("map-click", pg.on_click)
+
+    for f_, el_ in (("lat", pg.lat), ("lon", pg.lon), ("ele", pg.ele)):
+        el_.on("paste", lambda e, f_=f_: pg.on_paste(f_, e), js_handler=pg.PASTE_JS)
+
+    pg.occ_sel.on_value_change(pg.pick_occult)
+
+    pg.cam_sel.on_value_change(pg.pick_camera)
+
+    pg.hz_margin.on_value_change(lambda e: pg.hz_draw())

@@ -419,7 +419,7 @@
 \ifdefined\BesselianShown\else\input{besselian_frame}\fi
 
 % the fundamental plane, oblique 3-D view: z = s (to the star) to the right, y (north) up, x (east) toward the viewer
-\begin{frame}{The fundamental plane: geometry}\slideid{FG}
+\begin{frame}{The observer's fundamental plane: geometry}\slideid{FG}
   \centering
   \begin{tikzpicture}[x={(-0.75cm,-0.55cm)}, y={(0cm,1cm)}, z={(1cm,0cm)}, scale=0.84,
                       font=\footnotesize, >={Stealth[length=2.2mm]}]
@@ -461,7 +461,7 @@
    closest approach $t^{*}$: $d = |P|$ smallest; hit if $d(t^{*}) < r$ (LT.2, FP.2, CA.1).}
 \end{frame}
 
-\begin{frame}{Step 3: the fundamental plane}\slideid{FP}
+\begin{frame}{Step 3: the observer's fundamental plane}\slideid{FP}
   \OWN\ Plane through the observer, perpendicular to the star:
   \[
     \uv{z} = \uv{s},\qquad
@@ -477,7 +477,10 @@
     \tag{FP.2}
   \]
   {\small The star is at infinity: its shadow is a cylinder of radius $r$ along $\uv{s}$;
-  the observer is inside it when $d(t) < r$.}
+  the observer is inside it when $d(t) < r$.}\\[1ex]
+  {\footnotesize\color{black!75}\textbf{Not the classical (Besselian) plane:} that one goes through the Earth's centre, with
+  the light time from the Earth's centre, and each observer is projected onto it. Ours goes through the observer,
+  with the light time from the site (LT): the same geometry, no projection and no $z/c$ term.}
 \end{frame}
 
 \begin{frame}{Step 4: closest approach and the hit test}\slideid{CA}

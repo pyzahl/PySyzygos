@@ -27,6 +27,12 @@ assert PS.check(meta, 0.0, 3 * 86400.0, 40.87, -72.86, pick) == []
 bad = PS.check(meta, 0.0, 9 * 86400.0, 52.0, 9.0, dict(pick, cam_limit=17.0, reach_km=250.0, min_drop=0.05, hmax=18.0))
 assert len(bad) == 6 and any("window" in x for x in bad) and any("outside" in x for x in bad), bad
 assert PS.contains(dict(region=None), -80.0, 10.0), "a global pre-screen contains every site"
+glob_meta = dict(meta, region=None)                            # whole Earth: no reach limit, any pick reach fits
+assert PS.check(glob_meta, 0.0, 3 * 86400.0, -80.0, 10.0, dict(pick, reach_km=300.0)) == []
+assert PS.check(glob_meta, 0.0, 3 * 86400.0, -80.0, 10.0, dict(pick, reach_km=5000.0, cam_limit=17.0)) == \
+    ["star limit 17 beyond the pre-screen's 16"]                # the other limits still count
+assert "reach" not in PS.describe("x", dict(glob_meta, name="g", built="2026-10-21")) and \
+    "reach 200 km" in PS.describe("x", dict(meta, name="r", built="2026-10-21"))
 
 # the file: asteroids with events in the window
 p = os.path.join(tempfile.mkdtemp(), "t.db")

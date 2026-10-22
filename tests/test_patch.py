@@ -41,7 +41,7 @@ ns.update(star_test=star_test,
           apparent_mag_HG=lambda et, t, H, G: 15.0,
           event_metrics=lambda et, sd, geo, t, r, ms, ma: dict(speed_kms=12.0, chord_km=20.0, duration_s=1.5, mag_drop=0.8),
           moon_info=lambda et, sd, geo: dict(moon_sep_deg=40.0),
-          besselian_offsets=lambda et, sd, geo, t: (1.0, 2.0), get_asteroid_name=lambda t: "Test",
+          besselian_offsets=lambda et, sd, geo, t: (1.0, 2.0), get_asteroid_name=lambda t: "Test", horizons_up=lambda: True,
           path_sigma3_km=lambda t, utc: None, path_error=lambda t, utc: None)
 exec(funcs, ns)
 ns.update(DB=_con, RUN_ID=pysyzygos_db.start_run(_con, "corridor")[0])   # after the excerpt (it resets them)

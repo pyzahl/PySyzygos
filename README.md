@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.3.3 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.3.4 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -102,7 +102,7 @@ everything: `pysyzygos` (the web interface) or `pysyzygos <command>`, e.g. `pysy
 | `pysyzygos/setup.py` | one-time setup: SPICE kernels, the star catalog (download or build, its parts, the upgrade of an old one) |
 | `pysyzygos/starcat.py` | the star catalog (since 1.3.0): build from ESA's files, Zenodo download, parts, lookups (`pysyzygos catalog`) |
 | `pysyzygos/gaia_local.py` | reads catalogs of the old format (before 1.3.0) and hands new ones to `starcat.py` |
-| `pysyzygos/gui.py` | local web interface: sites on a map, run search and pick, live log, results (NiceGUI) |
+| `pysyzygos/gui.py` | local web interface: sites on a map, run search and pick, live log, results (NiceGUI); one module per tab (`gui_site.py`, `gui_pick.py`, ...), shared parts in `gui_common.py` |
 | `pysyzygos/owc_check.py` | regression check against an OWC search result you paste into `owc_reference.txt` (private) |
 | supporting modules | `pysyzygos/corridor.py` (star corridor), `pysyzygos/screen.py` + `pysyzygos/orbits.py` (pick tool engine), `pysyzygos/preview.py` (event preview image), `pysyzygos/globe.py` (whole-Earth plot), `pysyzygos/doubles.py` (close and double stars), `pysyzygos/binaries.py` (asteroid satellites), `pysyzygos/occultations.py` (earlier occultations), `pysyzygos/sbdb.py` (asteroid size cache), `pysyzygos/cameras.py` (sensor list), `pysyzygos/kernels.py` (kernel download), `pysyzygos/geo.py` (place and IP lookup), `pysyzygos/runner.py` (runs with per-run settings) |
 
@@ -549,7 +549,9 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    search then uses these copies and says how old they are. Plan online, observe offline: a search window run once
    online can be run again offline. *Copy now* copies what is in the cache at once. Command line:
    `pysyzygos offline on|off|copy|status|remove`. A search downloads an orbit again when the cached one is older than
-   `orbit_max_age_days` (default 1 day); *Download orbits again* deletes the cached orbit files at once, *Empty
+   `orbit_max_age_days` (default 7 days; a file of an earlier search whose window covers this one counts too). When JPL
+   Horizons does not answer, the search says so at once and takes the cached orbit files that cover the window, however
+   old, naming their download date in the log. *Download orbits again* deletes the cached orbit files at once, *Empty
    cache* also the asteroid list and size data (`pysyzygos cleanup --orbits` / `--cache`; the offline copies stay).
 
 Settings changed in the GUI apply to that run only; `pysyzygos_config.py` is not changed. Details: "Web interface
@@ -982,8 +984,10 @@ instead of resuming it) and lists the built ones: window, region, the sites insi
 age (older than 30 days: rebuild), and whether it fits the current pick or why not.
 
 **When a pre-screen fits a pick.** It must cover the pick's window and site and have been built with limits at least
-as loose as the pick's: star limit, reach, minimum drop, Sun and star altitude limits, H limit. The build's defaults
-are loose (star limit G 16 or the site's, reach 200 km, Sun below 0, star above 0), so it fits nearly every pick. The
+as loose as the pick's: star limit, reach (regional pre-screens only), minimum drop, Sun and star altitude limits, H
+limit. The build's defaults are loose (star limit G 16 or the site's, reach 200 km, Sun below 0, star above 0), so it
+fits nearly every pick. A whole-Earth pre-screen fits any reach: inside the Earth's disk it holds every event, and its
+200 km is only how far beyond the Earth's edge and the day/night line it looks (grazes, edge cases). The
 pick checks this and refuses one that does not fit (auto then screens all asteroids). It then screens only the
 pre-screen's asteroids with an event in its window and a star within its own star limit: built to G 16, a 500 km
 region keeps about 1 asteroid in 6; a pick to G 13.2 then screens about 1 in 40, and a whole-Earth site test
