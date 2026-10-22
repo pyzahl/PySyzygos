@@ -451,6 +451,7 @@ def sbdb_phys(target_id, timeout=30):
 
 
 @functools.lru_cache(maxsize=None)
+# Math: SZ.1 (slide SZ): the size: curated, else SBDB's diameter, else from H and the albedo (SBDB's or 0.14).
 def get_asteroid_size(target_id, timeout=30):
     """Return dict(r_km, r_min_km, r_max_km, source, H, G), or None if nothing usable."""
     n = str(target_id).strip()

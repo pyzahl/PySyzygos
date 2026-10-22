@@ -1,4 +1,4 @@
-% PySyzygos slides: shared preamble (theme, colours, macros) of the math slides (docs/math) and the talk.
+% PySyzygos slides: shared preamble (theme, colors, macros) of the math slides (docs/math) and the talk.
 % Vectors after ISO 80000-2 (bold italic, half arrow); math slides carry an ID (\slideid) and numbered formulas
 % (\tag / \eqtag, <ID>.<n>) that the code cites as "# Math: <ID>.<n>" (check_xref.py keeps both in step).
 \usetheme[progressbar=frametitle, numbering=fraction, block=fill]{metropolis}
@@ -11,12 +11,16 @@
 % vectors after ISO 80000-2: bold italic with a half arrow (harpoon) over it; unit vectors with a hat
 \newcommand{\vv}[1]{\overset{\rightharpoonup}{\bm{#1}}}
 \newcommand{\uv}[1]{\hat{\bm{#1}}}
+\newcommand{\pv}[1]{{\color{syzaccent}\vv{#1}}}   % a vector in the fundamental plane (2-D, from the observer): orange
 % math slides: a short ID in a box at the right of the title bar; formulas numbered <ID>.<n> (\tag in displays,
 % \eqtag at the end of a text line).
 \newcommand{\slideid}[1]{\begin{tikzpicture}[remember picture, overlay]
   \node[anchor=east, draw=white, line width=0.6pt, rounded corners=2pt, inner sep=2.5pt, text=white,
         font=\footnotesize\bfseries] at ([xshift=-3mm, yshift=-0.55cm]current page.north east) {#1};
   \end{tikzpicture}\ignorespaces}
+% less space above and below displayed formulas (after a font size command, which sets them): dense slides
+\newcommand{\tightdisplays}{\setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{2pt}%
+  \setlength{\abovedisplayshortskip}{0pt}\setlength{\belowdisplayshortskip}{2pt}}
 \newcommand{\eqtag}[1]{\hfill{\scriptsize\textcolor{syzblue}{(#1)}}}
 \newcommand{\grp}[1]{\multicolumn{2}{@{}l}{\footnotesize\textbf{#1}} \\}   % group heading row (conventions table)
 % which library computes a step (tags on the astrometry and solver slides)
@@ -30,9 +34,13 @@
 \usepackage{multicol}
 \usepackage{appendixnumberbeamer}
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta}
+\usetikzlibrary{positioning,arrows.meta,fit}
+\usepackage{tcolorbox}\tcbuselibrary{theorems,skins}
+% the numbered (key) formulas: each in a pale blue box (\tcbhighmath around the formula, the tag outside it)
+\tcbset{highlight math style={enhanced, colback=syzblue!6, colframe=syzblue!40, boxrule=0.4pt, arc=2pt,
+  left=3pt, right=3pt, top=0.5pt, bottom=0.5pt}}
 
-% colours (close to the GUI's)
+% colors (close to the GUI's)
 \definecolor{syzblue}{HTML}{1E3A5F}
 \definecolor{syzaccent}{HTML}{D97706}
 \setbeamercolor{frametitle}{bg=syzblue, fg=white}

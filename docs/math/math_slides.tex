@@ -52,12 +52,17 @@
   hands it to a more exact (and more expensive) one:\\[0.6ex]
   \centering
   \begin{tikzpicture}[font=\footnotesize, every node/.style={inner sep=2pt}]
-    \foreach \w/\y/\n/\c in {4.6/0/{464{,}740 asteroids}/syzblue!85, 3.9/-0.6/{12{,}808 asteroids}/syzblue!70,
+    \foreach \w/\y/\n/\c in {4.6/0/{464{,}740 asteroids}/syzblue!85,
                             3.2/-1.2/{1{,}195 events}/syzblue!55, 2.5/-1.8/{400 targets}/syzaccent!70,
                             1.8/-2.4/{430 hits}/syzaccent}
       \node[fill=\c, text=white, minimum width=\w cm, minimum height=0.5cm, rounded corners=2pt] at (0,\y) {\n};
+    % the pre-screen is optional (without one the pick screens all asteroids): dashed bar and a dashed frame
+    \node[draw=syzblue!70, dashed, thick, fill=syzblue!10, text=syzblue, minimum width=3.9cm, minimum height=0.5cm,
+          rounded corners=2pt] (pre) at (0,-0.6) {12{,}808 asteroids};
+    \node[anchor=west, text=black!75] (pretext) at (2.6,-0.6) {\textcolor{syzaccent}{\textit{optional:}} world
+          pre-screen, site test: 17.7\,s {\scriptsize(built once for 40 days: 7.8\,h\footnotemark)}};
+    \node[draw=syzaccent, dashed, rounded corners=3pt, inner sep=1.5pt, fit=(pre)(pretext)] {};
     \foreach \y/\t in {0/{all of JPL SBDB with $H < 17$},
-                       -0.6/{world pre-screen, site test: 17.7\,s {\scriptsize(built once for 40 days: 7.8\,h\footnotemark)}},
                        -1.2/{pick: own orbits, corridor scan, site solve: 16.6\,s},
                        -1.8/{the best events of the pick},
                        -2.4/{search: 3{,}035 candidates, 1{,}301 exact solves: 70\,s}}
@@ -92,7 +97,7 @@
           \node[syzaccent] at (\x,\y) {\large$\star$};
         \draw[syzaccent, densely dotted] (2.2,0.85) -- (2.25,0.46);
         \node[syzaccent, anchor=west, align=left] at (-0.6,2.25) {candidate: closest approach\\between samples (refined)};
-        \node[anchor=west, syzblue] at (-0.6,-1.45) {path every \SI{600}{s} (10 min), from the Earth's centre};
+        \node[anchor=west, syzblue] at (-0.6,-1.45) {path every \SI{600}{s} (10 min), from the Earth's center};
       \end{tikzpicture}
 }
 \ifdefined\TalkCorridor\input{\TalkCorridor}\else
@@ -106,11 +111,11 @@
       \footnotesize
       \vspace*{-1ex}
       \begin{gather*}
-        \mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach} \tag{CO.1}\\
-        w_j = \frac{\mathrm{margin}}{\Delta_j} + \mu_{\max}\,|t - 2016.0| + 2'' \tag{CO.2}\\
-        d_j < \sqrt{\mathrm{margin}^2 + (v_{\max}\,\Delta t/2)^2} \tag{CO.3}\\
-        m_\star \le m_{\mathrm{ast}} + 2.5\log_{10}\frac{1}{10^{0.4\,\Delta m_{\min}} - 1} + 0.5 \tag{CO.4}\\
-        T = 2 \cdot 1.3\, \mathrm{margin}/v \tag{CO.5}
+        \tcbhighmath{\mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach}} \tag{CO.1}\\
+        \tcbhighmath{w_j = \frac{\mathrm{margin}}{\Delta_j} + \mu_{\max}\,|t - 2016.0| + 2''} \tag{CO.2}\\
+        \tcbhighmath{d_j < \sqrt{\mathrm{margin}^2 + (v_{\max}\,\Delta t/2)^2}} \tag{CO.3}\\
+        \tcbhighmath{m_\star \le m_{\mathrm{ast}} + 2.5\log_{10}\frac{1}{10^{0.4\,\Delta m_{\min}} - 1} + 0.5} \tag{CO.4}\\
+        \tcbhighmath{T = 2 \cdot 1.3\, \mathrm{margin}/v} \tag{CO.5}
       \end{gather*}
       \vspace*{-1ex}
       {\scriptsize $R_\oplus$: Earth's equatorial radius (WGS84, \SI{6378.137}{km}); $r_{\max}$: the asteroid's
@@ -132,12 +137,12 @@
       \textbf{World pre-screen} (built once, shared): no site, the corridor covers the whole Earth (CO.1); each event
       kept in \SI{80}{bytes} as \emph{shadow elements}, its track over the plane, quadratic in time:
       \begin{equation*}
-        x(t) = x_0 + v_x \Delta t + a_x \Delta t^2,\quad y(t) = y_0 + v_y \Delta t + a_y \Delta t^2 \tag{PS.1}
+        \tcbhighmath{x(t) = x_0 + v_x \Delta t + a_x \Delta t^2,\quad y(t) = y_0 + v_y \Delta t + a_y \Delta t^2} \tag{PS.1}
       \end{equation*}
       {\scriptsize $\Delta t = t - t_c$, while it crosses the Earth; misfit $\le$ \SI{0.3}{km}.}\\[0.4ex]
       \textbf{Site test} (any site, seconds; star up, Sun down there):
       \begin{equation*}
-        |\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + \mathrm{err} \tag{PS.2}
+        \tcbhighmath{|\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + \mathrm{err}} \tag{PS.2}
       \end{equation*}
       \textbf{Pick}: own orbits (\SI{\sim 2}{km}), corridor scan, site solve $\to$ targets.
       \textbf{Search}: Horizons orbits, full astrometry, exact solver.
@@ -156,7 +161,7 @@
         \draw[<->, syzaccent] (2.25,0.67) -- (2.25,1.27) node[midway, right] {$r{+}\mathrm{reach}$};
         \fill[black] (-0.6,0.62) circle (1.6pt) node[below=2pt] {site A: test};
         \fill[black!60] (0.7,-0.5) circle (1.6pt) node[below=2pt, black!60] {site B: no};
-        \node[anchor=north] at (0,-1.95) {fundamental plane through the Earth's centre};
+        \node[anchor=north] at (0,-1.95) {fundamental plane through the Earth's center};
       \end{tikzpicture}
     \end{column}
   \end{columns}
@@ -168,13 +173,13 @@
     \begin{column}{0.46\textwidth}
       \centering
       \begin{tikzpicture}[font=\scriptsize, scale=1.0]
-        % side view: the star far to the left, its light parallel; the fundamental plane = the vertical through the centre
+        % side view: the star far to the left, its light parallel; the fundamental plane = the vertical through the center
         \def\R{1.9}
         \fill[syzblue!8] (0,0) circle (\R);
         \draw[syzblue!50] (0,0) circle (\R);
         \draw[black!35, densely dashed] (0,-2.15) -- (0,2.25) node[above, black!60] {fundamental plane};
         \draw[<-, black!60] (-3.0,-1.55) -- (-2.2,-1.55) node[right] {to the star};
-        % the same band of width rho in the plane, near the centre and near the edge
+        % the same band of width rho in the plane, near the center and near the edge
         \foreach \ya/\yb/\c in {0.15/0.65/syzblue, 1.3/1.8/syzaccent} {
           \fill[\c!15] (-3.0,\ya) rectangle (0,\yb);
           \draw[\c!70, thin] (-3.0,\ya) -- ({-sqrt(\R*\R-\ya*\ya)},\ya);
@@ -193,9 +198,9 @@
       The screens measure $\rho = r + \mathrm{reach}$ \emph{in the plane}. Seen from the star the Earth is a disk:
       near its edge, where the star is low, the same $\rho$ covers far more ground.
       \begin{gather*}
-        |\text{proj}| = R_\oplus\cos h \tag{RE.1}\\
-        c^2 = \rho^2 + R_\oplus^2(\sin h_P - \sin h_A)^2 \tag{RE.2}\\
-        d = 2R_\oplus \arcsin\frac{c}{2R_\oplus} \tag{RE.3}
+        \tcbhighmath{|\text{proj}| = R_\oplus\cos h} \tag{RE.1}\\
+        \tcbhighmath{c^2 = \rho^2 + R_\oplus^2(\sin h_P - \sin h_A)^2} \tag{RE.2}\\
+        \tcbhighmath{d = 2R_\oplus \arcsin\frac{c}{2R_\oplus}} \tag{RE.3}
       \end{gather*}
       {\scriptsize $h$: star altitude, at the shadow axis ($h_A$) and at an observer within $\rho$ ($h_P$, from RE.1);
       $d$: the largest ground distance.}\\[0.5ex]
@@ -262,18 +267,21 @@
   \footnotesize
   \renewcommand{\arraystretch}{1.05}
   \begin{columns}[T]
-    \begin{column}{0.49\textwidth}
+    \begin{column}{0.52\textwidth}
       \textbf{Points} {\scriptsize(barycentric, ICRF, km)}\\[0.4ex]
       \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.86\linewidth}@{}}
-        $\vv{E}$ & the Earth's centre, from the Solar System barycentre (DE440) \\
-        $\vv{A}$ & the asteroid, from the barycentre (its JPL Horizons orbit) \\
-        $\vv{O}$ & the observer: the Earth's centre plus the site on the rotating Earth \\
+        $\vv{E}$ & the Earth's center, from the Solar System barycenter (DE440) \\
+        $\vv{A}$ & the asteroid, from the barycenter (its JPL Horizons orbit) \\
+        $\vv{O}$ & the observer: the Earth's center plus the site on the rotating Earth \\
         $\vv{\rho}$ & from the observer to the asteroid, as seen there (light time from the site) \\
-        $P$ & the shadow's centre, where the shadow axis meets the fundamental plane;
-              $\xi$, $\eta$: east and north of $O$ \\
+        $\vv{G}$ & a point of the shadow path on the ground (path lines) \\
+      \end{tabular}\\[0.5ex]
+      \textbf{In the fundamental plane} {\scriptsize(2-D, from $\vv{O}$, km; \textcolor{syzaccent}{orange})}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.86\linewidth}@{}}
+        $\pv{P}$ & the shadow's center on the plane: $(\xi, \eta)$, east and north \\
       \end{tabular}
     \end{column}
-    \begin{column}{0.49\textwidth}
+    \begin{column}{0.46\textwidth}
       \textbf{Directions} {\scriptsize(unit vectors)}\\[0.4ex]
       \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
         $\uv{p}$ & the star from Gaia, then corrected \\
@@ -284,7 +292,7 @@
       \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
         $t$ & time, TDB; $t_0$ the scan's guess, $t^{*}$ the closest approach \\
         $\tau$ & light time, asteroid to observer \\
-        $d$, $r$ & observer to shadow centre; shadow radius \\
+        $d$, $r$ & observer to shadow center; shadow radius \\
       \end{tabular}
     \end{column}
   \end{columns}
@@ -292,64 +300,96 @@
 
 \subsection{Astrometry}
 \begin{frame}{Astrometry: the star from the Gaia catalog to the event}\slideid{ST1}
-  \footnotesize
+  \footnotesize\tightdisplays\setbeamerfont{footnote}{size=\tiny}
   \setlength{\leftmargini}{1.4em}
-  \begin{enumerate}\setlength{\itemsep}{1ex}
-    \item \OWN\ \textbf{Gaia DR3} at epoch J2016.0 (ICRF, barycentric), per star:
+  \begin{enumerate}\setlength{\itemsep}{0.2ex}
+    \item \OWN\ \textbf{Gaia DR3} at epoch J2016.0 (ICRF, barycentric):
           position $\alpha, \delta$; parallax $\varpi$ (mas; distance $1000/\varpi$ pc);
           proper motion $\mu_{\alpha*} = \mu_\alpha \cos\delta$, $\mu_\delta$ (mas/yr); magnitude $G$;
           radial velocity $v_r$ (km/s, fast nearby stars).\\
           2-parameter stars (position only): proper motion from UCAC5 / UCAC4 or UCAC4's epoch to Gaia
-    \item \OWN\ \textbf{Bright-star frame spin} ($G < 13$, Gaia's own proper motions only; Cantat-Gaudin \& Brandt 2021,
-          $\omega$ in \si{\micro as/yr} per $G$ bin, up to 80):\\
-          $\mu_{\alpha*} \leftarrow \mu_{\alpha*} - \tfrac{1}{1000}(-\sin\delta\cos\alpha\,\omega_x - \sin\delta\sin\alpha\,\omega_y + \cos\delta\,\omega_z),
-          \quad \mu_\delta \leftarrow \mu_\delta - \tfrac{1}{1000}(\sin\alpha\,\omega_x - \cos\alpha\,\omega_y)$\eqtag{ST1.1}
-    \item \AP\ \textbf{Space motion} to the event: \texttt{SkyCoord(\ldots).apply\_space\_motion(t)} from
-          2016-01-01T12:00 TCB, distance $1000/\max(\varpi, 0.01)$\,pc, $v_r$ only for fast nearby stars
-          (else 0) $\to$ ERFA \texttt{pmsafe}: straight-line space motion incl.\ light time; gives $\uv{p}$ (barycentric)\eqtag{ST1.2}
+    \item \OWN\ \textbf{Bright-star frame spin} ($G < 13$, Gaia's own proper motions only):\\
+          Cantat-Gaudin \& Brandt 2021\footnote{T.~Cantat-Gaudin, T.~D.~Brandt, Characterizing and correcting the
+          proper motion bias of the bright Gaia EDR3 sources, A\&A 649, A124 (2021);
+          \href{https://doi.org/10.1051/0004-6361/202140807}{doi:10.1051/0004-6361/202140807}},
+          $\omega$ in \si{\micro as/yr} per $G$ bin, up to 80
+          \[
+            \tcbhighmath{\begin{aligned}
+              \mu_{\alpha*} &\leftarrow \mu_{\alpha*} - \tfrac{1}{1000}\,(-\sin\delta\cos\alpha\,\omega_x
+                               - \sin\delta\sin\alpha\,\omega_y + \cos\delta\,\omega_z)\\
+              \mu_\delta &\leftarrow \mu_\delta - \tfrac{1}{1000}\,(\sin\alpha\,\omega_x - \cos\alpha\,\omega_y)
+            \end{aligned}}
+            \tag{ST1.1}
+          \]
+    \item \AP\ \textbf{Space motion} from J2016.0 to the event (straight line, incl.\ light time)\\
+          \texttt{SkyCoord(\ldots).apply\_space\_motion(t)} from 2016-01-01T12:00 TCB $\to$ ERFA \texttt{pmsafe}; distance
+          $1000/\max(\varpi, 0.01)$\,pc, $v_r$ only for fast nearby stars (else 0)
+          \[
+            \tcbhighmath{\uv{p} = \mathrm{pmsafe}(\alpha, \delta, \mu_{\alpha*}, \mu_\delta, \varpi, v_r;\ \text{J2016.0} \to t)}
+            \tag{ST1.2}
+          \]
   \end{enumerate}
 \end{frame}
 
 
 \begin{frame}{Astrometry: the star seen from the Earth}\slideid{ST2}
-  \footnotesize
+  \footnotesize\tightdisplays\setbeamerfont{footnote}{size=\tiny}
   \setlength{\leftmargini}{1.4em}
-  \begin{enumerate}\setlength{\itemsep}{1ex}\setcounter{enumi}{3}
-    \item \OWN\ \textbf{Stellar parallax} (if $\varpi > 0$), seen from the Earth's centre; \SP\ $\vv{E}$ = Earth from the
-          barycentre (geometric):
-          $\uv{p} \leftarrow \dfrac{\uv{p}\,(1000/\varpi)\,\mathrm{pc} - \vv{E}}{|\uv{p}\,(1000/\varpi)\,\mathrm{pc} - \vv{E}|}$\eqtag{ST2.1}
-    \item \OWN\ \textbf{Light deflection} by Sun, Jupiter, Saturn (SOFA \texttt{iauLd} form) --- \emph{star minus asteroid}
-          (the asteroid's light is bent too); \SP\ bodies and asteroid seen from the Earth's centre (``CN''):
-\\[0.3ex]
-          $\displaystyle
-            \delta\uv{p} = \sum_{b} \frac{2GM_b}{c^2 E_b}\Bigl[\vv{f}(\uv{p}) - \vv{f}(\uv{q}_b)\Bigr],
-            \quad
-            \vv{f}(\uv{q}) = \frac{\uv{e}_b\,(\uv{p}\cdot\uv{q}) - \uv{q}\,(\uv{p}\cdot\uv{e}_b)}{1 + \uv{q}\cdot\uv{e}_b}$\eqtag{ST2.2}\\[0.3ex]
-          $\displaystyle
-            \uv{s} = \frac{\uv{p} + \delta\uv{p}}{|\uv{p} + \delta\uv{p}|}$\eqtag{ST2.3}\\[0.3ex]
-          {\scriptsize $\uv{e}_b$: body $\to$ Earth's centre, $E_b$ its distance; $\uv{q}_b$: body $\to$ asteroid; $GM_b$ from DE440.
-          \SI{4}{mas} at \SI{90}{\degree} from the Sun, $1.75''$ at the limb.
-          Once per candidate, at the guessed time $t_0$; the asteroid stays astrometric (light time, no aberration).}
+  \begin{enumerate}\setlength{\itemsep}{0.4ex}\setcounter{enumi}{3}
+    \item \OWN\ \textbf{Stellar parallax} (if $\varpi > 0$), seen from the Earth's center\\
+          \SP\ $\vv{E}$ = Earth from the barycenter (geometric)
+          \[
+            \tcbhighmath{\uv{p} \leftarrow \frac{\uv{p}\,(1000/\varpi)\,\mathrm{pc} - \vv{E}}{|\uv{p}\,(1000/\varpi)\,\mathrm{pc} - \vv{E}|}}
+            \tag{ST2.1}
+          \]
+    \item \OWN\ \textbf{Light deflection} by the Sun (\SI{4}{mas} at \SI{90}{\degree}, $1.75''$ at the limb), Jupiter, Saturn
+          (SOFA \texttt{iauLd} form\footnote{S.~A.~Klioner, A practical relativistic model for microarcsecond astrometry in
+          space, AJ 125, 1580--1597 (2003); \href{https://doi.org/10.1086/367593}{doi:10.1086/367593}}) --- \emph{star minus asteroid}
+          (the asteroid's light is bent too)\\
+          \SP\ bodies and asteroid from the Earth's center (``CN''): $\uv{e}_b$, $E_b$ body $\to$ Earth's center,
+          $\uv{q}_b$ body $\to$ asteroid, $GM_b$ from DE440
+          \[
+            \tcbhighmath{\delta\uv{p} = \sum_{b} \frac{2GM_b}{c^2 E_b}\Bigl[\vv{f}(\uv{p}) - \vv{f}(\uv{q}_b)\Bigr],
+            \qquad
+            \vv{f}(\uv{q}) = \frac{\uv{e}_b\,(\uv{p}\cdot\uv{q}) - \uv{q}\,(\uv{p}\cdot\uv{e}_b)}{1 + \uv{q}\cdot\uv{e}_b}}
+            \tag{ST2.2}
+          \]
+          \[
+            \tcbhighmath{\uv{s} = \frac{\uv{p} + \delta\uv{p}}{|\uv{p} + \delta\uv{p}|}}
+            \tag{ST2.3}
+          \]
   \end{enumerate}
 \end{frame}
 
 % As in orbits.py (screen), search.fetch_target_orbit (Horizons SPK), besselian_offsets (spkcpo 'CN' from the site),
 % astrometry.corrected_star_dir (deflection star minus asteroid), paths.path_error (Horizons RSS 3-sigma).
 \begin{frame}{Astrometry: the asteroid}\slideid{AS}
-  \footnotesize
+  \footnotesize\tightdisplays
   \setlength{\leftmargini}{1.4em}
   \textbf{Propagation --- two stages}
   \begin{itemize}
     \item \OWN\ \textbf{Screening} (pick, pre-screens: all asteroids at once): SBDB osculating elements
           (full precision), own RK4 with Sun + planets (\SP\ DE440): $\approx 0.01''$ vs.\ Horizons
     \item \SP\ \textbf{Exact prediction}: JPL Horizons orbit per asteroid as an SPK file
-          (JPL's integration), refreshed daily, kept for offline use
+          (JPL's integration), refreshed after a week, kept for offline use
   \end{itemize}
   \smallskip\textbf{Corrections}
   \begin{itemize}
-    \item \SP\ \textbf{Light time} from \emph{the observer} (\texttt{spkcpo}), not the Earth's centre:
-          $\vv{\rho} = \vv{A}(t-\tau) - \vv{O}(t)$ (LT.2); path lines: \OWN\ shift per ground point
-          $\vv{v}_{\perp}\,(|\vv{A}| - |\vv{A} - \vv{P}|)/c$\eqtag{AS.1}
+    \item \SP\ \textbf{Light time} from \emph{the observer} (\texttt{spkcpo}), not the Earth's center:
+          $\vv{\rho} = \vv{A}(t-\tau) - \vv{O}(t)$ (LT.2)\\
+          \OWN\ path lines: each ground point $\vv{G}$ its own light time, the center line shifted by
+          \[
+            \tcbhighmath{\vv{v}_{\perp}\,\bigl(|\vv{A} - \vv{E}| - |\vv{A} - \vv{G}|\bigr)/c}
+            \tag{AS.1}
+          \]
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Astrometry: the asteroid (continued)}
+  \footnotesize
+  \setlength{\leftmargini}{1.4em}
+  \textbf{Corrections}
+  \begin{itemize}\setlength{\itemsep}{1ex}
     \item \textbf{No aberration} applied: it shifts star and asteroid alike (astrometric, as Gaia)
     \item \OWN\ \textbf{Light deflection} of the asteroid's own light: subtracted from the star's
           (the $\vv{f}(\uv{q}_b)$ term), so the asteroid stays astrometric
@@ -361,13 +401,20 @@
 \subsection{Solver}
 
 \begin{frame}{The exact solver: inputs}\slideid{IN}
-  \small
+  \footnotesize
   \begin{itemize}
     \item \textbf{Star:} unit vector $\uv{s}$ in ICRF (J2000), \emph{corrected}: Gaia DR3 propagated to the event
           (proper motion, parallax, radial velocity), stellar parallax from the Earth, light deflection by
           Sun, Jupiter, Saturn --- computed once at the guessed time $t_0$:
-          $\uv{s} = (\cos\delta\cos\alpha,\, \cos\delta\sin\alpha,\, \sin\delta)^{\mathsf T}$\eqtag{IN.1}
-    \item \textbf{Asteroid:} barycentric position $\vv{A}(t)$ from its JPL Horizons orbit (SPK), planets from DE440
+          \[
+            \tcbhighmath{\uv{s} = (\cos\delta\cos\alpha,\ \cos\delta\sin\alpha,\ \sin\delta)^{\mathsf T}}
+            \tag{IN.1}
+          \]
+    \item \textbf{Asteroid:} barycentric position $\vv{A}(t)$ from its JPL Horizons orbit file (SPK type 21, about the
+          Sun; \SP\ adds the Sun from DE440): the current orbit solution (``JPL\#$n$'', full-precision osculating
+          elements fitted to all astrometry), integrated with the planets, Moon, 16 most massive asteroids, relativity,
+          the Earth's oblateness and non-gravitational forces. Uncertainty: Horizons' 3-$\sigma$ (RSS) $\to$ path
+          $\sigma$; the size: next slide
     \item \textbf{Observer:} geodetic $(\varphi, \lambda, h)$ on WGS84, $\lambda$ east-positive, $h$ above the ellipsoid
           ($=$ height above sea level $+$ EGM96 geoid height)
     \item \SP\ \textbf{Time:} $t$ = TDB (SPICE ``ET''); UTC $\to$ TDB with
@@ -375,27 +422,48 @@
   \end{itemize}
 \end{frame}
 
+% the asteroid's size (search.get_asteroid_size): the order of the sources, and the size from H and albedo
+\begin{frame}{The asteroid's size}\slideid{SZ}
+  \footnotesize\tightdisplays
+  The shadow radius $r = D/2$ decides the hit test (CA.2) and the duration (OV.2); its range ($r_{\min}$, $r_{\max}$)
+  widens the search (CO.1). First found wins:
+  \begin{enumerate}\setlength{\itemsep}{0.3ex}
+    \item A curated value (\texttt{SIZE\_OVERRIDES}), if set
+    \item \textbf{Measured diameter} from JPL SBDB (IR surveys, occultations, radar: the reference is kept)
+          $D \pm \sigma$ ($\sigma$ missing: 15\,\%); range $D \pm 3\sigma$, widened by a known tri-axial extent
+    \item \textbf{No diameter:} from the absolute magnitude $H$ and the geometric albedo $p$\footnote{P.~Pravec,
+          A.~W.~Harris, Binary asteroid population. 1. Angular momentum content, Icarus 190, 250--259 (2007),
+          appendix A; \href{https://doi.org/10.1016/j.icarus.2007.02.023}{doi:10.1016/j.icarus.2007.02.023}}
+          \[
+            \tcbhighmath{D = \frac{1329\,\mathrm{km}}{\sqrt{p}}\;10^{-H/5}}
+            \tag{SZ.1}
+          \]
+          SBDB albedo known: range $p \times 1.5$ \ldots\ $p / 1.5$;\quad
+          none: $p = 0.14$ assumed, range $0.30$ \ldots\ $0.05$ (diameter uncertain by a factor $\approx 1.7$:
+          marked \emph{size est.} in the report)
+    \item Neither diameter nor $H$: no size, the asteroid is skipped
+  \end{enumerate}
+\end{frame}
+
 \begin{frame}{Step 1: the observer in space}\slideid{OB}
   \SP\ WGS84: $a = \SI{6378.137}{km}$, $f = 1/298.257223563$, $e^2 = f(2-f)$,
   $N = a / \sqrt{1 - e^2 \sin^2\varphi}$
   \[
-    \vv{r}_{\mathrm{ITRF}} =
+    \tcbhighmath{\vv{r}_{\mathrm{ITRF}} =
     \begin{pmatrix}
       (N + h)\cos\varphi\cos\lambda \\
       (N + h)\cos\varphi\sin\lambda \\
       \bigl(N(1 - e^2) + h\bigr)\sin\varphi
-    \end{pmatrix}
+    \end{pmatrix}}
     \tag{OB.1}
   \]
   \SP\ \texttt{georec(lon, lat, h, a, f)} (WGS84 constants from our \texttt{earth.py})\\[0.5ex]
   Rotate to the celestial frame and add the Earth's barycentric position (inside \texttt{spkcpo}):
   \[
-    \vv{O}(t) = \vv{E}(t) + \mathsf{R}(t)\,\vv{r}_{\mathrm{ITRF}},
-    \qquad
-    \mathsf{R}(t) = \texttt{pxform('ITRF93', 'J2000', t)}
+    \tcbhighmath{\vv{O}(t) = \vv{E}(t) + \mathsf{R}(t)\,\vv{r}_{\mathrm{ITRF}}}
     \tag{OB.2}
   \]
-  {\small \SP\ $\mathsf{R}(t)$ from NAIF's binary Earth orientation file \texttt{earth\_latest\_high\_prec.bpc}
+  {\small \SP\ $\mathsf{R}(t) = $ \texttt{pxform('ITRF93', 'J2000', t)} from NAIF's binary Earth orientation file \texttt{earth\_latest\_high\_prec.bpc}
   (before 2000: \texttt{earth\_1962\_\ldots\_combined.bpc}): precession, nutation, UT1, polar motion}
 \end{frame}
 
@@ -403,12 +471,12 @@
   \SP\ \texttt{spkcpo(ast, t, 'J2000', 'OBSERVER', 'CN', r\_ITRF, '399', 'ITRF93')}:
   light time $\tau$ from the asteroid to \emph{this observer} (converged Newtonian):
   \begin{gather*}
-    c\,\tau = \bigl|\vv{A}(t - \tau) - \vv{O}(t)\bigr| \tag{LT.1} \\
-    \vv{\rho}(t) = \vv{A}(t - \tau) - \vv{O}(t) \tag{LT.2}
+    \tcbhighmath{c\,\tau = \bigl|\vv{A}(t - \tau) - \vv{O}(t)\bigr|} \tag{LT.1} \\
+    \tcbhighmath{\vv{\rho}(t) = \vv{A}(t - \tau) - \vv{O}(t)} \tag{LT.2}
   \end{gather*}
   \begin{itemize}
     \item Astrometric (``CN''), no stellar aberration: it shifts star and asteroid alike
-    \item Light time from the site, not from the Earth's centre: the site is up to
+    \item Light time from the site, not from the Earth's center: the site is up to
           $R_\oplus \sin h_\star / c \approx \SI{21}{ms}$ closer
           $\Rightarrow$ up to $\approx\SI{0.6}{km}$ on the ground
           {\small(found comparing with Occult)}
@@ -426,14 +494,14 @@
     % the plane through the observer, perpendicular to the star
     \fill[syzblue!7] (-2,-1.4,0) -- (2.4,-1.4,0) -- (2.4,2.5,0) -- (-2,2.5,0) -- cycle;
     \draw[syzblue!45] (-2,-1.4,0) -- (2.4,-1.4,0) -- (2.4,2.5,0) -- (-2,2.5,0) -- cycle;
-    \node[syzblue, anchor=south, align=center] at (-2,2.5,0) {fundamental plane\\through $O$, $\perp\,\uv{s}$};
-    % the shadow on the plane: its centre P(t) moves along the track; closest approach to O at t*
+    \node[syzblue, anchor=south, align=center] at (-2,2.5,0) {fundamental plane\\through $\vv{O}$, $\perp\,\uv{s}$};
+    % the shadow on the plane: its center P(t) moves along the track; closest approach to O at t*
     \fill[syzaccent!22] plot[smooth cycle, samples=36, domain=0:350, variable=\t]
          ({0.9+0.45*cos(\t)}, {1.3+0.45*sin(\t)}, 0);
     \draw[->, syzaccent, very thick] (1.97,0.56,0) -- (-0.17,2.04,0);
-    \fill[syzaccent] (1.97,0.56,0) circle (1.4pt) node[left, syzaccent] {$P(t_1)$};
-    \node[syzaccent, above left=-1pt] at (-0.17,2.04,0) {$P(t_2)$};
-    \fill[syzaccent] (0.9,1.3,0) circle (1.6pt) node[left=4pt, syzaccent] {$P(t^{*})$};
+    \fill[syzaccent] (1.97,0.56,0) circle (1.4pt) node[left, syzaccent] {$\pv{P}(t_1)$};
+    \node[syzaccent, above left=-1pt] at (-0.17,2.04,0) {$\pv{P}(t_2)$};
+    \fill[syzaccent] (0.9,1.3,0) circle (1.6pt) node[left=4pt, syzaccent] {$\pv{P}(t^{*})$};
     % observer, plane axes, offsets and miss distance
     \draw[densely dotted] (0,0,0) -- (0.9,0,0) node[midway, above left=-2pt] {$\xi$} -- (0.9,1.3,0)
          node[pos=0.4, left] {$\eta$};
@@ -457,37 +525,37 @@
     \draw[->, thick] (0,0,0) -- (0.86,1.24,4.6) node[pos=0.78, below=1pt] {$\vv{\rho}$};
   \end{tikzpicture}\\[0.2ex]
   {\footnotesize $\vv{\rho} = \vv{A}(t-\tau) - \vv{O}(t)$, light time $\tau$ from the site.
-   The shadow axis meets the plane at $P = (\xi, \eta) = (\uv{x}\cdot\vv{\rho},\ \uv{y}\cdot\vv{\rho})$;
-   closest approach $t^{*}$: $d = |P|$ smallest; hit if $d(t^{*}) < r$ (LT.2, FP.2, CA.1).}
+   The shadow axis meets the plane at $\pv{P} = (\xi, \eta) = (\uv{x}\cdot\vv{\rho},\ \uv{y}\cdot\vv{\rho})$;
+   $t^{*}$: $d = |\pv{P}|$ smallest; hit if $d(t^{*}) < r$ (LT.2, FP.2, CA.1).}
 \end{frame}
 
 \begin{frame}{Step 3: the observer's fundamental plane}\slideid{FP}
   \OWN\ Plane through the observer, perpendicular to the star:
   \[
-    \uv{z} = \uv{s},\qquad
+    \tcbhighmath{\uv{z} = \uv{s},\qquad
     \uv{x} = \frac{\uv{e}_3 \times \uv{s}}{|\uv{e}_3 \times \uv{s}|}\ \text{(east)},\qquad
-    \uv{y} = \uv{s} \times \uv{x}\ \text{(north)}
+    \uv{y} = \uv{s} \times \uv{x}\ \text{(north)}}
     \tag{FP.1}
   \]
   Shadow axis relative to the observer, and the miss distance:
   \[
-    \xi(t) = \uv{x}\cdot\vv{\rho}(t),\qquad
+    \tcbhighmath{\xi(t) = \uv{x}\cdot\vv{\rho}(t),\qquad
     \eta(t) = \uv{y}\cdot\vv{\rho}(t),\qquad
-    d(t) = \sqrt{\xi(t)^2 + \eta(t)^2}
+    d(t) = \sqrt{\xi(t)^2 + \eta(t)^2}}
     \tag{FP.2}
   \]
   {\small The star is at infinity: its shadow is a cylinder of radius $r$ along $\uv{s}$;
   the observer is inside it when $d(t) < r$.}\\[1ex]
-  {\footnotesize\color{black!75}\textbf{Not the classical (Besselian) plane:} that one goes through the Earth's centre, with
-  the light time from the Earth's centre, and each observer is projected onto it. Ours goes through the observer,
+  {\footnotesize\color{black!75}\textbf{Not the classical (Besselian) plane:} that one goes through the Earth's center, with
+  the light time from the Earth's center, and each observer is projected onto it. Ours goes through the observer,
   with the light time from the site (LT): the same geometry, no projection and no $z/c$ term.}
 \end{frame}
 
 \begin{frame}{Step 4: closest approach and the hit test}\slideid{CA}
   Minimise over an offset from the guess $t_0$ (bracket $T$ from the corridor scan):
   \[
-    t^{*} = t_0 + \operatorname*{arg\,min}_{|\Delta t| \le T/2} d(t_0 + \Delta t),
-    \qquad d_{\min} = d(t^{*})
+    \tcbhighmath{t^{*} = t_0 + \operatorname*{arg\,min}_{|\Delta t| \le T/2} d(t_0 + \Delta t),
+    \qquad d_{\min} = d(t^{*})}
     \tag{CA.1}
   \]
   \begin{itemize}
@@ -496,32 +564,38 @@
     \item Minimum within \SI{1}{s} of the bracket edge: not a real minimum (a neighbour finds it)
   \end{itemize}
   \[
-    \text{hit} \iff d_{\min} < r_{\max} + \text{reach}
-    \qquad(\text{logged ``in the shadow'': } d_{\min} < r_{\max})
+    \tcbhighmath{\text{hit} \iff d_{\min} < r_{\max} + \text{reach}
+    \qquad(\text{logged ``in the shadow'': } d_{\min} < r_{\max})}
     \tag{CA.2}
   \]
 \end{frame}
 
-\begin{frame}{Step 5: observable? and what the observer sees}\slideid{OV}
+\begin{frame}{Step 5: observable?}\slideid{OV}
   \OWN\ Local vertical (geodetic normal) and altitudes at $t^{*}$; \SP\ $\mathsf{R}$ by \texttt{pxform},
-  Sun $\uv{s}_\odot$ from the Earth's centre, apparent (``LT+S''):
+  Sun $\uv{s}_\odot$ from the Earth's center, apparent (``LT+S''):
   \[
-    \uv{u} = \mathsf{R}(t^{*})
-      \begin{pmatrix}\cos\varphi\cos\lambda\\ \cos\varphi\sin\lambda\\ \sin\varphi\end{pmatrix},
-    \quad
-    h_\star = \arcsin(\uv{u}\cdot\uv{s}) > h_{\min},
-    \quad
-    h_\odot = \arcsin(\uv{u}\cdot\uv{s}_\odot) < h_{\odot,\max}
+    \tcbhighmath{\begin{aligned}
+      \uv{u} &= \mathsf{R}(t^{*})
+        \begin{pmatrix}\cos\varphi\cos\lambda\\ \cos\varphi\sin\lambda\\ \sin\varphi\end{pmatrix}\\
+      h_\star &= \arcsin(\uv{u}\cdot\uv{s}) > h_{\min},
+      \qquad
+      h_\odot = \arcsin(\uv{u}\cdot\uv{s}_\odot) < h_{\odot,\max}
+    \end{aligned}}
     \tag{OV.1}
   \]
+  {\small Both at the observer's closest approach $t^{*}$; the star limit $h_{\min}$ and the Sun limit $h_{\odot,\max}$
+  are the site's (sites.py).}
+\end{frame}
+
+\begin{frame}{Step 5: what the observer sees}\slideid{OV}
   Speed, chord, duration and drop:
   \begin{gather*}
-    v = \frac{\bigl|(\xi,\eta)(t^{*}{+}1\,\mathrm{s}) - (\xi,\eta)(t^{*}{-}1\,\mathrm{s})\bigr|}{2\,\mathrm{s}},
+    \tcbhighmath{v = \frac{\bigl|(\xi,\eta)(t^{*}{+}1\,\mathrm{s}) - (\xi,\eta)(t^{*}{-}1\,\mathrm{s})\bigr|}{2\,\mathrm{s}},
     \qquad
     \ell = 2\sqrt{r^2 - d_{\min}^2},
     \qquad
-    \Delta t_{\mathrm{occ}} = \frac{\ell}{v} \tag{OV.2} \\
-    \Delta m = 2.5\log_{10}\!\bigl(1 + 10^{0.4(m_{\mathrm{ast}} - m_\star)}\bigr) \tag{OV.3}
+    \Delta t_{\mathrm{occ}} = \frac{\ell}{v}} \tag{OV.2} \\
+    \tcbhighmath{\Delta m = 2.5\log_{10}\!\bigl(1 + 10^{0.4(m_{\mathrm{ast}} - m_\star)}\bigr)} \tag{OV.3}
   \end{gather*}
   {\small \OWN\ $m_{\mathrm{ast}}$ from $H$, $G$ (IAU H--G system; \SP\ distances, phase angle); kept if $\Delta m \ge 0.1$}
 \end{frame}

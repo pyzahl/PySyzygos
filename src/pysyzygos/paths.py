@@ -29,8 +29,8 @@ def plane_basis(star_vector):
     return x, y, z
 
 
-# Math: AS.1 (slide AS): each ground point's centre line shifted by v_perp (|A| - |A - P|)/c (light time
-# from that point, as LT.1 for the site).
+# Math: AS.1 (slide AS): each ground point G's centre line shifted by v_perp (|A - E| - |A - G|)/c (light time
+# from that point, as LT.1 for the site; in the code ast0 = A - E, p_j = G - E).
 def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, step=None, sat_km=None):
     """Ground track of the shadow axis and its limits.
 
