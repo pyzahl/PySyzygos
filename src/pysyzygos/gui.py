@@ -12,7 +12,7 @@ The page is built by index() here (header, dialogs, tabs, log) and the tab modul
 gui_search, gui_results, gui_favorites and gui_system; gui_common holds what they share (runs, log files, GUI state).
 """
 from pysyzygos.version import __version__, __codename__, __author__, __copyright__, __license__, __url__
-import argparse, asyncio, os, sys
+import argparse, asyncio, json, os, sys
 from types import SimpleNamespace
 
 from pysyzygos import home
@@ -249,6 +249,18 @@ def index():
         return os.path.join(ROOT, getattr(pg.config, "results_db", "pysyzygos.db"))
     pg.results_db = results_db
 
+    async def shown_keys(frame):
+        """The event keys of the rows the report page in this iframe shows, top to bottom (report.event_key), or
+        None if the page cannot be read (not loaded yet): the CSV downloads export what is shown."""
+        try:
+            return await ui.run_javascript(
+                f"const f=getHtmlElement({frame.id});const d=f&&f.contentDocument;if(!d)return null;"
+                "const r=[...d.querySelectorAll('table tbody tr[data-ev]')];if(!r.length&&!d.querySelector('table'))"
+                "return null;return r.filter(x=>x.style.display!=='none').map(x=>x.dataset.ev);", timeout=5.0)
+        except Exception:
+            return None
+    pg.shown_keys = shown_keys
+
     def download_csv(kind, rows, name):
         """A CSV download with the columns of csv_exports.py (data folder) for this table."""
         folder = os.path.join(pg.config.cache_path, "pysyzygos_exports")
@@ -278,6 +290,7 @@ def index():
     gui_search.connect(pg)
     gui_pick.connect(pg)
     gui_system.connect(pg)
+    gui_results.connect(pg)
     gui_favorites.connect(pg)
 
 
@@ -371,6 +384,7 @@ def main():
     import threading                                            # error ellipses (Horizons, one Gaia job): may be slow
     threading.Thread(target=favorites.backfill_errors, daemon=True).start()
     favorites.write_csv()
+    favorites.write_page()                                      # with this version's page code (filter bar, sorting)
     app.add_static_files("/fav", os.path.join(ROOT, favorites.DIR), max_cache_age=0)
 
     @app.get("/api/favorites/keys")
@@ -414,6 +428,32 @@ def main():
             favorites.backfill_timezones(geo.timezone)          # the new favorite's site time zone (once per site)
         favorites.write_page()
         return {"ok": ok, "msg": msg}
+
+    # named filter sets of the report pages (report.filter_bar), shared by Results, Favorites, Planets & Moons
+    @app.get("/api/filters")
+    def filters_list():
+        return {"ok": True, "sets": load_ui_state().get("filters") or {}}
+
+    @app.get("/api/filters/save")
+    def filters_save(name: str, spec: str):
+        try:
+            data = json.loads(spec)
+            assert isinstance(data, dict)
+        except (ValueError, AssertionError):
+            return {"ok": False, "msg": "filter set not saved: not a filter"}
+        name = name.strip()[:60]
+        if not name:
+            return {"ok": False, "msg": "filter set not saved: no name"}
+        sets = dict(load_ui_state().get("filters") or {}, **{name: data})
+        save_ui_state(filters=sets)
+        return {"ok": True, "msg": f"filter set {name} saved"}
+
+    @app.get("/api/filters/delete")
+    def filters_delete(name: str):
+        sets = dict(load_ui_state().get("filters") or {})
+        sets.pop(name, None)
+        save_ui_state(filters=sets)
+        return {"ok": True, "msg": f"filter set {name} deleted"}
 
     @app.get("/api/kstars/status")
     def kstars_status():

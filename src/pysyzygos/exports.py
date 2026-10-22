@@ -136,6 +136,18 @@ def results_rows(db_path, lst="main", lat=None, lon=None, sort="mag"):
     return [(event_shown(e), r) for e, r in pairs]
 
 
+def only_shown(pairs, keys):
+    """The rows [(shown, raw)] that the page shows, in its order: keys = the visible rows' report.event_key, top to
+    bottom (filter bar, SQL filter and sorting applied). keys None (page not readable): all rows, unchanged."""
+    if keys is None:
+        return pairs
+    from pysyzygos import report as R
+    order = {k: i for i, k in enumerate(keys)}
+    kept = [(order[k], p) for p in pairs
+            if (k := R.event_key(p[1].get("target_id", ""), p[1].get("best_utc", ""))) in order]
+    return [p for _, p in sorted(kept, key=lambda x: x[0])]
+
+
 def favorite_rows(items):
     """[(shown, raw)] of the favorites (favorites.load()), by event time as on the Favorites page."""
     from pysyzygos import report as R

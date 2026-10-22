@@ -12,6 +12,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   name, which is only the case for bright stars with a proper or Bayer name. The message says which name was marked.
   For KStars, a crosshair FOV symbol of your own marks the star at the center of the map (README: "Marking the star
   in KStars"). Stellarium's first click after a time-zone change no longer lands elsewhere.
+- **Filters for the result lists**: a filter bar above the Results, Favorites and Planets & Moons tables (faintest
+  star, duration, drop, star and Sun altitude, RUWE, chance; hide supplement, uncertain or double stars, twilight,
+  horizon, estimated sizes; only asteroids with a satellite), instant, with named filter sets shared by the pages.
+  **SQL filter** on the Results tab for any condition (`mag < 11 AND chance > 30`), with field suggestions, a field
+  list, examples and saved conditions; read-only on a new database view `hits`; also `report --where`.
+  The SQL box starts with the filter bar's settings written as SQL, to edit from there.
+  The CSV downloads export what the table shows: its filter and sort order. The Results tab shows the last report
+  as soon as the GUI starts.
 - **Shared pre-screens from several machines**: `prescreen publish` starts its list (`prescreens.json`) from the
   mirror's current one, so a build published on another machine stays listed; `pysyzygos prescreen merge [lists]
   --check` combines lists without repacking and checks that every archive is on the mirror.

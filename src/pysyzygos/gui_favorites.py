@@ -24,7 +24,7 @@ def panel(pg):
                 "Show the tools to compare a favorite's geodetic path with Occult's path listing (pathcheck.py; "
                 "method: VERIFICATION.md section 3)")
             ui.button("CSV", on_click=lambda: pg.fav_csv()).props("outline dense").tooltip(
-                "Download all favorites as a table, named favorites_<today>.csv."
+                "Download the favorites the table shows (its filter and sort order), named favorites_<today>.csv."
                 " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added). "
                 "The full table with all columns stays in favorites/favorites.csv")
             if getattr(pg.config, "owc_feeds", True):                    # config owc_feeds (on by default)
@@ -142,12 +142,19 @@ def panel(pg):
 
 def handlers(pg):
     """The favorites tab's functions and state, as attributes of pg."""
-    def fav_csv():
+    async def fav_csv():
         items = favorites.load(os.path.join(ROOT, favorites.DIR))
         if not items:
             ui.notify("No favorites yet", type="warning")
             return
-        pg.download_csv("favorites", exports.favorite_rows(items), f"favorites_{today_utc()}.csv")
+        keys = await pg.shown_keys(pg.f_frame)
+        shown = exports.only_shown(exports.favorite_rows(items), keys)
+        if keys is not None and not shown:
+            ui.notify("No favorites shown (the filter hides them all): nothing to export", type="warning")
+            return
+        pg.download_csv("favorites", shown, f"favorites_{today_utc()}.csv")
+        ui.notify(f"CSV: {len(shown)} favorite(s)" + (" as shown (filter and sort order)" if keys is not None else
+                                                      " (all: the page could not be read)"))
     pg.fav_csv = fav_csv
 
     pg.fav_cur = {"key": None}

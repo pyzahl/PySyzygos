@@ -230,6 +230,28 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `db.add_event` per hit, `db.finish_run` + `db.export` in run_summary: hits_log.csv and hits_log.runs.jsonl are
   EXPORTS of the current series (report, CSV button, OWC check and favorites read them). favorites.py load/_save use
   the db next to the favorites folder (favorites.json imported once -> .migrated). owc_check uses owc_check.db.
+  View `hits` (2026-10-22, `create_hits_view` in every connect, from `db.HITS` = (column, record field(s) a|b first
+  non-empty, kind num/pct/text, unit, meaning): typed columns, numeric text of old CSV imports converted, ''/nan ->
+  NULL, chance = p_site x 100; "drop" is an SQL keyword: column mag_drop). `where_keys(path, where, lst)`: current
+  series, read-only connection (mode=ro + query_only), no ';', bad SQL -> ValueError. report `--where/--db/--list`
+  (+ page note .sqlnote); GUI Results "SQL filter (advanced)" (gui_results: sql_in, word suggestions sql_sugg,
+  Fields table rowClick inserts, examples, saved conditions gui_state sql_queries, active sql_where used by every
+  build_report; gui_results.connect). Report filter bar (all layouts): rows carry data-f* (`report.filter_attrs`:
+  mag dur drop alt sun ruwe chance% flags sup/unc/dbl/twi/hz/est/moon), `filter_bar`/FILTER_JS: instant filter,
+  "showing n of m", named sets via GUI `/api/filters|save|delete` (gui_state filters; file:// -> localStorage),
+  the page's last filter in localStorage pyo_filter:<path>; favorites select-all and mass actions only on shown
+  rows (event 'pyofilter'). GUI start rewrites favorites.html (new page code). CSV = what is shown: rows carry
+  data-ev = `report.event_key(target, utc)` ('target|YYYY-MM-DDTHH:MM:SS'); GUI `pg.shown_keys(frame)` reads the
+  visible rows' keys from the iframe (ui.run_javascript, getHtmlElement(id).contentDocument; None if unreadable ->
+  all rows) -> `exports.only_shown(pairs, keys)` keeps and orders them (hits_csv, fav_csv, bodies_csv; toast says
+  how many). Results tab loads the existing hits_report.html at start (gui_results.connect). create_hits_view replaces the view only when its SQL
+  differs (BEGIN IMMEDIATE, a concurrent creation tolerated): dropping it on every connect made the GUI start fail
+  ("view hits already exists": backfill thread + write_page connecting at once). `db.filter_to_sql(spec)`
+  (FILTER_SQL / FILTER_HIDE_SQL; often-unknown fields as "x IS NULL OR ...", unc = star_sigma <= 0.5 radius, only
+  +moon -> /* comment */, no column): the SQL box is filled from the frame's bar when opened empty
+  (`sql_from_bar`, also a button); checked equal to the bar's selection on real data for 14 specs. Verified in headless
+  Chrome: G <= 12.5 + sort by Max dur -> CSV of the 15 shown rows, longest first. Verified in headless Chrome
+  (G <= 12.5: 15 of 29; shared set offered in Favorites; SQL apply/clear). tests/test_db.py, test_report_filter.py.
 - `pysyzygos/doubles.py`: close/double stars per event. Local: `companions()` from `LOCAL.cone` (radius
   `companion_radius_arcsec`, <= 5 mag fainter, proper motion to the event date), `blended_drop`, `fields()` (blend_*,
   mag_drop_blended, double_hint only if the drop changes >= 0.1 mag or Gaia flags). Online (`gaia_online_check`):

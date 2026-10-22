@@ -1162,7 +1162,23 @@ pysyzygos --port 8090 --no-browser
   then **Run search**. A line says which saved pick the search will use, or that none
   covers the window.
   The report is rebuilt and shown under **Results** when the run finishes.
-* **Results**: the HTML report with its maps and previews. On Linux with KStars running, each event also gets a
+* **Results**: the HTML report with its maps and previews.
+  **Filter** (the bar above the table): faintest star (G), shortest duration, smallest drop, lowest star altitude,
+  highest Sun altitude, largest RUWE, smallest chance, and checkboxes that hide supplement stars, uncertain stars,
+  close/double stars, twilight events, events near or behind your horizon and estimated sizes (or show only asteroids
+  with a known satellite). It filters at once and says "showing n of m". **Save as...** keeps the settings under a
+  name; the saved sets are shared by Results, Favorites and Planets & Moons (kept by the GUI in `gui_state.json`).
+  Each page remembers its last filter and sort order.
+  **SQL filter (advanced)**, on the Results tab: a condition on the results database such as
+  `mag < 11 AND chance > 30`, `duration >= 1 AND sun_alt < -12` or `name LIKE '%Phaethon%'`. The report is rebuilt
+  with the matching events of the current results list (a note says the filter is on; Clear shows all again). Field
+  names appear as buttons while you type, the list "Fields" gives all of them with unit and meaning (target, name, utc, mag, mag_drop, duration, star_alt, sun_alt, chance (%), distance, radius, sigma, ruwe, star_flag, horizon, ...),
+  and conditions can be saved under a name. Opened while empty, the box starts with the filter bar's settings as SQL
+  (**From filter bar** does it any time), e.g. `mag <= 12.5 AND star_flag = ''`: change an AND into an OR, add
+  parentheses, and so on. The database is opened read-only for it. The same condition works on the
+  command line: `pysyzygos report hits_log.csv --where "mag < 11"`; the columns are the view `hits` in
+  `pysyzygos.db`, also handy in an SQLite tool.
+  On Linux with KStars running, each event also gets a
   **KStars** button: it points KStars at the target star at the event time, seen from the site, with a field like
   the preview's. "KStars: set its location to the event site" (on by default) moves KStars' location to the site;
   a message says from where, so you can switch back in KStars. Off, KStars keeps its location, and the message warns
@@ -1190,7 +1206,8 @@ pysyzygos --port 8090 --no-browser
 * **Log**: the live output of the running job, with **Stop**.
 
 **CSV downloads** (Pick, Results, Planets & Moons, Favorites): by default the columns and values exactly as the
-table shows them (without the tools column). Results, Planets & Moons and Favorites come from the results database
+table shows them (without the tools column). Results, Planets & Moons and Favorites export the rows the table shows,
+in its order: with the filter bar, the SQL filter and the sorting applied. Results, Planets & Moons and Favorites come from the results database
 (`pysyzygos.db`), the pick from its saved file. Which columns, in which order and with which headings is set in
 `csv_exports.py` in the data folder (created from `src/pysyzygos/templates/csv_exports.py` at the first download):
 one list per table of `(heading, source)`, where the source is a value as the table shows it (`"altitude"`,

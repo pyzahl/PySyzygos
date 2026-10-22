@@ -8,6 +8,9 @@ Tables
   contacts   contact times of an event (D/R for the Moon and planets, C1-C4 for eclipses; not used by asteroids yet)
   favorites  the favorites list (one row per favorite, the entry as JSON; map/preview copies stay files)
   meta       schema version, current series
+Views
+  hits       one row per event with the useful record fields as plain, typed columns (HITS: name, field, unit,
+             meaning), for conditions such as "mag < 11 AND chance > 30" (where_keys; GUI Results "SQL filter")
 
 Results *lists* keep different searches apart (config `results_list`): "main" (the asteroid search, exported as
 hits_log.csv) and "bodies" (planets and moons, the Planets & Moons tab, exported as bodies_log.csv). Each list has
@@ -43,12 +46,140 @@ def connect(path=DEFAULT):
         CREATE TABLE IF NOT EXISTS contacts (event_id INTEGER, label TEXT, utc TEXT, et REAL, data TEXT);
         CREATE TABLE IF NOT EXISTS favorites (key TEXT PRIMARY KEY, pos INTEGER, entry TEXT);
     """)
+    create_hits_view(con)
     con.execute("INSERT OR IGNORE INTO meta VALUES ('schema', ?)", (str(SCHEMA),))
     con.execute("INSERT OR IGNORE INTO meta VALUES ('series', '1')")
     if "list" not in [r[1] for r in con.execute("PRAGMA table_info(runs)")]:     # schema 1 without lists
         con.execute("ALTER TABLE runs ADD COLUMN list TEXT DEFAULT 'main'")
     con.commit()
     return con
+
+
+# ------------------------------------------------------------------------------------------- the hits view
+# (column, record field(s) (first non-empty wins) or SQL, kind 'num' | 'text', unit, meaning): the view's columns,
+# the GUI's field list and its autocomplete (one source). Numbers that are text in older records (imported CSV) are
+# converted; '', 'nan' and missing values are NULL, never 0.
+HITS = [
+    ("target", "target_id", "text", "", "asteroid number or body (P:Jupiter)"),
+    ("name", "target_name", "text", "", "name, e.g. '(4089) Galbraith'"),
+    ("utc", "best_utc", "text", "UTC", "closest approach at the site, ISO time, e.g. utc >= '2026-11-01'"),
+    ("mag", "mag", "num", "G mag", "star magnitude (Gaia G)"),
+    ("mag_drop", "mag_drop", "num", "mag", "magnitude drop"),
+    ("mag_drop_blended", "mag_drop_blended", "num", "mag", "drop with close neighbours' light"),
+    ("duration", "max_duration_s", "num", "s", "maximum duration (center line)"),
+    ("star_alt", "star_alt", "num", "deg", "star altitude at the event"),
+    ("star_az", "star_az", "num", "deg", "star azimuth (from north through east)"),
+    ("sun_alt", "sun_alt", "num", "deg", "Sun altitude at the site"),
+    ("moon_sep", "moon_sep_deg", "num", "deg", "Moon's distance from the star"),
+    ("moon_illum", "moon_illum_pct", "num", "%", "Moon illuminated"),
+    ("chance", "p_site", "pct", "%", "chance that the shadow covers the site, 0-100"),
+    ("distance", "min_distance", "num", "km", "site's distance from the shadow center line"),
+    ("radius", "r_km", "num", "km", "asteroid radius (shadow half-width)"),
+    ("sigma", "path_sigma1_km", "num", "km", "path uncertainty, 1 sigma"),
+    ("star_sigma", "star_sigma_km", "num", "km", "the star's own position uncertainty, 1 sigma"),
+    ("ruwe", "star_ruwe|gaia_ruwe", "num", "", "Gaia RUWE (above 1.4: often a double star)"),
+    ("star_flag", "star_flag", "text", "", "supplement star: 'RUWE 1.65' or '2p ...'; '' main catalog"),
+    ("star_kind", "star_kind", "num", "", "0 main catalog, 1 high RUWE, 2+ 2-parameter star"),
+    ("double_hint", "double_hint", "text", "", "close or double star note ('' none)"),
+    ("horizon", "horizon_flag", "text", "", "your horizon: 'behind', 'near' or ''"),
+    ("size_source", "size_source", "text", "", "where the size comes from, e.g. 'H only, albedo assumed'"),
+    ("dist_au", "dist_au", "num", "au", "asteroid's distance from the Earth"),
+    ("speed", "speed_kms", "num", "km/s", "shadow speed"),
+    ("star", "star", "text", "", "Gaia DR3 source id"),
+    ("hip", "star_hip", "text", "", "Hipparcos number ('' none)"),
+    ("tyc", "star_tyc", "text", "", "Tycho-2 number ('' none)"),
+    ("ucac4", "star_ucac4", "text", "", "UCAC4 number ('' none)"),
+]
+
+
+def _num_sql(field):
+    v = f"json_extract(record, '$.{field}')"
+    t = f"json_type(record, '$.{field}')"
+    return (f"(CASE WHEN {t} IN ('real', 'integer') THEN {v} WHEN {t} = 'text' AND trim({v}) <> '' AND "
+            f"lower(trim({v})) NOT IN ('nan', 'inf', '-inf', 'none') AND trim({v}) NOT GLOB '*[^-+.0-9eE ]*' "
+            f"THEN CAST(trim({v}) AS REAL) END)")
+
+
+def create_hits_view(con):
+    """Create the view hits from HITS, or replace it when this code defines it differently (once after an update).
+    Safe with several connections opening at the same time."""
+    cols = ["e.id AS id", "e.series AS series", "e.kind AS kind", "e.run_id AS run"]
+    for name, fields, kind, _, _ in HITS:
+        parts = []
+        for f in fields.split("|"):
+            if kind in ("num", "pct"):
+                parts.append(_num_sql(f) + (" * 100.0" if kind == "pct" else ""))
+            else:
+                parts.append(f"NULLIF(CAST(json_extract(record, '$.{f}') AS TEXT), '')")
+        expr = parts[0] if len(parts) == 1 else f"COALESCE({', '.join(parts)})"
+        if kind == "text" and len(parts) == 1:
+            expr = f"COALESCE({expr}, '')"
+        cols.append(f"{expr} AS {name}")
+    sql = "CREATE VIEW hits AS SELECT " + ", ".join(cols) + " FROM events e"
+    row = con.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='hits'").fetchone()
+    if row and row[0] == sql:                                   # current already: nothing to do (the usual case)
+        return
+    # several connections may open at once (GUI start: a background task and the page): one changes the view under
+    # a write lock; another that finds it changed meanwhile leaves it (it failed with "view hits already exists")
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        row = con.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='hits'").fetchone()
+        if not (row and row[0] == sql):
+            con.execute("DROP VIEW IF EXISTS hits")
+            con.execute(sql)
+        con.execute("COMMIT")
+    except sqlite3.OperationalError:
+        try:
+            con.execute("ROLLBACK")
+        except sqlite3.OperationalError:
+            pass
+
+
+# the report's filter bar (report.filter_bar: limits and flags) as a condition on hits, to start a custom one from;
+# fields often unknown keep the bar's rule "unknown values pass" (IS NULL OR ...)
+FILTER_SQL = {"mag": "mag <= {v}", "dur": "duration >= {v}", "drop": "(mag_drop IS NULL OR mag_drop >= {v})",
+              "alt": "star_alt >= {v}", "sun": "sun_alt <= {v}", "ruwe": "(ruwe IS NULL OR ruwe <= {v})",
+              "chance": "(chance IS NULL OR chance >= {v})"}
+FILTER_HIDE_SQL = {"sup": "star_flag = ''", "unc": "(star_sigma IS NULL OR star_sigma <= 0.5 * radius)",
+                   "dbl": "double_hint = ''", "twi": "sun_alt <= -12", "hz": "horizon NOT IN ('behind', 'near')",
+                   "est": "size_source NOT LIKE 'H only%'"}
+
+
+def filter_to_sql(spec):
+    """The filter bar's settings ({'mag': 12.5, ..., 'hide': [...], 'only': [...]}) as an SQL condition, every
+    part joined with AND; '' for no filter. 'only +moon' has no column: kept as a comment."""
+    parts = []
+    for k, tpl in FILTER_SQL.items():
+        v = (spec or {}).get(k)
+        if isinstance(v, (int, float)):
+            parts.append(tpl.format(v=f"{v:g}"))
+    parts += [FILTER_HIDE_SQL[h] for h in (spec or {}).get("hide", []) if h in FILTER_HIDE_SQL]
+    sql = " AND ".join(parts)
+    if "moon" in (spec or {}).get("only", []):
+        sql = (sql + " " if sql else "1 = 1 ") + "/* only +moon: no SQL column */"
+    return sql
+
+
+def where_keys(path, where, lst="main", series=None, limit=100000):
+    """The events of a results list's series (default: its current one) that match an SQL condition on the hits
+    view, as [(target, utc), ...]. Read-only (the condition cannot change anything); raises ValueError with
+    SQLite's message for a bad condition."""
+    if ";" in where:
+        raise ValueError("one condition only (no ';')")
+    con = connect(path)                                       # the view exists and is current
+    ser = current_series(con, lst) if series is None else series
+    con.close()
+    con = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=30)
+    try:
+        con.execute("PRAGMA query_only = ON")
+        try:
+            rows = con.execute(f"SELECT target, utc FROM hits WHERE series = ? AND ({where}) LIMIT ?",
+                               (ser, limit)).fetchall()
+        except sqlite3.Error as ex:
+            raise ValueError(str(ex)) from None
+        return [(str(t), str(u)) for t, u in rows]
+    finally:
+        con.close()
 
 
 def _key(lst):

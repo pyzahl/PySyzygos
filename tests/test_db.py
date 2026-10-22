@@ -68,4 +68,56 @@ assert all(r["target_id"] != "P:Jupiter" for r in db.events(con))
 rb2, sb2 = db.start_run(con, "corridor", new_series=True, lst="bodies")
 assert sb2 > sb and db.current_series(con) == main_now and db.events(con, lst="bodies") == []
 assert db.export(con, os.path.join(d, "bodies_log.csv"), lst="bodies") == 0
+# the hits view: typed columns (numbers as text from old CSV imports converted; '', 'nan' -> NULL), chance in %,
+# RUWE from either field; where_keys: the current series of a list, read only, a bad condition -> ValueError
+rh, sh = db.start_run(con, "corridor", new_series=True)
+db.add_event(con, rh, dict(target_id="3200", best_utc="2026-11-01T01:00:00.123", mag=10.5, mag_drop=2.0,
+                           max_duration_s=1.5, p_site=0.4, star_ruwe=None, gaia_ruwe=1.7, star_flag="RUWE 1.70",
+                           sun_alt=-20.0, star_alt=30.0))
+db.add_event(con, rh, dict(target_id="4089", best_utc="2026-11-02T01:00:00", mag="12.25", mag_drop="nan",
+                           max_duration_s="", p_site="0.05", star_flag="", sun_alt="-8.5"))
+con.commit()
+row = con.execute("SELECT mag, mag_drop, duration, chance, ruwe, star_flag FROM hits WHERE target='4089'").fetchone()
+assert tuple(row) == (12.25, None, None, 5.0, None, ""), tuple(row)
+assert tuple(con.execute("SELECT chance, ruwe FROM hits WHERE target='3200'").fetchone()) == (40.0, 1.7)
+dbp = os.path.join(d, "test.db")
+con.commit()
+assert db.where_keys(dbp, "mag < 11") == [("3200", "2026-11-01T01:00:00.123")]
+assert {t for t, _ in db.where_keys(dbp, "1=1")} == {"3200", "4089"}                # only the current series
+assert db.where_keys(dbp, "chance >= 5 AND sun_alt < -10") == [("3200", "2026-11-01T01:00:00.123")]
+assert db.where_keys(dbp, "mag_drop IS NULL") == [("4089", "2026-11-02T01:00:00")]   # 'nan' is NULL, never 0
+for bad in ("mag <", "1=1; DELETE FROM events", "nosuchcolumn > 1"):
+    try:
+        db.where_keys(dbp, bad)
+        raise AssertionError(f"accepted: {bad}")
+    except ValueError:
+        pass
+n = con.execute("SELECT count(*) FROM events").fetchone()[0]
+try:                                                     # a condition that would write: the connection is read-only
+    db.where_keys(dbp, "(SELECT 1 FROM (SELECT load_extension('x'))) = 1")
+except ValueError:
+    pass
+assert con.execute("SELECT count(*) FROM events").fetchone()[0] == n
+assert {h[0] for h in db.HITS} >= {"mag", "mag_drop", "duration", "chance", "ruwe", "star_alt", "sun_alt"}
+# the filter bar as SQL (a template for custom conditions): AND-joined; unknown RUWE/drop/chance pass, as in the bar
+q = db.filter_to_sql({"mag": 12.5, "ruwe": 1.4, "hide": ["sup", "twi"], "only": ["moon"]})
+assert q == ("mag <= 12.5 AND (ruwe IS NULL OR ruwe <= 1.4) AND star_flag = '' AND sun_alt <= -12 "
+             "/* only +moon: no SQL column */"), q
+assert db.filter_to_sql({}) == "" and db.filter_to_sql(None) == ""
+assert db.where_keys(dbp, db.filter_to_sql({"mag": 11, "ruwe": 2.0})) == [("3200", "2026-11-01T01:00:00.123")]
+assert {t for t, _ in db.where_keys(dbp, db.filter_to_sql({"hide": ["sup"]}))} == {"4089"}
+assert db.where_keys(dbp, db.filter_to_sql({"only": ["moon"]}))                          # the comment is valid SQL
+# several connections opening at once (GUI start: a background task and the page) must not fail on the view
+import threading
+errs, par = [], os.path.join(d, "parallel.db")
+def opener():
+    try:
+        for _ in range(20):
+            db.connect(par).close()
+    except Exception as ex:
+        errs.append(repr(ex))
+ts = [threading.Thread(target=opener) for _ in range(6)]
+[t.start() for t in ts]
+[t.join() for t in ts]
+assert not errs, errs[:2]
 print("DB TESTS PASSED")

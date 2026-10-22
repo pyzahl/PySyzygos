@@ -115,6 +115,9 @@ The **Results** tab lists every event, best first. For each one:
 
 Star the events you like.
 
+A long list? Open **Filter** above the table: for example G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no twilight) and
+"hide uncertain star". **Save as...** keeps such a filter under a name for later (also in Favorites).
+
 <img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/c4f4c7d9-f685-46d0-ba22-780502e32452" />
 
 

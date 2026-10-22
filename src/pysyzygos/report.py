@@ -379,6 +379,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 sflag=(r.get("star_flag") or "").strip(), star_sigma=num(r.get("star_sigma_km")),
                 pm_alts=(r.get("star_pm_alts") or "").strip(),
                 p_site=num(r.get("p_site")), sigma1=num(r.get("path_sigma1_km")),
+                ruwe=num(r.get("star_ruwe")) if num(r.get("star_ruwe")) is not None else num(r.get("gaia_ruwe")),
                 sigma_src=(r.get("sigma_source") or "").strip(), ra=ra, dec=dec, fov=fov,
                 globe=globe)
 
@@ -592,10 +593,13 @@ tr.favrow td:last-child{white-space:normal;min-width:9.5em}
 (function(){
 var boxes=[].slice.call(document.querySelectorAll('.favsel')),all=document.getElementById('favall'),
     cnt=document.getElementById('favcount');
-function sel(){return boxes.filter(function(b){return b.checked;}).map(function(b){return b.value;});}
-function upd(){cnt.textContent=sel().length+' selected';if(all)all.checked=boxes.length>0&&sel().length===boxes.length;}
+function shown(b){var r=b.closest('tr');return !r||r.style.display!=='none';}   // rows the filter hides: never acted on
+function sel(){return boxes.filter(function(b){return b.checked&&shown(b);}).map(function(b){return b.value;});}
+function upd(){var v=boxes.filter(shown);cnt.textContent=sel().length+' selected';
+ if(all)all.checked=v.length>0&&sel().length===v.length;}
+document.addEventListener('pyofilter',upd);
 boxes.forEach(function(b){b.addEventListener('change',upd);});
-if(all)all.addEventListener('change',function(){boxes.forEach(function(b){b.checked=all.checked;});upd();});
+if(all)all.addEventListener('change',function(){boxes.forEach(function(b){if(shown(b)||!all.checked)b.checked=all.checked;});upd();});
 function tell(n,a){try{if(parent&&parent!==window&&parent.emitEvent)parent.emitEvent(n,a);}catch(e){}}
 function call(url,done){fetch(url).then(function(r){return r.json();}).then(function(j){pyoToast(j.msg,!j.ok);
   tell('fav_changed','');if(j.ok)setTimeout(function(){location.reload();},700);})
@@ -937,7 +941,7 @@ def html_row_body(e):
               if e["rad"] else (e.get("full") or ""))
     d_ts = parse_utc(e["d_utc"]).timestamp() if e.get("d_utc") else ""
     return (
-        f'<tr><td class="ast" data-s="{esc(e["tid"])}" title="{tip}">{esc(e["label"])} '
+        f'<tr{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{tip}">{esc(e["label"])} '
         f'<span class="badge kind">{esc(e["kind"] or "body")}</span></td>'
         f'<td data-s="{d_ts}" title="{esc(e.get("d_utc") or "outside the shadow: no contact")} UTC">'
         f'{esc(e["when"].strftime("%Y-%b-%d"))} {contact_text(e.get("d_utc"))}</td>'
@@ -971,7 +975,7 @@ def html_row(e):
     f = e.get("fav")
     if f:                                                        # favorites page: select box, site; no calc time
         site = (e.get("site") or {}).get("name", "?")
-        lead = (f'<tr class="favrow" data-key="{esc(f["key"])}"><td><input type="checkbox" class="favsel" '
+        lead = (f'<tr class="favrow" data-key="{esc(f["key"])}"{filter_attrs(e)}><td><input type="checkbox" class="favsel" '
                 f'value="{esc(f["key"])}" aria-label="Select {esc(e["label"])}"></td>')
         mid = f'<td data-s="{esc(site)}">{esc(site)}</td>'
         calc = ""
@@ -980,7 +984,7 @@ def html_row(e):
                 f'{"…" if len(f["note"]) > 40 else ""}</td>'
                 f'<td class="c-narrow" data-s="{esc(f["added"])}" title="{esc(f["added"])} UTC">{esc(f["added"][5:16].replace("T", " "))}</td>')
     else:
-        lead, mid, tail = "<tr>", "", ""
+        lead, mid, tail = f"<tr{filter_attrs(e)}>", "", ""
         calc = ""                                                # calculation time: in hits_log.csv only
     return (
         lead +
@@ -1082,6 +1086,127 @@ def info_html(info):
     return '<dl class="info">' + "".join(f"<dt>{esc(k)}</dt><dd>{esc(v)}</dd>" for k, v in info) + "</dl>"
 
 
+# ------------------------------------------------------------------------------------------- the filter bar
+# Every row carries its values as data-f* attributes (filter_attrs); the bar hides the rows that do not pass and
+# counts the rest. Named filter sets are shared by all report pages (Results, Favorites, Planets & Moons): kept by the
+# GUI (/api/filters, gui_state.json) when it serves the page, else in the browser (localStorage). The current filter
+# of each page is remembered in the browser and applied again when the page loads.
+FILTER_FLAGS = (("sup", "⚑ supplement star"), ("unc", "uncertain star"), ("dbl", "⚠ close/double star"),
+                ("twi", "☼ twilight"), ("hz", "⛰ horizon"), ("est", "size est."))
+
+
+def event_key(target_id, utc):
+    """An event's key in the pages and exports: 'target|YYYY-MM-DDTHH:MM:SS' (the CSV downloads keep the rows the
+    page shows, exports.only_shown)."""
+    return f"{str(target_id).strip()}|{str(utc).strip()[:19]}"
+
+
+def filter_attrs(e):
+    """The row's filter values: star mag, duration (s), drop, star and Sun altitude, RUWE, chance (%), flags."""
+    from pysyzygos import binaries
+    flags = [k for k, ok in (
+        ("sup", bool(e.get("sflag"))), ("unc", bool(star_uncertain(e) or star_noted(e))), ("dbl", bool(e.get("dhint"))),
+        ("twi", bool(twilight_text(e.get("sun")))), ("hz", (e.get("hz") or ("",))[0] in ("behind", "near")),
+        ("est", not e.get("body") and size_estimated(e)),
+        ("moon", not e.get("body") and bool(binaries.short(e["tid"])))) if ok]
+    v = lambda x, nd=3: "" if x is None else f"{x:.{nd}f}"
+    dur = e.get("contact_dur") if e.get("body") and e.get("contact_dur") else e.get("dur")
+    chance = None if e.get("p_site") is None else 100.0 * e["p_site"]
+    return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}"'
+            f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
+            f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
+            f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}"')
+
+
+def filter_bar():
+    num = lambda key, label, unit, step, tip: (
+        f'<label title="{esc(tip)}">{label} <input type="number" step="{step}" data-f="{key}">{unit}</label>')
+    hide = "".join(f'<label><input type="checkbox" data-h="{k}">{esc(t)}</label>' for k, t in FILTER_FLAGS)
+    return ('<details class="fbar" id="fbar"><summary>Filter <span id="fcount"></span></summary><div class="frow">'
+            + num("mag", "G ≤", "", "0.1", "faintest star (Gaia G)")
+            + num("dur", "duration ≥", " s", "0.1", "shortest event")
+            + num("drop", "drop ≥", " mag", "0.05", "smallest magnitude drop")
+            + num("alt", "star alt ≥", "°", "1", "lowest star altitude")
+            + num("sun", "Sun ≤", "°", "1", "highest Sun altitude (e.g. -12: no twilight)")
+            + num("ruwe", "RUWE ≤", "", "0.1", "Gaia RUWE (stars without a value pass)")
+            + num("chance", "chance ≥", " %", "1", "chance that the shadow covers the site")
+            + '</div><div class="frow"><span class="flab">hide:</span>' + hide
+            + '<span class="flab">only:</span><label><input type="checkbox" data-o="moon">+moon</label></div>'
+            '<div class="frow"><select id="fset" aria-label="Saved filter sets"></select>'
+            '<button class="mapbtn" id="fsave" type="button">Save as…</button>'
+            '<button class="mapbtn" id="fdel" type="button">Delete</button>'
+            '<button class="mapbtn" id="fclear" type="button">Clear</button>'
+            '<span class="fnote">empty fields and unknown values pass; saved sets are shared by Results and '
+            'Favorites</span></div></details>')
+
+
+FILTER_CSS = """
+.sqlnote{margin:0 0 8px;padding:4px 10px;border-left:3px solid var(--accent);background:var(--card);font-size:.9rem}
+.fbar{margin:0 0 10px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--card)}
+.fbar summary{cursor:pointer;font-weight:600}.fbar.factive summary{color:var(--accent)}
+.frow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0}
+.frow label{white-space:nowrap;font-size:.9rem}.frow input[type=number]{width:5.2em;margin-left:4px}
+.flab{color:var(--muted);font-size:.85rem}.fnote{color:var(--muted);font-size:.8rem}#fcount{font-weight:normal}
+.fbar button{font:inherit;font-size:.85rem;padding:2px 10px;border:1px solid var(--line);border-radius:6px;
+ background:var(--head);color:var(--ink);cursor:pointer}.fbar button:hover{border-color:var(--accent);color:var(--accent)}
+.fbar select{font:inherit;font-size:.85rem}
+"""
+
+FILTER_JS = """<script>
+(function(){var bar=document.getElementById('fbar');if(!bar)return;
+var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
+var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
+var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1};
+function spec(){var s={},h=[],o=[];
+ bar.querySelectorAll('input[data-f]').forEach(function(i){if(i.value!==''&&!isNaN(parseFloat(i.value)))s[i.dataset.f]=parseFloat(i.value);});
+ bar.querySelectorAll('input[data-h]').forEach(function(i){if(i.checked)h.push(i.dataset.h);});
+ bar.querySelectorAll('input[data-o]').forEach(function(i){if(i.checked)o.push(i.dataset.o);});
+ if(h.length)s.hide=h;if(o.length)s.only=o;return s;}
+function setForm(s){s=s||{};
+ bar.querySelectorAll('input[data-f]').forEach(function(i){i.value=(s[i.dataset.f]!==undefined)?s[i.dataset.f]:'';});
+ bar.querySelectorAll('input[data-h]').forEach(function(i){i.checked=(s.hide||[]).indexOf(i.dataset.h)>=0;});
+ bar.querySelectorAll('input[data-o]').forEach(function(i){i.checked=(s.only||[]).indexOf(i.dataset.o)>=0;});}
+function pass(r,s){for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
+  v=parseFloat(v);if(LIM[k]<0?v>s[k]:v<s[k])return false;}
+ var fl=(r.dataset.fflags||'').split(' ');
+ for(var i=0;i<(s.hide||[]).length;i++)if(fl.indexOf(s.hide[i])>=0)return false;
+ for(var j=0;j<(s.only||[]).length;j++)if(fl.indexOf(s.only[j])<0)return false;return true;}
+function apply(){var s=spec(),n=0,act=Object.keys(s).length>0;
+ rows.forEach(function(r){var ok=pass(r,s);r.style.display=ok?'':'none';if(ok)n++;});
+ document.getElementById('fcount').textContent=act?('\\u00b7 showing '+n+' of '+rows.length):'';
+ bar.classList.toggle('factive',act);
+ try{localStorage.setItem(PK,JSON.stringify({spec:s,name:sel.value}));}catch(e){}
+ document.dispatchEvent(new Event('pyofilter'));}
+function fill(cur){while(sel.firstChild)sel.removeChild(sel.firstChild);
+ var o=document.createElement('option');o.value='';o.textContent='\\u2014 saved filters \\u2014';sel.appendChild(o);
+ Object.keys(sets).sort().forEach(function(n){var p=document.createElement('option');p.value=n;p.textContent=n;sel.appendChild(p);});
+ sel.value=(cur&&sets[cur])?cur:'';}
+function local(){try{sets=JSON.parse(localStorage.getItem(SK)||'{}')||{};}catch(e){sets={};}}
+function keepLocal(){try{localStorage.setItem(SK,JSON.stringify(sets));}catch(e){}}
+function load(done){if(!served){local();done();return;}
+ fetch('/api/filters').then(function(r){return r.json();}).then(function(j){sets=j.sets||{};done();})
+ .catch(function(){local();done();});}
+function store(url){if(!served){keepLocal();return;}
+ fetch(url).then(function(r){return r.json();}).then(function(j){if(!j.ok)pyoToast(j.msg,true);})
+ .catch(function(){keepLocal();});}
+bar.querySelectorAll('input').forEach(function(i){i.addEventListener('input',function(){sel.value='';apply();});
+ i.addEventListener('change',function(){sel.value='';apply();});});
+sel.addEventListener('change',function(){if(sel.value&&sets[sel.value])setForm(sets[sel.value]);apply();});
+document.getElementById('fclear').addEventListener('click',function(){setForm({});sel.value='';apply();});
+document.getElementById('fsave').addEventListener('click',function(){var s=spec();
+ if(!Object.keys(s).length){pyoToast('Set a filter first');return;}
+ var n=(prompt('Name of this filter set (shared by Results and Favorites):',sel.value||'')||'').trim();if(!n)return;
+ sets[n]=s;fill(n);store('/api/filters/save?'+new URLSearchParams({name:n,spec:JSON.stringify(s)}));apply();
+ pyoToast('Filter set \\u201c'+n+'\\u201d saved');});
+document.getElementById('fdel').addEventListener('click',function(){var n=sel.value;
+ if(!n){pyoToast('Choose a saved filter set first');return;}if(!confirm('Delete the filter set \\u201c'+n+'\\u201d?'))return;
+ delete sets[n];fill('');store('/api/filters/delete?'+new URLSearchParams({name:n}));apply();});
+var last={};try{last=JSON.parse(localStorage.getItem(PK)||'{}')||{};}catch(e){}
+setForm(last.spec);apply();if(last.spec&&Object.keys(last.spec).length)bar.open=true;
+load(function(){fill(last.name);});})();
+</script>"""
+
+
 def to_html(events, meta):
     on = lambda key: ' sorted-asc' if meta.get("sort", "date") == key else ""
     fav = meta.get("favorites")
@@ -1115,7 +1240,7 @@ def to_html(events, meta):
         body = "".join(html_row_body(e) for e in events)
     else:
         body = "".join(html_row(e) for e in events)
-    table = (f'<div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+    table = (filter_bar() + f'<div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
              if events else '<div class="wrap"><div class="empty">No events match.</div></div>')
     if fav:
         opts = "".join(f"<option>{esc(x)}</option>" for x in meta.get("statuses", ()))
@@ -1135,11 +1260,11 @@ def to_html(events, meta):
     paths = meta.get("paths") or {}
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{esc(meta['title'])}</title><style>{CSS}{MAP_CSS if paths or n_prev else ''}</style>{LEAFLET_TAGS if paths else ''}</head>
+<title>{esc(meta['title'])}</title><style>{CSS}{FILTER_CSS}{MAP_CSS if paths or n_prev else ''}</style>{LEAFLET_TAGS if paths else ''}</head>
 <body><main>
 <h1>{esc(meta['title'])}</h1>
 <p class="sub">{len(events)} events{esc(meta['span'])} · {esc(meta['observer'])} · times in UT · generated {esc(meta['generated'])} · {n_kml} map file{'s' if n_kml != 1 else ''}</p>
-{info_html(meta.get("info"))}
+{info_html(meta.get("info"))}{f'<p class="sqlnote">{esc(meta["sql"])}</p>' if meta.get("sql") else ''}
 {table}
 <ul class="notes">
 <li>Star magnitude is Gaia G. The drop assumes the star is fully covered and ignores the star's angular size and diffraction, so bright stars and very small bodies can show a smaller real drop.</li>
@@ -1151,7 +1276,7 @@ def to_html(events, meta):
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
-</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
+</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
 
@@ -1214,6 +1339,10 @@ def main(argv=None):
     ap.add_argument("--layout", choices=["auto", "asteroids", "bodies"], default="auto",
                     help="table layout: asteroids, or planets & moons with contact times (auto: bodies if all are)")
     ap.add_argument("--no-embed", action="store_true", help="do not embed the KML paths and map viewer in the HTML page")
+    ap.add_argument("--where", help="only events matching this SQL condition on the results database's view hits, e.g. "
+                                    "\"mag < 11 AND chance > 30\" (columns: pysyzygos.db HITS; GUI Results: SQL filter)")
+    ap.add_argument("--db", help="results database for --where (default: config results_db next to the CSV)")
+    ap.add_argument("--list", default="main", help="results list for --where: main (default) or bodies")
     ap.add_argument("--tile-url", default=U.URL_OSM_TILES,
                     help="tile URL template for the embedded map (default: OpenStreetMap, fine for light personal use)")
     a = ap.parse_args(argv)
@@ -1243,6 +1372,24 @@ def main(argv=None):
             bad += 1
             print(f"skipping unreadable row ({ex!r}): {r.get('target_id', '?')} {r.get('best_utc', '?')}", file=sys.stderr)
     events = dedupe(events)
+    n_all, sql_note = len(events), ""
+    if a.where:                                          # only the events the condition selects (read-only query)
+        from pysyzygos import db
+        path = a.db
+        if not path:
+            try:
+                from pysyzygos import config as cfg
+                path = getattr(cfg, "results_db", db.DEFAULT)
+            except Exception:
+                path = db.DEFAULT
+            path = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.abspath(a.csv)), path)
+        try:
+            keys = {(t.strip(), u[:19]) for t, u in db.where_keys(path, a.where, a.list)}
+        except ValueError as ex:
+            sys.exit(f"SQL filter not usable: {ex}")
+        events = [e for e in events if (e["tid"], e["utc"][:19]) in keys]
+        sql_note = f"SQL filter: {a.where} ({len(events)} of {n_all} events)"
+        print(sql_note)
     if a.max_miss is not None:
         events = [e for e in events if e["miss"] is not None and e["miss"] <= a.max_miss]
     if a.min_drop is not None:
@@ -1276,7 +1423,7 @@ def main(argv=None):
                                                      else "asteroids")
     a.title = a.title or ("PySyzygos planet and moon occultations" if layout == "bodies"
                           else "PySyzygos asteroid occultation events")
-    meta = dict(title=a.title, layout=layout, span=span, sort=a.sort, info=header_info(run, lat, lon), observer=observer, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    meta = dict(title=a.title, layout=layout, span=span, sort=a.sort, sql=sql_note, info=header_info(run, lat, lon), observer=observer, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 paths=paths, tiles=a.tile_url, obs=[lat, lon] if lat is not None and lon is not None else None,
                 site=dict(lat=lat, lon=lon, ele=(run or {}).get("site", {}).get("ele", 0.0))
                 if lat is not None and lon is not None else None)

@@ -56,7 +56,7 @@ def panel(pg):
             ui.button("Rebuild report", on_click=lambda: pg.build_bodies_report()).props("outline")
             ui.link("Open in a new tab", "/out/bodies_report.html", new_tab=True).classes("self-center")
             ui.button("CSV", on_click=lambda: pg.bodies_csv()).props("outline dense").tooltip(
-                "Download these events with disappearance and reappearance times."
+                "Download the events the table shows (its filter and sort order), with disappearance and reappearance times."
                 " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added)")
         ui.label("Disappearance (D) and reappearance (R) at your site, from JPL Horizons positions (a small "
                  "kernel per window). The results are their own list (bodies_log.csv), apart from the asteroid "
@@ -102,10 +102,15 @@ def handlers(pg):
         pg.b_frame.props(f"src=/out/bodies_report.html?t={int(time.time())}")
     pg.build_bodies_report = build_bodies_report
 
-    def bodies_csv():
+    async def bodies_csv():
         path = os.path.join(ROOT, "bodies_log.csv")
         if not os.path.isfile(path):
             ui.notify("No planet or moon events yet", type="warning")
             return
-        pg.download_csv("bodies", exports.results_rows(pg.results_db(), "bodies"), f"bodies_{today_utc()}.csv")
+        keys = await pg.shown_keys(pg.b_frame)
+        shown = exports.only_shown(exports.results_rows(pg.results_db(), "bodies"), keys)
+        if keys is not None and not shown:
+            ui.notify("No events shown (the filter hides them all): nothing to export", type="warning")
+            return
+        pg.download_csv("bodies", shown, f"bodies_{today_utc()}.csv")
     pg.bodies_csv = bodies_csv
