@@ -422,15 +422,17 @@ def main():
 
     @app.get("/api/kstars/show")
     def kstars_show(ra: float, dec: float, utc: str, fov: float = 2.0, lat: float = None, lon: float = None,
-                    ele: float = 0.0):
-        ok, msg = kstars.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"])
+                    ele: float = 0.0, names: str = ""):
+        ok, msg = kstars.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"],
+                              names=[n for n in names.split("|") if n])
         return {"ok": ok, "msg": msg}
 
     @app.get("/api/stellarium/show")
     def stellarium_show(ra: float, dec: float, utc: str, fov: float = 2.0, lat: float = None, lon: float = None,
-                        ele: float = 0.0):
+                        ele: float = 0.0, names: str = ""):
         tz = site_timezone(lat, lon) if KSTARS_OPT["set_location"] and lat is not None and lon is not None else None
-        ok, msg = stellarium.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"], tz=tz)
+        ok, msg = stellarium.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"], tz=tz,
+                                  names=[n for n in names.split("|") if n])
         return {"ok": ok, "msg": msg}
 
     TZ_CACHE = {}

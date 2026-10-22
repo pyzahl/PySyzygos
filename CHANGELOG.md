@@ -4,6 +4,20 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [Unreleased]
+
+### Added
+- **The star marked in Stellarium and KStars**: the report's Stellarium button now also selects the star (by its HIP
+  or Gaia DR3 name, Stellarium's selection marker; the view stays as set). KStars labels it when it knows the star's
+  name, which is only the case for bright stars with a proper or Bayer name. The message says which name was marked.
+  For KStars, a crosshair FOV symbol of your own marks the star at the center of the map (README: "Marking the star
+  in KStars"). Stellarium's first click after a time-zone change no longer lands elsewhere.
+- **Shared pre-screens from several machines**: `prescreen publish` starts its list (`prescreens.json`) from the
+  mirror's current one, so a build published on another machine stays listed; `pysyzygos prescreen merge [lists]
+  --check` combines lists without repacking and checks that every archive is on the mirror.
+- **Sort order remembered**: the Results, Favorites and Planets & Moons tables keep the column you sorted last (and
+  its direction), also after the report is rebuilt or the page reloaded.
+
 ## [1.3.4] "Beyond Horizons" - 2026-10-21
 
 ### Changed

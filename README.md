@@ -1028,7 +1028,10 @@ The 40-day one of 2026-10-01 (G <= 16, with the supplement, 19.3 M events of 461
 compressed. The pick's "auto" uses it like your own. Orbits are those of the build day, so prefer a recent one; the
 search always takes the current orbit from JPL Horizons. Maintainers publish a build with `pysyzygos prescreen publish
 prescreen/<name>.global.npy`: it writes `<name>.tar.xz`, its `.sha256` and the list `prescreens.json` to
-`release/world-prescreens/`; those three files then go to the mirror folder.
+`release/world-prescreens/`; those three files then go to the mirror folder. The list starts from the mirror's current
+one, so builds made on different machines all stay listed. To combine lists afterwards without repacking:
+`pysyzygos prescreen merge [other lists] --check` (the mirror's list plus files, URLs or names of lists on the
+mirror; `--check` confirms every listed archive is there) writes `release/world-prescreens/prescreens.json`.
 
 **Regions.** Named: usa, north-america, central-america, south-america, europe, africa, middle-east, east-asia, japan,
 australia, new-zealand; or `lat_min,lat_max,lon_min,lon_max`. A region is a latitude/longitude box (a rectangle on the
@@ -1168,9 +1171,16 @@ pysyzygos --port 8090 --no-browser
   computed for the right UT. It uses KStars' D-Bus interface (`gdbus` or `dbus-send`,
   both standard on Linux desktops). Elsewhere (macOS, Windows, KStars not running, the report opened as a file) the
   button does not appear.
+  **Marking the star in KStars:** the button puts the star exactly in the center of KStars' sky map. KStars can
+  label a star only when it knows its proper name ("Betelgeuse", "alp Ori"), which occultation stars rarely have, so
+  give the center a marker of its own, once: Settings > FOV Symbols > **New...**, name it e.g. "PySyzygos Pointer",
+  field of view 0.5 x 0.5 arcmin, shape **Crosshairs**, a bright color, **OK**, then tick it in the list. KStars
+  then draws the crosshair at the center, so on the star after every click (with your camera's FOV symbol next to it
+  if you have one).
   A **Stellarium** button (any system) does the same in Stellarium: the event time with the clock stopped, the
   view on the star and the field; with the checkbox "KStars/Stellarium: set its location to the event site" also
-  the site. The button is always shown when the GUI serves the report; a click tries and says if Stellarium did
+  the site and its time zone. It also selects the star (Stellarium's selection marker) by its HIP number or Gaia DR3
+  id, when Stellarium's installed star catalogs reach the star; otherwise the view is still centered on it. The button is always shown when the GUI serves the report; a click tries and says if Stellarium did
   not answer. Also `pysyzygos stellarium <ra> <dec> <utc> [fov]`.
   **Stellarium setup (once):** the pointing uses Stellarium's **Remote Control** plugin.
   1. Configuration (F2) > Plugins > **Remote Control**: tick **Load at startup**, then restart Stellarium.

@@ -57,6 +57,27 @@ calls.clear()
 ok, msg = K.show(80.0, 31.0, "2026-10-19T00:27:34", 2.0, lat=40.001, lon=-74.0, ele=30)   # already there
 assert ok and "setGPSLocation" not in methods() and "; " not in msg, msg
 
+# labelling the star: only names KStars knows (proper / Bayer names; here 'alp Ori'); the last label is removed
+def run_names(cmd, **kw):
+    calls.append(cmd)
+    if "org.kde.kstars.location" in cmd:
+        return R(fake_loc)
+    if "org.kde.kstars.getObjectDataXML" in cmd:
+        known = cmd[-1] == "alp Ori"
+        return R("('<?xml version=\"1.0\"?><object><Name>Betelgeuse</Name></object>',)" if known else "('<xml></xml>',)")
+    return R("()")
+K.subprocess.run = run_names
+K.LABEL.clear()
+calls.clear()
+ok, msg = K.show(88.8, 7.4, "2026-10-19T00:27:34", 1.0, names=["HIP 27989", "alp Ori"])
+by = {c[c.index("--method") + 1].rsplit(".", 1)[1]: c for c in calls}
+assert ok and "alp Ori labelled" in msg and args("addLabel") == ["alp Ori"], msg
+calls.clear()
+ok, msg = K.show(88.8, 7.4, "2026-10-19T00:27:34", 1.0, names=["Gaia DR3 1"])
+by = {c[c.index("--method") + 1].rsplit(".", 1)[1]: c for c in calls}
+assert ok and "no name KStars knows" in msg and args("removeLabel") == ["alp Ori"] and "addLabel" not in by, msg
+assert K.LABEL == {}
+
 # never raises: other systems, no tool, bad data
 K.sys.platform = "darwin"
 assert K.show(1, 2, "2026-10-19T00:00:00") == (False, "KStars control works on Linux only")

@@ -111,6 +111,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   "Download shared" (`prescreen_shared`). tests/test_prescreen_share.py. Verified 2026-10-19: global__2026-10-01_40d_G16
   (1.57 GB tar.xz) from the BNL mirror on Linux (identical files) and macOS (interrupted download resumed; pick
   "auto" used it at a newly added site, then search).
+  Several build machines (2026-10-22): `publish(..., remote=None)` merges the mirror's current prescreens.json
+  (`remote_list`) + the share folder's + the new entry (`merge_manifests`: each name once, the later `published`
+  wins; `--no-mirror`); CLI `prescreen merge [lists] [-o] [--check]` (lists: files, URLs, or names on the mirror;
+  `check_archives` = one-byte GET per archive). The mirror's folder cannot be listed anonymously (Nextcloud
+  WebDAV needs login), single files can be read. First use: the 40 d (2026-10-01) + 70 d (2026-10-21) lists merged.
+  Tests: publish(remote=[]) (no network), two-machine case via file:// in test_prescreen_share.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via
@@ -311,6 +317,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - GUI header power button: `quit_dialog` -> `restart_app` (os.execv `python -m pysyzygos gui --port P --no-browser`,
   GUI_ARGS) / `quit_app` (app.shutdown); `_stop_job` first. Report: `alt_cell` + AZ_SWITCH/AZ_JS (checkbox in the
   Altitude header, its clicks do not sort; localStorage az_deg); `sigma_text`, chance column "33 % · 0.6σ", `chance_bar_svg` (favorites panel f_bar).
+  Sort memory (2026-10-22): report JS stores the last sorted column (heading text) + direction per page
+  (localStorage `pyo_sort:<pathname>`: results, favorites, bodies separately) and re-applies it on load (checked in
+  headless Chrome: a rebuilt/reloaded page keeps "Max dur" descending).
 - `pysyzygos/pmcheck.py` (2026-10-19): per event on a 2-parameter star (kind >= 2, config pm_alternatives): VizieR
   ASU UCAC5 (I/340/ucac5: RAgaia/DEgaia within 1", G 0.5) + UCAC4 (I/322A/out: J2000 + own pm to 2016 within 1",
   mag 1.5; EpRA/EpDE, e_RAJ2000/e_DEJ2000 = position errors at the central epoch) -> `estimates` (UCAC5, UCAC4,
@@ -380,6 +389,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `KSTARS_OPT`): move KStars to the site (message names the old place) or keep it (warn if > 50 km). KStars ignores
   the tz passed to setGPSLocation and picks its own (a US Eastern-time site got -6): label only, UT is right. GUI routes `/api/kstars/status|show`; the report's
   hidden `.ksbtn` buttons appear only if the status call succeeds (not from file://). Verified with KStars 3.6.2.
+  Star mark (2026-10-22): buttons send `data-names` (report.`sky_names`: "HIP n|Gaia DR3 id") -> `kstars.mark`:
+  getObjectDataXML (unknown: '<xml></xml>') then addLabel, the previous label removed (`LABEL`). KStars 3.6.2 finds
+  stars by proper/Bayer name only ("alp Ori"), not HIP/HD/SAO/TYC/Gaia numbers: most occultation stars stay unlabelled
+  (message says so). No D-Bus call selects by position (checked the whole interface). The user's solution: a custom
+  FOV symbol (Settings > FOV Symbols: "PySyzygos Pointer", 0.5'x0.5', Crosshairs) marks the map center, where the
+  star always is (README "Marking the star in KStars"; the no-name message points to it). popupMessage is not in
+  exportImage (unverified on screen).
 - `pysyzygos/exports.py` (2026-10-08): GUI CSV downloads. Columns from `csv_exports.py` in HOME (template
   `templates/csv_exports.py`, copied at first use; user EXPORTS dict per table over the template's): lists of
   (heading, source), source = shown name | "raw:<field>" | "*" | f(shown, raw). Shown values = the tables' text
@@ -392,6 +408,18 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   site's IANA zone (GUI `site_timezone`: favorites' site tz, else geo.timezone, cached; verified live) -> main/time (time = JD
   UT, timerate=0) -> main/view (j2000=[x,y,z]) -> main/fov. Never raises. GUI route `/api/stellarium/show`; report
   `.stbtn` shown whenever served over http (no status check: blind try, toast). Verified with a running Stellarium.
+  Star mark (2026-10-22): `stellarium.mark(names)` = main/focus target=<name> mode=mark (answers "true"/"false"; the
+  selection marker, view unchanged), first known name wins; none: main/focus without parameters clears the selection.
+  Verified live: "HIP 24973" and "Gaia DR3 3383655504436521856" (G 9.8) found, TYC names not. show() clears the
+  selection before main/view (a selected, tracked star pulls the view back: "several clicks to get there"); mark()
+  asks again for up to 2 s (deeper catalogs load only for the region in view once drawn). View/fov are reported at
+  the target at once and stay there through a location change (checked). Stellarium applies a new time/location at
+  its next DRAWN frame; idle it drew 0.02-1 frames/s here (screenshots via scripts/direct core.screenshot, saved to
+  ~/Pictures/Stellarium), so a view set before that frame could land elsewhere (user: first click at the Pleiades,
+  second right; not reproduced on demand): mark() re-sets the view before each retry (up to 3.5 s) and show() sets
+  it once more 0.5 s after marking. The user found the trigger: a time-zone change (another site's zone). show() now
+  sets StelCore.currentTimeZone only when it differs (`current_time_zone`, GET stelproperty/list) and then sends the
+  event time again after 1 s (tests/test_stellarium.py covers both).
 - `pysyzygos/favorites.py`: favorites in `favorites/` (private, gitignored): `favorites.json` (entry = hits_log record,
   site and run context from the run summary, status, note) and `favorites/<target>_<YYYYMMDDTHHMM>/` with copies of
   KML and preview SVG. Report: hidden `.favbtn` stars, shown only via the GUI (`/api/favorites/keys|add`; add looks

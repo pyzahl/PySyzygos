@@ -77,11 +77,35 @@ def _tz_hours():
         return 0.0
 
 
-def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_location=True, warn_km=50.0):
+LABEL = {}                     # the star labelled last ("name"): its label is removed before the next one is set
+
+
+def mark(names):
+    """Label the star in KStars by the first of its names KStars knows (getObjectDataXML answers '<xml></xml>' for an
+    unknown name; addLabel puts the name next to the star). KStars finds stars by proper or Bayer name only (checked
+    with KStars 3.6.2: not by HIP, HD, SAO, TYC or Gaia numbers), so most occultation stars stay unlabelled. The
+    previous label is removed. Returns the name labelled, or None."""
+    found = None
+    for n in names or ():
+        ok, out = _call("getObjectDataXML", ("s", n))
+        if ok and "<object" in out:
+            found = n
+            break
+    if LABEL.get("name") and LABEL["name"] != found:
+        _call("removeLabel", ("s", LABEL["name"]))
+        LABEL.pop("name", None)
+    if found:
+        _call("addLabel", ("s", found))
+        LABEL["name"] = found
+    return found
+
+
+def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_location=True, warn_km=50.0, names=()):
     """Centre KStars on (ra, dec) (J2000 degrees) at the UTC time utc (ISO), field fov_deg. With the site lat/lon:
     set_location moves KStars' location there (if it is more than 1 km away; the message says from where), else
     KStars keeps its location and the message warns if that is more than warn_km from the site (horizon and
-    altitudes are then for that place). Returns (ok, message); never raises."""
+    altitudes are then for that place). names: the star's names (report.sky_names), labelled if KStars knows one.
+    Returns (ok, message); never raises."""
     ok, why = available()
     if not ok:
         return False, why
@@ -121,6 +145,10 @@ def show(ra_deg, dec_deg, utc, fov_deg=2.0, lat=None, lon=None, ele=0.0, set_loc
         ok, out = _call(method, *args)
         if not ok:
             return False, f"KStars {method} failed: {out[:200]}"
+    if names:
+        marked = mark(names)
+        note += (f"; {marked} labelled" if marked else
+                 "; the star has no name KStars knows: it is at the center (a crosshair FOV symbol marks it, README)")
     return True, f"KStars: {t:%Y-%m-%d %H:%M:%S} UT, RA {ra_deg:.4f} Dec {dec_deg:+.4f}, field {fov_deg:.2f} deg{note}"
 
 

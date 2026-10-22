@@ -29,7 +29,7 @@ a = make("global__2026-10-01_40d_G16", "2026-10-01", "2026-10-19T22:25:43")
 b = make("global__2026-11-01_40d_G16", "2026-11-01", "2026-11-01T10:00:00")
 share = os.path.abspath("share")
 quiet = lambda *x: None
-e = PS.publish(a, share, log=quiet)
+e = PS.publish(a, share, log=quiet, remote=[])
 assert [f["name"] for f in e["files"]] == [os.path.basename(a), os.path.basename(PS._idx_path(a)),
                                            os.path.basename(PS._meta_path(a))]               # meta last
 assert e["catalog"] == dict(folder="gaia_dr3_g16.new", format=2, build_id="abc123", gmax=16.0, pm_epoch="2026-10-17",
@@ -39,8 +39,8 @@ assert e["archive"] == "global__2026-10-01_40d_G16.tar.xz" and os.path.getsize(a
 assert open(arch + ".sha256").read() == f"{e['archive_sha256']}  {e['archive']}\n"
 import tarfile
 assert sorted(tarfile.open(arch).getnames()) == sorted(f["name"] for f in e["files"])          # no folder part
-PS.publish(b, share, log=quiet)
-PS.publish(a, share, log=quiet)                                    # again: replaces its entry, no duplicate
+PS.publish(b, share, log=quiet, remote=[])
+PS.publish(a, share, log=quiet, remote=[])                         # again: replaces its entry, no duplicate
 man = json.load(open(os.path.join(share, PS.MANIFEST)))
 assert [x["name"] for x in man["prescreens"]] == ["global__2026-10-01_40d_G16", "global__2026-11-01_40d_G16"]
 
@@ -73,7 +73,7 @@ except SystemExit as ex:
     assert "SHA-256 mismatch" in str(ex)
 assert PS.list_files(dest2) == [] and not [f for f in os.listdir(dest2) if f.endswith(".part")]
 # an extra member (e.g. '../evil') in an archive is never written: only the listed files are unpacked
-PS.publish(a, share, log=quiet)                                    # a good archive again
+PS.publish(a, share, log=quiet, remote=[])                         # a good archive again
 with tarfile.open(x, "r:xz") as t0:
     members = [(m_, t0.extractfile(m_).read()) for m_ in t0.getmembers()]
 import io
@@ -97,8 +97,26 @@ try:
 except SystemExit as ex:
     assert "global__2026-10-01_40d_G16" in str(ex)
 try:
-    PS.publish("prescreen/region.db", share, log=quiet)
+    PS.publish("prescreen/region.db", share, log=quiet, remote=[])
     raise AssertionError("region pre-screen published")
 except SystemExit:
     pass
+# builds on two machines: machine B's publish starts from the mirror's list, so A's entry stays listed
+mirror_a = tempfile.mkdtemp()
+PS.publish(a, mirror_a, log=quiet, remote=[])                        # machine A: the 40-day one, on the mirror
+share_b = tempfile.mkdtemp()
+PS.publish(b, share_b, log=quiet, remote=["file://" + mirror_a + "/"])   # machine B: the 70-day one
+names = [x["name"] for x in json.load(open(os.path.join(share_b, PS.MANIFEST)))["prescreens"]]
+assert names == ["global__2026-10-01_40d_G16", "global__2026-11-01_40d_G16"], names
+# merge without repacking: two separate lists into one; a name listed twice: the later publication wins
+only_b = dict(prescreens=[dict(name="x", start="2026-11-01", published="2026-10-22T10:00:00", archive="x.tar.xz"),
+                          dict(name="y", start="2026-10-01", published="2026-10-20T10:00:00", archive="y.tar.xz")])
+only_a = dict(prescreens=[dict(name="y", start="2026-10-01", published="2026-10-21T10:00:00", archive="y.tar.xz")])
+m = PS.merge_manifests([only_b, None, only_a])
+assert [x["name"] for x in m["prescreens"]] == ["y", "x"] and m["prescreens"][0]["published"].startswith("2026-10-21")
+assert m["updated"] == "2026-10-22T10:00:00"
+PS.write_manifest(m, os.path.join(share_b, "merged.json"))
+assert PS.load_manifest(os.path.join(share_b, "merged.json")) == m and PS.load_manifest("/nonexistent.json") is None
+assert PS.check_archives(m, "file://" + mirror_a + "/", log=quiet) == ["y", "x"]              # neither archive there
+assert PS.check_archives(json.load(open(os.path.join(mirror_a, PS.MANIFEST))), "file://" + mirror_a + "/", log=quiet) == []
 print("PRESCREEN SHARE TESTS PASSED")

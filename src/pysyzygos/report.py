@@ -315,6 +315,16 @@ def star_label(r):
     return (f"UCAC4 {u}" if u else gaia), " · ".join(others)
 
 
+def sky_names(r):
+    """The star's names a planetarium may know, best first, joined by '|' for the KStars/Stellarium buttons: 'HIP n'
+    (catalog part xref), then 'Gaia DR3 <id>' (Stellarium finds both when its star catalogs reach the star; it does
+    not know TYC names). '' without any."""
+    h = str(r.get("star_hip") or "").strip()
+    h = h[:-2] if h.endswith(".0") else h
+    g = str(r.get("star") or "").strip().split(".")[0]
+    return "|".join(x for x in (f"HIP {h}" if h else "", f"Gaia DR3 {g}" if g.isdigit() else "") if x)
+
+
 def build_event(r, lat, lon, kml_dir, out_dir):
     when = parse_utc(r["best_utc"])
     tid = r["target_id"].strip()
@@ -356,7 +366,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
     return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body, kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
                 contact_dur=num(r.get("duration_s")) if (r.get("d_utc") or "").strip() else None,
-                star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1],
+                star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1], sky_names=sky_names(r),
                 hz=(str(r.get("horizon_flag") or "").strip(), num(r.get("horizon_alt")), num(r.get("horizon_sep_deg"))),
                 mag=mag, drop=drop, dur=dur, alt=alt,
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
@@ -500,10 +510,15 @@ span.sizeest{color:#3730a3;background:#e0e7ff;font-weight:600;font-size:75%;padd
 """
 
 JS = """
+// sortable columns; the last sort of each page (results, favorites, planets and moons) is kept in the browser and
+// applied again when the page loads (a rebuilt report keeps its order)
+var SORTKEY='pyo_sort:'+location.pathname;
+function thKey(th){return th.textContent.replace(/\\s+/g,' ').trim();}
 document.querySelectorAll('th[data-k]').forEach(function(th){
   th.addEventListener('click',function(){
     var tb=th.closest('table').tBodies[0],i=th.cellIndex,rows=Array.from(tb.rows),
         dir=th.classList.contains('sorted-asc')?-1:1;
+    try{localStorage.setItem(SORTKEY,JSON.stringify({k:thKey(th),d:dir}));}catch(e){}
     th.closest('tr').querySelectorAll('th').forEach(function(h){h.classList.remove('sorted-asc','sorted-desc')});
     th.classList.add(dir===1?'sorted-asc':'sorted-desc');
     rows.sort(function(a,b){
@@ -512,6 +527,9 @@ document.querySelectorAll('th[data-k]').forEach(function(th){
     rows.forEach(function(r){tb.appendChild(r)});
   });
 });
+(function(){try{var s=JSON.parse(localStorage.getItem(SORTKEY)||'null');if(!s)return;
+ var th=Array.from(document.querySelectorAll('th[data-k]')).find(function(h){return thKey(h)===s.k;});if(!th)return;
+ th.classList.remove('sorted-asc','sorted-desc');th.click();if(s.d===-1)th.click();}catch(e){}})();
 """
 
 
@@ -623,6 +641,7 @@ KSTARS_JS = """<script>
 fetch('/api/kstars/status').then(function(r){return r.json();}).then(function(j){if(!j.ok)return;
  bs.forEach(function(b){b.hidden=false;b.addEventListener('click',function(){
   var q=new URLSearchParams({ra:b.dataset.ra,dec:b.dataset.dec,utc:b.dataset.utc,fov:b.dataset.fov});
+  if(b.dataset.names)q.set('names',b.dataset.names);
   var st=b.dataset.lat?{lat:b.dataset.lat,lon:b.dataset.lon,ele:b.dataset.ele}:site;
   if(st){q.set('lat',st.lat);q.set('lon',st.lon);q.set('ele',st.ele||0);}
   b.textContent='KStars …';
@@ -633,6 +652,7 @@ fetch('/api/kstars/status').then(function(r){return r.json();}).then(function(j)
 (function(){var site=__SITE__,bs=document.querySelectorAll('.stbtn');if(!bs.length||location.protocol==='file:')return;
  bs.forEach(function(b){b.hidden=false;b.addEventListener('click',function(){
   var q=new URLSearchParams({ra:b.dataset.ra,dec:b.dataset.dec,utc:b.dataset.utc,fov:b.dataset.fov});
+  if(b.dataset.names)q.set('names',b.dataset.names);
   var st=b.dataset.lat?{lat:b.dataset.lat,lon:b.dataset.lon,ele:b.dataset.ele}:site;
   if(st){q.set('lat',st.lat);q.set('lon',st.lon);q.set('ele',st.ele||0);}
   b.textContent='Stellarium …';
@@ -754,13 +774,14 @@ def map_cell(e):
     site = e.get("site") or {}                                   # favorites: each row has its own site
     ks_site = (f'data-lat="{site["lat"]}" data-lon="{site["lon"]}" data-ele="{site.get("ele") or 0}" '
                if site.get("lat") is not None and site.get("lon") is not None else "")
+    names = f'data-names="{esc(e.get("sky_names") or "")}" ' if e.get("sky_names") else ""
     ks = fav + (f'<button class="mapbtn ksbtn" type="button" hidden data-ra="{e["ra"]:.7f}" data-dec="{e["dec"]:.7f}" '
-          f'data-utc="{esc(e["utc"])}" data-fov="{e["fov"]:.3f}" {ks_site}title="Point KStars at the star at the event '
+          f'data-utc="{esc(e["utc"])}" data-fov="{e["fov"]:.3f}" {ks_site}{names}title="Point KStars at the star at the event '
           f'time, seen from the site (Linux, KStars running, report opened from the GUI)">KStars</button> '
           if e.get("ra") is not None and e.get("dec") is not None else "")
     if e.get("ra") is not None and e.get("dec") is not None:     # shown whenever the GUI serves the page (blind try)
         ks += (f'<button class="mapbtn stbtn" type="button" hidden data-ra="{e["ra"]:.7f}" data-dec="{e["dec"]:.7f}" '
-               f'data-utc="{esc(e["utc"])}" data-fov="{e["fov"]:.3f}" {ks_site}title="Point Stellarium at the star at '
+               f'data-utc="{esc(e["utc"])}" data-fov="{e["fov"]:.3f}" {ks_site}{names}title="Point Stellarium at the star at '
                f'the event time (Stellarium running with its Remote Control plugin on port 8090; report opened from '
                f'the GUI)">Stellarium</button> ')
     if not e["kml"] and not e.get("preview") and not e.get("globe"):

@@ -877,10 +877,12 @@ def catalog_info(name):
     return out
 
 
-def publish(path, dest=SHARE_DIR, log=print):
+def publish(path, dest=SHARE_DIR, log=print, remote=None):
     """Pack a global pre-screen for the mirror: <name>.tar.xz (events, index, meta) + <name>.tar.xz.sha256 in the share
     folder, and its entry in the folder's prescreens.json (settings, catalog, the archive's and each file's size and
-    SHA-256; replaces an entry of the same name). Upload those to the mirror's pre-screen folder (world-prescreens/). Returns the entry."""
+    SHA-256; replaces an entry of the same name). The list starts from the share folder's and the mirror's current
+    one (remote: mirror folders, default mirrors(); [] for none), so a pre-screen built on another machine keeps its
+    entry. Upload those to the mirror's pre-screen folder (world-prescreens/). Returns the entry."""
     if not is_global(path):
         sys.exit("only global (whole-Earth) pre-screens are shared: a region one is cut from them in seconds")
     m = read_meta(path)
@@ -903,20 +905,69 @@ def publish(path, dest=SHARE_DIR, log=print):
     entry.update(name=name, kind="global", catalog=catalog_info(m.get("catalog", "")), archive=archive,
                  archive_bytes=os.path.getsize(out), archive_sha256=sha, files=files, published=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()), published_with=__version__)
     mp = os.path.join(dest, MANIFEST)
-    try:
-        with open(mp) as f:
-            man = json.load(f)
-    except (OSError, ValueError):
-        man = dict(format=1, about="PySyzygos shared pre-screens: pysyzygos prescreen remote / fetch", prescreens=[])
-    man["prescreens"] = sorted([e for e in man["prescreens"] if e.get("name") != name] + [entry],
-                               key=lambda e: (e.get("start") or "", e["name"]))
-    man["updated"] = entry["published"]
-    with open(mp + ".tmp", "w") as f:
-        json.dump(man, f, indent=1)
-    os.replace(mp + ".tmp", mp)
-    log(f"{mp}: {len(man['prescreens'])} pre-screen(s). Upload {archive}, {archive}.sha256 and {MANIFEST} to the "
-        f"mirror's pre-screen folder (urls.URL_PRESCREEN_MIRRORS)")
+    local = load_manifest(mp)
+    m, there = remote_list(remote, log=lambda *a: None)
+    if there is None:
+        log(f"   no mirror answered: the list is this folder's only ({len((local or {}).get('prescreens', []))} "
+            f"other pre-screen(s)); merge it with the mirror's later: pysyzygos prescreen merge")
+    man = merge_manifests([there, local, dict(prescreens=[entry])])
+    write_manifest(man, mp)
+    log(f"{mp}: {len(man['prescreens'])} pre-screen(s) ({', '.join(e['name'] for e in man['prescreens'])}). Upload "
+        f"{archive}, {archive}.sha256 and {MANIFEST} to the mirror's pre-screen folder (urls.URL_PRESCREEN_MIRRORS)")
     return entry
+
+
+def load_manifest(src):
+    """A prescreens.json from a file or a URL (http(s):// or file://), or None if it cannot be read."""
+    try:
+        if "://" in src:
+            return json.loads(_get(src))
+        with open(src) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def merge_manifests(mans):
+    """One list of shared pre-screens from several (None ones skipped): each pre-screen once; listed more than once,
+    the one published last wins (an equal time: the later list). Sorted by start, then name."""
+    by = {}
+    for man in mans:
+        for e in (man or {}).get("prescreens", []):
+            old = by.get(e.get("name"))
+            if old is None or str(e.get("published") or "") >= str(old.get("published") or ""):
+                by[e["name"]] = e
+    items = sorted(by.values(), key=lambda e: (e.get("start") or "", e["name"]))
+    return dict(format=1, about="PySyzygos shared pre-screens: pysyzygos prescreen remote / fetch",
+                updated=max((str(e.get("published") or "") for e in items), default=""), prescreens=items)
+
+
+def write_manifest(man, path):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        json.dump(man, f, indent=1)
+    os.replace(path + ".tmp", path)
+
+
+def check_archives(man, mirror, log=print):
+    """Names of the listed pre-screens whose archive is not on the mirror (a one-byte request each)."""
+    missing = []
+    for e in man.get("prescreens", []):
+        url = mirror + e["archive"]
+        try:
+            if url.startswith("file://"):
+                ok = os.path.isfile(url[len("file://"):])
+            else:
+                import requests
+                r = requests.get(url, headers={"Range": "bytes=0-0"}, timeout=30, stream=True)
+                ok = r.status_code in (200, 206)
+                r.close()
+        except Exception:
+            ok = False
+        log(f"   {e['archive']}: {'on the mirror' if ok else 'MISSING'}")
+        if not ok:
+            missing.append(e["name"])
+    return missing
 
 
 def mirrors():
@@ -1090,12 +1141,44 @@ def main(argv=None):
     pb = sub.add_parser("publish", help="pack a global pre-screen (.tar.xz + .sha256) into the share folder for the mirror")
     pb.add_argument("file", help="a global pre-screen (.global.npy)")
     pb.add_argument("--to", default=SHARE_DIR, help=f"share folder (default {SHARE_DIR})")
+    pb.add_argument("--no-mirror", action="store_true", help="do not start the list from the mirror's current one")
+    mg = sub.add_parser("merge", help="one prescreens.json from the mirror's and other lists (builds on several "
+                                      "machines), without repacking")
+    mg.add_argument("lists", nargs="*", help="more lists: files, URLs, or file names on the mirror (e.g. "
+                                             "prescreens-new.json)")
+    mg.add_argument("-o", "--output", default=os.path.join(SHARE_DIR, MANIFEST), help="the merged list (default "
+                    "%(default)s): upload it to the mirror as " + MANIFEST)
+    mg.add_argument("--no-mirror", action="store_true", help="leave the mirror's current list out")
+    mg.add_argument("--check", action="store_true", help="check that every listed archive is on the mirror")
     sub.add_parser("remote", help="the shared pre-screens on the mirror")
     fe = sub.add_parser("fetch", help="download a shared pre-screen from the mirror into prescreen/")
     fe.add_argument("name", nargs="?", default="latest", help="its name (see remote), default: the latest")
     a = ap.parse_args(argv)
     if a.cmd == "publish":
-        publish(a.file, a.to)
+        publish(a.file, a.to, remote=[] if a.no_mirror else None)
+        return 0
+    if a.cmd == "merge":
+        mirror, there = (None, None) if a.no_mirror else remote_list()
+        srcs = [("mirror " + MANIFEST, there)] if there is not None else []
+        for x in a.lists:
+            src = x if ("://" in x or os.path.exists(x) or not mirror) else mirror + x
+            man = load_manifest(src)
+            if man is None:
+                sys.exit(f"cannot read the list {src}")
+            srcs.append((src, man))
+        if not srcs:
+            sys.exit("nothing to merge (no mirror answered, no lists given)")
+        merged = merge_manifests([m for _, m in srcs])
+        for src, m in srcs:
+            print(f"{src}: {', '.join(e['name'] for e in m.get('prescreens', [])) or '(empty)'}")
+        write_manifest(merged, a.output)
+        print(f"{a.output}: {len(merged['prescreens'])} pre-screen(s): "
+              f"{', '.join(e['name'] for e in merged['prescreens'])}. Upload it to the mirror as {MANIFEST}.")
+        if a.check and mirror:
+            missing = check_archives(merged, mirror)
+            if missing:
+                print(f"Not on the mirror yet: {', '.join(missing)} (upload their .tar.xz and .tar.xz.sha256)")
+                return 1
         return 0
     if a.cmd == "remote":
         m, man = remote_list()
@@ -1107,8 +1190,8 @@ def main(argv=None):
         for e in man.get("prescreens", []):
             mb = e["archive_bytes"] / 1e6
             print(f"  {e['name']}{'  [installed]' if e['name'] + '.global.npy' in here else ''}\n"
-                  f"    {e['start']} + {e['days']:g} d, whole Earth, for picks up to G {e['cam_limit']:g}, reach "
-                  f"{e['reach_km']:g} km; {e['n_events']} events of {e['n_asteroids']} asteroids, built "
+                  f"    {e['start']} + {e['days']:g} d, whole Earth, for picks up to G {e['cam_limit']:g} (any reach); "
+                  f"{e['n_events']} events of {e['n_asteroids']} asteroids, built "
                   f"{str(e.get('built'))[:10]} ({e.get('version')}), download {mb:.0f} MB")
         return 0
     if a.cmd == "fetch":
