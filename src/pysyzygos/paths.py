@@ -112,13 +112,15 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
         for name, off in offsets.items():
             # start 2 Earth radii out on the star side of the plane and look along -z (the light direction);
             # the first surface intersection is the star-facing side of the Earth
-            shift = np.zeros(3)
+            dtau = 0.0
             try:
-                for _ in range(3):                                      # geocentric light time first, then the point's
-                    vertex = axis_pt + shift + off * n3 + 2.0 * a * z_ax
+                for _ in range(4):                                      # geocentric light time first, then the point's
+                    vertex = axis_pt + v_perp * dtau + off * n3 + 2.0 * a * z_ax
                     point = spice.surfpt(R @ vertex, R @ (-z_ax), *radii.get(name, (a, b, c)))
                     p_j = R.T @ point
-                    shift = v_perp * (dist0 - float(np.linalg.norm(ast0 - p_j))) / C_KM_S
+                    # the distance from the point to the asteroid where the point sees it (dtau further on its
+                    # orbit): with ast0 alone the radial motion during dtau (~0.6 km) was left out, a few cm
+                    dtau = (dist0 - float(np.linalg.norm(ast0 + v_bary * dtau - p_j))) / C_KM_S
             except NotFoundError:
                 continue                                                # this line misses the Earth at this time
             lon, lat, _ = spice.recgeo(point, a, flat)

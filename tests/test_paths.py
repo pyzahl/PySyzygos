@@ -118,12 +118,15 @@ def run_case(label, xi0, eta0, vxi, veta, r=2.0, s3=6.0, expect_empty=False, exp
             R = s.pxform('J2000', 'ITRF93', et)
             p_j2000 = R.T @ geodetic_to_xyz(lon, lat)
             # (1) ground point must lie on the offset shadow axis as that point sees it: its own light time is
-            #     dtau = (|A| - |A - P|)/c shorter than the geocentre's, and in that time the asteroid moves with its
-            #     barycentric velocity (relative + the Earth's), across the star direction
+            #     dtau = (|A| - |A + vb dtau - P|)/c shorter than the geocentre's (the distance to where the point sees
+            #     the asteroid), and in that time the asteroid moves with its barycentric velocity vb (relative + the
+            #     Earth's), across the star direction
             A_ = s.spkpos('4272', et, 'J2000', 'CN', '399')[0]
             P_ = s.pxform('ITRF93', 'J2000', et) @ geodetic_to_xyz(lon, lat)
-            dtau = (np.linalg.norm(A_) - np.linalg.norm(A_ - P_)) / C_KMS
             vb = vxi * x + veta * y + V_EARTH
+            dtau = 0.0
+            for _ in range(5):
+                dtau = (np.linalg.norm(A_) - np.linalg.norm(A_ + vb * dtau - P_)) / C_KMS
             want = np.array([xi0 + vxi*t, eta0 + veta*t]) + off*nrm + dtau * np.array([vb @ x, vb @ y])
             got = np.array([p_j2000 @ x, p_j2000 @ y])
             worst_plane = max(worst_plane, np.linalg.norm(got - want))

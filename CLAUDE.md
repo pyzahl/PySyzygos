@@ -500,6 +500,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `owc_refs/` (private, not in git): stored OWC search results (`<site>_<date>_<filter>.txt`, `--ref` for
   pysyzygos/owc_check.py) with the matching pick runs (`.pick.csv/.log`) and a README of settings and findings. Keep
   adding sets there; never delete them.
+  `owc_refs/occult_paths/consistency/check.py` (2026-10-22): path points (all lines, Phaethon 2019) as sites in
+  search.besselian_offsets -> d = line offset within 1 cm (3.1 mm now); `--old REV`, `--occult`. Run it after
+  changes to paths.py or the solver.
   `owc_refs/event_checks/<asteroid>_<date>_<star>/` (2026-10-19): single published events compared in detail
   (compare.md + OWC event JSON with Besselian elements + our search output); OWC's x/y/dX/dY are in axes of date.
 - `VERIFICATION.md` (2026-10-08): all validation (OWC sets, Occult star positions, internal/geometric checks, what the

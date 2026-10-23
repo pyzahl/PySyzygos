@@ -39,6 +39,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Sort order remembered**: the Results, Favorites and Planets & Moons tables keep the column you sorted last (and
   its direction), also after the report is rebuilt or the page reloaded.
 
+### Fixed
+- **Path lines and the site solve agree to millimeters**: each path point's light time now uses the distance to
+  where that point sees the asteroid (before: where the Earth's centre sees it, up to 5 cm off along the shadow's
+  motion, largest with the star high). Checked on (3200) Phaethon 2019-07-29: path points put into the search's
+  own site solve give 0.3-2.7 mm from the shadow axis (VERIFICATION.md section 4).
+
 ## [1.3.4] "Beyond Horizons" - 2026-10-21
 
 ### Changed
