@@ -28,6 +28,10 @@ hits_report.html
 hits_report.md
 bodies_log.csv
 bodies_report.html
+earth_log.csv
+earth_log.runs.jsonl
+earth_report.html
+observed_report.html
 maps/
 pick_events.csv
 pick_candidates.csv

@@ -30,7 +30,8 @@ os.environ.setdefault("PYSYZYGOS_T0", repr(time.time()))   # when the command st
 COMMANDS = {"gui": "gui", "setup": "setup", "pick": "pick", "search": "search", "report": "report",
             "owc-check": "owc_check", "gaia": "gaia_local", "catalog": "starcat", "planets": "bodies", "picks": "picks", "prescreen": "prescreen", "favorites": "favorites",
             "kstars": "kstars", "stellarium": "stellarium", "run": "runner", "cleanup": "cleanup",
-            "path-check": "pathcheck", "offline": "offline", "info": "sysinfo", "occult-data": "occultdata"}
+            "path-check": "pathcheck", "offline": "offline", "info": "sysinfo", "occult-data": "occultdata",
+            "observed": "observed", "obs-check": "obscheck"}
 SCRIPTS = {"search"}            # not import-safe (sets up SPICE at import): executed as a script
 
 

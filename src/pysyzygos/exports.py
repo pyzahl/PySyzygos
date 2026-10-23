@@ -127,6 +127,8 @@ def results_rows(db_path, lst="main", lat=None, lon=None, sort="mag"):
             pairs.append((R.build_event(r, lat, lon, os.devnull, out_dir), r))
         except (KeyError, ValueError):
             continue
+    if pairs and all(r.get("source") == "Occult archive" for _, r in pairs):
+        return pairs                                         # observed events: each its own (and 17,000: no O(n^2))
     kept = {id(e) for e in R.dedupe([e for e, _ in pairs])}
     pairs = [(e, r) for e, r in pairs if id(e) in kept]
     if sort == "mag":

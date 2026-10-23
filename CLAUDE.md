@@ -420,6 +420,39 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   Files" folder (server date unknown -> listed by check_updates). Favorites panel `f_ocd` (summary + star_text),
   sysinfo `occult_data`, cleanup DOWNLOADS. Reference only; not used by the predictions yet. Redistribution not
   agreed: never ship these files in data/. tests/test_occultdata.py.
+- `pysyzygos/observed.py` (2026-10-23, `pysyzygos observed build|status|show`): Occult's Asteroid~Observations.xml
+  (occultdata "observations"; `_finish` builds it after download) -> occult_data/observations.db (db.py tables,
+  results list "observed", one run with summary kind "observed"; built as .new then os.replace; db.add_event
+  commit=False bulk) + observations_log.csv export. `record(ev)`: our field names (target_id, target_name, best_utc
+  = ReferenceTime, star = Gaia id, star_ra/dec J2000 deg (RA hours x 15), mag = Mg, r_km = nominal dia/2,
+  max_duration_s = longest main-star D..R, star_ruwe/star_flag) + archive fields: fit_* (EllipticFit; quality
+  FIT_QUALITY), geo_x_km/geo_y_km (MainBody: observed centre in the geocentric plane, AXES OF DATE), n_chords,
+  fit_code, conj_x/y_km + conj_utc (MainAtConjunction = geocentric closest approach, confirmed), sat_* (Satellite
+  14 fields, last = CBET; sat_cbet), star_double, n_observers (distinct; an observer appears once per chord),
+  n_positive/n_miss/n_cloud, obs_sites (list: observer, place, lon, lat, alt_m, result), prediction; contacts = each
+  observer's D/R (codes D/R/G/B/d/r). Format doc: occult_data/FileFormat AsteroidObservations.htm. 17,218 events in
+  5 s. Rebuild re-applies obs_check results. db._cell writes lists/dicts as JSON. db.HITS columns chords,
+  observers, fit_quality, cbet, dx_across, dt_along, scope. Report: layout "observed" (`html_row_observed`,
+  `sites_text`), header_info kind observed; archive rows skip dedupe (O(n^2), and it merged 10 real events), KML
+  lookups and alt_az (17k rows: 2 min -> 1.7 s); exports.results_rows likewise. tests/test_observed.py.
+- `pysyzygos/obscheck.py` (2026-10-23, `pysyzygos obs-check run|report`, System tab "Check our predictions" /
+  "Summary"): per observed event with MainBody on a Gaia DR3 star of the local catalog: Horizons SPK per asteroid
+  (span of its events +-2 d; `workers` download threads -> queue -> main thread SPICE; file deleted after use),
+  star by source_id from LOCAL.cone(30"), `predict` = propagate_exact + corrected_star_dir, asteroid 'CN' geocentric
+  at the reference time, plane axes of date (`date_axes`: erfa.pnm06a true pole; precession turns north by ~20"/yr x
+  sin RA / cos Dec), `compare` -> chk_across_km (+ left of motion), chk_along_km/_s, chk_mas. Results
+  occult_data/obs_check.jsonl (resumed by key target|utc|star; SIGTERM = Ctrl-C), `apply_to_db`, `summarize` ->
+  obs_check.md (by fit quality, year, chords, star; largest outliers). Pilot 48 events: medians ~0 (axes right).
+- Search anywhere on Earth (2026-10-23): config `search_scope = "earth"` (GUI Search toggle "Anywhere on Earth":
+  targets from the list, results_list "earth", hits earth_log.csv, max_shadow_dist 0). search.py `EARTH`,
+  `earth_point` (geocentric closest approach over the bracket, shadow touches the WGS84 outline: ellipse A x
+  sqrt(A^2 sin^2 d + C^2 cos^2 d) + r; ground point on the axis at that time, or just inside the outline), then
+  star_test at that ground point; no window_is_observable gate, observable() not rejecting, p_site NaN, no
+  horizon; record scope, ground_lat/lon, geo_utc, geo_miss_km, geo_x/y_km (J2000 axes), central; `site_lle(record)`
+  replaces config LON/LAT/ELE for KML pin, preview, globe, height line. run summary scope; report header_info scope
+  earth. Checked: 15 random observed 2024-26 events all found on the observed star, geo_utc = archive conj_utc to
+  ~1-3 s. GUI Results `SOURCES` (site / earth / observed; `source_files`, `where_key` per source in gui_state
+  sql_where[_src], results_source), routes /out/earth_report.html, /out/observed_report.html.
 - `pysyzygos/globe.py` (0.11.0): whole-Earth view (globe) `maps/<stem>_globe.svg` (written by
   `pysyzygos.write_globe` after the KML; `write_globes`, `globe_style` "color"/"lines"); `globe_data(spice, ...)` +
   pure `render_svg(d)`. Data `data/ne_110m_earth.json` (Natural Earth 110m coast/borders/land, public domain).

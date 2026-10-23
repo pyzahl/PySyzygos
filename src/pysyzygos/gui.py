@@ -493,6 +493,8 @@ def main():
                         strict=False, max_cache_age=0)
     app.add_static_file(local_file=os.path.join(ROOT, "bodies_report.html"), url_path="/out/bodies_report.html",
                         strict=False, max_cache_age=0)
+    for name in ("earth_report.html", "observed_report.html"):        # the Results tab's other sources
+        app.add_static_file(local_file=os.path.join(ROOT, name), url_path=f"/out/{name}", strict=False, max_cache_age=0)
     # always the decimal point: Firefox formats number fields by the page's language (German: "45,12345"), while the
     # values, logs and reports are Python's "45.12345". The page declares English before it is drawn, and every number
     # field carries lang="en" itself (so a browser translation or add-on cannot change it either)

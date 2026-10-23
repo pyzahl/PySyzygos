@@ -89,6 +89,14 @@ HITS = [
     ("hip", "star_hip", "text", "", "Hipparcos number ('' none)"),
     ("tyc", "star_tyc", "text", "", "Tycho-2 number ('' none)"),
     ("ucac4", "star_ucac4", "text", "", "UCAC4 number ('' none)"),
+    # observed events (results list 'observed': the Occult archive, observed.py) and their check (obscheck.py)
+    ("chords", "n_positive", "num", "", "observed: positive chords"),
+    ("observers", "n_observers", "num", "", "observed: observers"),
+    ("fit_quality", "fit_quality", "num", "", "observed: 0 none, 1 astrometry only, 2 size limits, 3 reliable size, 4 better than shape models"),
+    ("cbet", "sat_cbet", "text", "", "observed: CBET number of a satellite found by this occultation ('' none)"),
+    ("dx_across", "chk_across_km", "num", "km", "observed minus predicted, across the track"),
+    ("dt_along", "chk_along_s", "num", "s", "observed minus predicted, along the track, in seconds"),
+    ("scope", "scope", "text", "", "'earth' for a search anywhere on Earth, '' at a site"),
 ]
 
 
@@ -277,8 +285,9 @@ def finish_run(con, run_id, summary):
     con.commit()
 
 
-def add_event(con, run_id, record, kind="asteroid", contacts=()):
-    """Log one event (record: the hit-log fields). contacts: [(label, utc, et, data dict)]. Returns its id."""
+def add_event(con, run_id, record, kind="asteroid", contacts=(), commit=True):
+    """Log one event (record: the hit-log fields). contacts: [(label, utc, et, data dict)]. Returns its id.
+    commit=False: the caller commits (bulk imports)."""
     series = con.execute("SELECT series FROM runs WHERE id=?", (run_id,)).fetchone()[0]
     cur = con.execute("INSERT INTO events (run_id, series, kind, target_id, best_utc, best_et, star, record) "
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -286,7 +295,8 @@ def add_event(con, run_id, record, kind="asteroid", contacts=()):
                        float(record.get("best_et") or 0.0), str(record.get("star", "")), _json(record)))
     for label, utc, et, data in contacts:
         con.execute("INSERT INTO contacts VALUES (?, ?, ?, ?, ?)", (cur.lastrowid, label, utc, et, _json(data or {})))
-    con.commit()
+    if commit:
+        con.commit()
     return cur.lastrowid
 
 
@@ -348,6 +358,8 @@ def _cell(v):
     """A record value as the hit log writes it ('' for None/NaN)."""
     if v is None or (isinstance(v, float) and not math.isfinite(v)):
         return ""
+    if isinstance(v, (list, dict)):                          # e.g. the observers' sites of an archive event
+        return _json(v)
     return str(v)
 
 

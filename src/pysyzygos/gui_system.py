@@ -55,6 +55,13 @@ def panel(pg):
                  "Stored in the data folder's occult_data/.").classes("text-xs text-slate-500")
         pg.occ_box = ui.column().classes("w-full gap-0")
         with ui.row().classes("items-center gap-2"):
+            pg.obs_info = ui.label().classes("text-sm")
+            ui.button("Check our predictions", on_click=lambda: pg.obs_check_run()).props("outline dense").tooltip(
+                "Every observed event of the archive against PySyzygos's prediction for it (today's JPL orbit, the "
+                "search's star corrections): observed minus predicted across and along the track. One JPL Horizons "
+                "request per asteroid, two at a time: a few hours for all; Stop and run again to continue")
+            ui.button("Summary", on_click=lambda: pg.obs_check_show()).props("flat dense")
+        with ui.row().classes("items-center gap-2"):
             ui.button("Check for updates", on_click=lambda: pg.occ_check()).props("outline dense").tooltip(
                 "Compare the installed datasets with the server's (a few small requests); changed ones can then "
                 "be downloaded again")
@@ -253,7 +260,34 @@ def handlers(pg):
                                                           else f"{s['zip']})"))
                 cb = ui.checkbox(label, value=s["installed"]).props("dense")
                 cb.on_value_change(lambda e, k=s["key"]: pg.occ_toggle(k, e.value))
+        from pysyzygos import observed
+        st = observed.status()
+        pg.obs_info.text = ("Observed events: download 'observations' above" if st is None else
+                            f"Observed events: {st['events']} until {st['events_until']} (Results tab, Show: Observed "
+                            f"events)" + (f"; predictions checked {st['checked']}" if st.get("checked") else ""))
     pg.occ_refresh = occ_refresh
+
+    async def obs_check_run():
+        from pysyzygos import observed
+        if observed.status() is None:
+            ui.notify("Download the 'observations' dataset first", type="warning")
+            return
+        await run_process(PYSYZYGOS + ["obs-check", "run"], pg.log)
+        pg.occ_refresh()
+    pg.obs_check_run = obs_check_run
+
+    def obs_check_show():
+        from pysyzygos import obscheck
+        md = obscheck.files()[1]
+        if not os.path.isfile(md):
+            ui.notify("No check yet: 'Check our predictions'", type="warning")
+            return
+        with ui.dialog() as dlg, ui.card().classes("w-[90vw] max-w-6xl"):
+            with ui.scroll_area().classes("h-[75vh] w-full"):
+                ui.markdown(open(md, encoding="utf-8").read()).classes("text-sm")
+            ui.button("Close", on_click=dlg.close).props("flat")
+        dlg.open()
+    pg.obs_check_show = obs_check_show
 
     async def occ_toggle(key, on):
         from pysyzygos import occultdata

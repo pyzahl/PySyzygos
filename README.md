@@ -41,6 +41,8 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Web interface (GUI)](#web-interface-gui)
 - [Planets and moons](#planets-and-moons)
 - [Occult data (optional add-on)](#occult-data-optional-add-on)
+  - [Observed events in the Results tab, and our predictions checked against them](#observed-events-in-the-results-tab-and-our-predictions-checked-against-them)
+- [Searching anywhere on Earth](#searching-anywhere-on-earth)
 - [Report: event list, maps and previews](#report-event-list-maps-and-previews)
 - [GUI step by step, with screenshots](GETTING_STARTED.md) (Getting started: from the install to a first prediction)
 - [Contributing](#contributing)
@@ -487,12 +489,15 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    "Planets and moons" below).
 4. **Search**: the exact prediction for the picked targets (JPL Horizons orbits, local Gaia catalog): event times,
    drops, durations, shadow paths (KML maps) and star-field previews. **Star G limit** (default from your telescope)
-   and the minimum drop apply to this run.
+   and the minimum drop apply to this run. **Where: Anywhere on Earth** finds every event of the listed asteroids
+   whose shadow touches the Earth, by day or night, without a site (see "Searching anywhere on Earth" below).
 5. **Results**: the event list with a **Map** (shadow path with shadow, 1-sigma and 3-sigma limits and your site),
    a **Preview** (star field and camera frame, with a magnifier on the target star for close pairs and companions), a **Globe** (the whole Earth seen from the star with the path and
    minute marks, and the event parameters) and the **KML** for Google Earth for each event; a
    **Stellarium** button that points Stellarium at the event (any system, Remote Control plugin), on Linux with
-   KStars running also a **KStars** button, and a **☆** button that adds the event to your favorites.
+   KStars running also a **KStars** button, and a **☆** button that adds the event to your favorites. **Show**
+   switches the tab between your searches at your sites, your searches anywhere on Earth, and the **observed
+   events** of the IOTA / Occult archive (with the add-on below); the filter bar and the SQL filter work on each.
 6. **Favorites**: the events you starred, from any search and any site, each with its own copy of map and preview
    (later searches do not change them). The table is the Results table (same columns, sorting and tools: KStars,
    Map, Preview, KML) plus a select box, the site, status, note and when it was added. Check rows to set their
@@ -1296,6 +1301,38 @@ the star. With `observations` installed, the earlier occultations come from this
 continuously, instead of the yearly NASA PDS version shipped with PySyzygos. The data are reference information:
 the predictions do not use them yet. **System → Check for updates** compares the installed files with the server.
 `pysyzygos cleanup` removes the folder.
+
+### Observed events in the Results tab, and our predictions checked against them
+
+With `observations` installed, every event of the archive (17,218 in October 2026) is also a results list:
+**Results → Show: Observed events (Occult archive)**. Each row gives the asteroid, the archive's reference time,
+the star (Gaia DR3, flags), the longest chord, positive chords / observers (misses), the quality of the fit, the
+fitted size, a satellite seen in the event with the **CBET** that announced its discovery, and, after the check
+below, **observed minus predicted**. Hovering over the chords lists every observer's site (place, latitude,
+longitude, height, positive or miss); each observer's disappearance and reappearance are kept as the event's
+contacts. The filter bar and the SQL filter work as for your searches, with extra columns: `chords`, `observers`,
+`fit_quality`, `cbet`, `dx_across` (km), `dt_along` (s), e.g. `cbet <> ''` lists the 41 satellites found by
+occultation. Built into `occult_data/observations.db` (same tables as `pysyzygos.db`) when the dataset is
+downloaded; `pysyzygos observed build|status|show <asteroid>`.
+
+**System → Check our predictions** (`pysyzygos obs-check run`) compares every event with an astrometric solution
+(16,605 events of 7,091 asteroids) with PySyzygos's prediction for it: today's JPL Horizons orbit and the star as
+the search takes it (Gaia DR3, proper motion, radial velocity, parallax, light deflection), the asteroid's position
+in the fundamental plane through the geocentre at the archive's reference time, turned to the axes of date as the
+archive gives them. Observed minus predicted, across the track (km) and along it (s), goes into the observed list
+and into a summary (**Summary**, `occult_data/obs_check.md`). One Horizons request per asteroid, two at a time:
+about 1-2 hours for all; Stop and run again to continue (`--since 2020`, `--asteroids 4337,9`, `--limit 100`).
+
+## Searching anywhere on Earth
+
+**Search → Where: Anywhere on Earth** (config `search_scope = "earth"`) finds, for the listed asteroids and the
+window, every event whose shadow touches the Earth: no site, no Sun, altitude or reach limits. The solve is the
+shadow's closest approach to the Earth's centre (the time the archive calls the conjunction); each event is then
+described at its center-line point at that moment (altitudes, Sun, Moon, map pin), with `geo_utc`, `geo_miss_km`
+(distance of the shadow axis from the Earth's centre in the fundamental plane), `ground_lat` / `ground_lon` and
+`central` (the axis itself meets the Earth). Its own results list: **Results → Show: Search results: anywhere on
+Earth**. Checked on 15 observed events of 2024-2026: each found on the observed star, the times as the archive's
+conjunction to a few seconds (the observations' correction of the orbit).
 
 ## Report: event list, maps and previews
 

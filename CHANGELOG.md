@@ -7,6 +7,20 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Observed occultations as a results list**: with the Occult add-on's `observations` dataset, all 17,218
+  events of the IOTA / Occult archive (D. Herald) become a database in PySyzygos's own format
+  (`occult_data/observations.db`, built when downloaded; `pysyzygos observed`). **Results → Show: Observed events**
+  lists them with star, longest chord, chords / observers, fit, fitted size, satellites with the **CBET** that
+  announced them, and every observer's site on hover; filter bar and SQL filter work on them (new columns
+  `chords`, `observers`, `fit_quality`, `cbet`, `dx_across`, `dt_along`).
+- **Our predictions checked against every observed event**: **System → Check our predictions** (`pysyzygos
+  obs-check`) compares the observed position of each asteroid (archive's astrometric solution, 16,605 events) with
+  PySyzygos's prediction for that moment (today's JPL orbit, Gaia DR3 star with the search's corrections), across
+  the track in km and along it in seconds; shown per event (Results, "Obs - pred") and summarised by fit quality,
+  year, chords and star (`obs_check.md`). Resumable; one Horizons request per asteroid.
+- **Search anywhere on Earth**: **Search → Where: Anywhere on Earth** (config `search_scope = "earth"`) finds every
+  event of the listed asteroids whose shadow touches the Earth, without a site or Sun / altitude / reach limits;
+  each described at its center-line point at the closest approach to the Earth's centre; own results list.
 - **Magnifier in the event preview**: a zoom on the target star in the preview's top right corner (10-50″: 3 x the
   nearest neighbour's distance, 30″ without one) shows close pairs and companions clearly. Every catalog star there
   is a sharp core plus a halo of the seeing's size (2″, `preview_seeing_arcsec`): where halos overlap, the stars

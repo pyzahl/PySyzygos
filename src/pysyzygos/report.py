@@ -88,7 +88,22 @@ def header_info(run, lat, lon):
             return []
         return [("Site", f"{abs(lat):.4f}°{'N' if lat >= 0 else 'S'} {abs(lon):.4f}°{'E' if lon >= 0 else 'W'}"
                          " (no run summary found)")]
+    if run.get("kind") == "observed":                           # the Occult archive (observed.py)
+        return [("Source", f"{run.get('source', '')}: {run.get('events', '?')} observed events until "
+                           f"{run.get('events_until', '?')} (archive file of {run.get('file_date', '?')})"),
+                ("Built", f"PySyzygos {run.get('version', '?')}, {run.get('run_utc', '?')} UTC"
+                          + (f"; predictions checked {run['checked']} ({run.get('checked_n', '?')} events, "
+                             f"obs-check)" if run.get("checked") else "; predictions not checked yet (obs-check)"))]
     s, L = run["site"], run["limits"]
+    if run.get("scope") == "earth":                             # a search without a site (search_scope 'earth')
+        return [("Site", "anywhere on Earth: every event whose shadow touches the Earth; each is described at the "
+                         "center line's point at the closest approach to the Earth's center (altitudes, Sun, Moon "
+                         "there)"),
+                ("Limits", f"stars G \u2264 {L['mag_limit']:g}, drop \u2265 {L['min_mag_drop']:g} mag; no Sun, "
+                           f"altitude or reach limits"),
+                ("Run", (f"PySyzygos {run['version']}, " if run.get("version") else "") + f"{run['run_utc']} UT, "
+                        f"{run['window_start'][:10]} + {run['window_days']:g} d, {run['targets']} asteroids, "
+                        f"{run['candidates']} candidates, {run['solves']} exact solves, {run['hits']} hits")]
     ns, ew = ("N" if s["lat"] >= 0 else "S"), ("E" if s["lon"] >= 0 else "W")
     out = [("Site", f"{s['name']}" + (f" ({s['desc']})" if s.get("desc") else "") +
             f": {abs(s['lat']):.4f}°{ns} {abs(s['lon']):.4f}°{ew}, {s['ele']:g} m"
@@ -336,7 +351,8 @@ def build_event(r, lat, lon, kml_dir, out_dir):
         dur = 2 * rad / speed
     alt, az = num(r.get("star_alt")), num(r.get("star_az"))
     ra, dec = num(r.get("star_ra")), num(r.get("star_dec"))
-    if az is None and None not in (ra, dec, lat, lon):
+    archive = (r.get("source") or "") == "Occult archive"       # observed events: no site, no maps of ours
+    if az is None and None not in (ra, dec, lat, lon) and not archive:
         calc_alt, az = alt_az(ra, dec, when, lat, lon)
         alt = calc_alt if alt is None else alt
     moon = None
@@ -345,8 +361,8 @@ def build_event(r, lat, lon, kml_dir, out_dir):
         icon = MOON_ICONS[int(round(age / 45.0)) % 8] if age is not None else "🌙"
         illum = num(r.get("moon_illum_pct"))
         moon = dict(icon=icon, sep=num(r["moon_sep_deg"]), alt=num(r["moon_alt_deg"]), illum=illum)
-    kml_abs = find_kml(kml_dir, tid, when)
-    prev_abs = find_kml(kml_dir, tid, when, "svg")
+    kml_abs = None if archive else find_kml(kml_dir, tid, when)
+    prev_abs = None if archive else find_kml(kml_dir, tid, when, "svg")
     fov = 2.0                                                    # deg; the preview's field when there is one
     if prev_abs:
         try:
@@ -356,7 +372,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
         except OSError:
             pass
     preview = urllib.parse.quote(os.path.relpath(prev_abs, out_dir).replace(os.sep, "/")) if prev_abs else None
-    globe_abs = find_kml(kml_dir, tid, when, "globe")
+    globe_abs = None if archive else find_kml(kml_dir, tid, when, "globe")
     globe = urllib.parse.quote(os.path.relpath(globe_abs, out_dir).replace(os.sep, "/")) if globe_abs else None
     kml = urllib.parse.quote(os.path.relpath(kml_abs, out_dir).replace(os.sep, "/")) if kml_abs else None
     miss, margin = num(r.get("min_distance")), num(r.get("margin_km"))
@@ -382,7 +398,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 p_site=num(r.get("p_site")), sigma1=num(r.get("path_sigma1_km")),
                 ruwe=num(r.get("star_ruwe")) if num(r.get("star_ruwe")) is not None else num(r.get("gaia_ruwe")),
                 sigma_src=(r.get("sigma_source") or "").strip(), ra=ra, dec=dec, fov=fov,
-                globe=globe)
+                globe=globe, rec=r)
 
 
 def dedupe(events, tol=300.0):
@@ -968,6 +984,69 @@ def html_row_body(e):
         f"{shadow_cell(e)}" + chance_cell(e) + f"{map_cell(e)}</tr>")
 
 
+def sites_text(r):
+    """The observers' sites of an archive event (record obs_sites; a JSON string in the CSV), one per line."""
+    s = r.get("obs_sites")
+    if isinstance(s, str):
+        try:
+            s = json.loads(s)
+        except ValueError:
+            return ""
+    lines = []
+    for x in s or []:
+        pos = (f"{abs(x['lat']):.4f}\u00b0{'N' if x['lat'] >= 0 else 'S'} {abs(x['lon']):.4f}\u00b0{'E' if x['lon'] >= 0 else 'W'}"
+               if x.get("lat") is not None and x.get("lon") is not None else "")
+        lines.append(f"{x.get('result', '?')}: {x.get('observer', '')}, {x.get('place', '')} {pos}"
+                     + (f", {x['alt_m']:.0f} m" if x.get("alt_m") is not None else ""))
+    return "\n".join(lines)
+
+
+def html_row_observed(e):
+    """A row of the observed-events layout (the Occult archive, observed.py): date, star, longest chord, chords and
+    observers, fit, fitted size, satellite, and (after obs-check) observed minus predicted."""
+    r = e.get("rec") or {}
+    s = lambda v, nd=3: "" if v is None else f"{v:.{nd}f}"
+    n = lambda k: num(r.get(k))
+    pos, obs, miss = n("n_positive"), n("n_observers"), n("n_miss")
+    maj, mnr = n("fit_major_km"), n("fit_minor_km")
+    q = n("fit_quality")
+    size = f"{maj:.1f} \u00d7 {mnr:.1f}" if maj and mnr else "\u2014"
+    size_tip = esc(f"fitted ellipse {maj:.1f} x {mnr:.1f} km, PA {n('fit_pa_deg') or 0:.0f}\u00b0"
+                   + (" (axes assumed, not fitted)" if n("fit_assumed_size") else "")
+                   + (f"; shape models: {int(n('shape_fits'))}" if n("shape_fits") else "")
+                   + (f", good fits {n('shape_dia_km'):.1f} km" if n("shape_dia_km") else "")
+                   + (f"; catalog diameter {2 * e['rad']:.1f} km" if e["rad"] else "")) if maj and mnr else ""
+    sat = ""
+    if r.get("n_sat") not in (None, "", "0", 0):
+        cb = (r.get("sat_cbet") or "").strip()
+        sat = (f'<span class="badge kind" title="{esc("satellite " + (r.get("sat_name") or "(unnamed)") + ": " + (r.get("sat_fit") or "") + (", separation " + str(r.get("sat_sep_mas")) + " mas" if r.get("sat_sep_mas") else "") + (", diameter " + str(r.get("sat_dia_km")) + " km" if r.get("sat_dia_km") else ""))}">'
+               f'+moon</span>' + (f' <span title="announced in CBET {esc(cb)}">CBET {esc(cb)}</span>' if cb else ""))
+    da, dt = n("chk_across_km"), n("chk_along_s")
+    chk_tip = esc(r.get("chk_note") or "")
+    chk = (f'{da:+.1f} km \u00b7 {dt:+.2f} s' if da is not None and dt is not None else
+           ('<span class="sub">' + esc(r.get("chk_note") or "") + '</span>' if r.get("chk_note") else "\u2014"))
+    obs_tip = esc(sites_text(r) or r.get("observers") or "")
+    star_tip = esc(" \u00b7 ".join(x for x in (f"Gaia DR3 {e['star']}" if e.get("star") else "", r.get("star_catalog") or "",
+                                              r.get("star_flag") or "", r.get("star_double") or "") if x))
+    return (
+        f'<tr{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{esc(r.get("prediction") or "")}">'
+        + (f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>'
+           if str(e["tid"]).isdigit() else esc(e["label"])) + binary_mark(e["tid"]) + '</td>'
+        f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (the archive\'s reference time)">'
+        f'{esc(fmt_time(e["when"]))}</td>'
+        f'<td class="num mag" data-s="{s(e["mag"])}" title="{star_tip}">'
+        + (f'<a href="{esc(VIZIER_GAIA)}{urllib.parse.quote(str(e["star"]))}" target="_blank" rel="noopener">{fmt(e["mag"])}</a>'
+           if e.get("star") else fmt(e["mag"])) + star_mark(e) + '</td>'
+        f'<td class="num" data-s="{s(e["dur"])}" title="longest observed chord">{fmt(e["dur"])}</td>'
+        f'<td class="num" data-s="{s(pos, 0)}" title="{obs_tip}">{int(pos or 0)} / {int(obs or 0)}'
+        + (f' <span class="sub">{int(miss)} miss</span>' if miss else "") + '</td>'
+        f'<td data-s="{s(q, 0)}" title="fit code {esc(r.get("fit_code") or "")}">{esc(r.get("fit_quality_text") or "")}</td>'
+        f'<td class="num" data-s="{s(maj, 1)}" title="{size_tip}">{size}</td>'
+        f'<td data-s="{esc(r.get("sat_cbet") or "")}">{sat}</td>'
+        f'<td class="num" data-s="{s(abs(da) if da is not None else None, 2)}" title="{chk_tip}">{chk}</td>'
+        "</tr>")
+
+
 def html_row(e):
     size = f"D≈{2 * e['rad']:.1f} km" if e["rad"] is not None else ""
     tip_ast = esc(f"{e.get('full') or e['label']}" + (f" · {size}" + (f", {size_source_text(e['size_src'])}" if e['size_src'] else "") if size else ""))
@@ -1274,7 +1353,19 @@ def to_html(events, meta):
                if fav else "")
             + '<th title="☆ favorites and KStars (when opened from the GUI), Map: shadow path, Preview: star field, '
             'KML: ground track for Google Earth">Tools</th>')
-    if meta.get("layout") == "bodies":                           # planets & moons: contact times
+    if meta.get("layout") == "observed":                         # the Occult archive: observed events
+        head = ('<th data-k>Asteroid</th>'
+                f'<th class="{on("date").strip()}" data-k title="The archive\'s reference time, UT">Event time (UT)</th>'
+                f'<th class="num{on("mag")}" data-k title="Gaia G magnitude of the star">Star mag</th>'
+                '<th class="num" data-k title="Longest observed chord, seconds">Max dur (s)</th>'
+                '<th class="num" data-k title="Positive chords / observers (misses)">Chords</th>'
+                '<th data-k title="Quality of the fit to the chords">Fit</th>'
+                '<th class="num" data-k title="Fitted ellipse, km">Size (km)</th>'
+                '<th data-k title="Satellite seen in this event; CBET that announced its discovery">Satellite</th>'
+                '<th class="num" data-k title="Observed minus predicted (PySyzygos, obs-check): across the track in '
+                'km, along the track in seconds">Obs \u2212 pred</th>')
+        body = "".join(html_row_observed(e) for e in events)
+    elif meta.get("layout") == "bodies":                           # planets & moons: contact times
         head = ('<th data-k>Body</th>'
                 f'<th class="{on("date").strip()}" data-k title="Date and disappearance (D) at the site, UT">D (UT)</th>'
                 '<th data-k title="Closest approach of the star to the centre, UT">Closest (UT)</th>'
@@ -1385,7 +1476,7 @@ def main(argv=None):
     ap.add_argument("--sort", choices=("mag", "date"), default="mag",
                     help="row order: mag = brightest star first (default), date = by event time")
     ap.add_argument("--title", help="page title (default: by layout)")
-    ap.add_argument("--layout", choices=["auto", "asteroids", "bodies"], default="auto",
+    ap.add_argument("--layout", choices=["auto", "asteroids", "bodies", "observed"], default="auto",
                     help="table layout: asteroids, or planets & moons with contact times (auto: bodies if all are)")
     ap.add_argument("--no-embed", action="store_true", help="do not embed the KML paths and map viewer in the HTML page")
     ap.add_argument("--where", help="only events matching this SQL condition on the results database's view hits, e.g. "
@@ -1420,7 +1511,8 @@ def main(argv=None):
         except (KeyError, ValueError) as ex:
             bad += 1
             print(f"skipping unreadable row ({ex!r}): {r.get('target_id', '?')} {r.get('best_utc', '?')}", file=sys.stderr)
-    events = dedupe(events)
+    if not (events and all((e["rec"].get("source") or "") == "Occult archive" for e in events)):
+        events = dedupe(events)                          # reruns of a search; archive events are each their own
     n_all, sql_note = len(events), ""
     if a.where:                                          # only the events the condition selects (read-only query)
         from pysyzygos import db
@@ -1470,7 +1562,11 @@ def main(argv=None):
         observer = f"site {run['site']['name']}"
     layout = a.layout if a.layout != "auto" else ("bodies" if events and all(e.get("body") for e in events)
                                                      else "asteroids")
-    a.title = a.title or ("PySyzygos planet and moon occultations" if layout == "bodies"
+    if run and run.get("kind") == "observed":
+        layout = "observed"
+        observer = "observed events (Occult archive)"
+    a.title = a.title or ("Observed asteroid occultations (IOTA / Occult archive)" if layout == "observed" else
+                          "PySyzygos planet and moon occultations" if layout == "bodies"
                           else "PySyzygos asteroid occultation events")
     meta = dict(title=a.title, layout=layout, span=span, sort=a.sort, sql=sql_note, info=header_info(run, lat, lon), observer=observer, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 paths=paths, tiles=a.tile_url, obs=[lat, lon] if lat is not None and lon is not None else None,

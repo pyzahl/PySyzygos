@@ -204,6 +204,9 @@ def _finish(key, d, info, log):
     if key == "observations":
         n = build_observations(d)
         log(f"{key}: {n} asteroids with observed events indexed")
+        from pysyzygos import observed                       # the events themselves: a results database (Results tab)
+        observed.build(os.path.join(d, observed.XML_FILE), os.path.join(d, observed.DB_FILE),
+                       os.path.join(d, observed.CSV_FILE), log=log)
     elif key == "gaia_doubles":
         n = build_doubles_index(d)
         log(f"{key}: {n} entries indexed")
@@ -215,7 +218,10 @@ def _finish(key, d, info, log):
 def remove(key, base=None):
     """Delete a dataset's files (and its derived look-up file). Returns True if something was deleted."""
     d, gone = folder(base), False
-    extra = {"observations": ("observations.json",), "gaia_doubles": ("gaia_doubles.idx.npy",)}.get(key, ())
+    extra = {"observations": ("observations.json", "observations.db", "observations_log.csv",
+                              "observations_log.runs.jsonl", "observations.db-wal", "observations.db-shm",
+                              "obs_check.jsonl", "obs_check.md"),
+             "gaia_doubles": ("gaia_doubles.idx.npy",)}.get(key, ())
     for f in DATASETS[key]["files"] + extra:
         p = os.path.join(d, f)
         if os.path.isfile(p):

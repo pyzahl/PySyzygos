@@ -12,6 +12,7 @@ from pathlib import Path
 
 from scipy.optimize import minimize_scalar
 import spiceypy as spice
+from spiceypy.utils.exceptions import NotFoundError
 from astropy import units as u
 from astropy.time import Time
 from astropy.coordinates import EarthLocation
@@ -1033,7 +1034,8 @@ def write_preview(record, target_id, stem):
             half = int(np.ceil(half / step_s)) * step_s
             # seen from the site (the geocentric track is off by the parallax, arcseconds at this scale)
             from pysyzygos import earth
-            site = spice.georec(math.radians(config.LON), math.radians(config.LAT), config.ELE / 1000.0, earth.A_KM, earth.F)
+            lon_, lat_, ele_ = site_lle(record)
+            site = spice.georec(math.radians(lon_), math.radians(lat_), ele_ / 1000.0, earth.A_KM, earth.F)
             def radec_site(t):
                 v = spice.spkcpo(target_id, t, 'J2000', 'OBSERVER', 'CN', site, '399', 'ITRF93')[0][:3]
                 _, a, d = spice.recrad(v)
@@ -1074,7 +1076,7 @@ def write_globe(record, target_id, stem, star_dir, paths, sigma3, size, corr):
     except Exception:
         pass
     d = globe.globe_data(spice, record, target_id, star_dir, paths, sigma3,
-                         site=(config.LON, config.LAT, config.site.get("name", config.site_name)), stars=stars,
+                         site=(*site_lle(record)[:2], "event point" if EARTH else config.site.get("name", config.site_name)), stars=stars,
                          size=size, run_utc=datetime.fromtimestamp(T_START).strftime("%Y-%m-%dT%H:%M:%S"),
                          corrections=corr, of_date=of_date, style=getattr(config, "globe_style", "color"),
                          page=getattr(config, "globe_page", "A4"))
@@ -1101,7 +1103,7 @@ def save_path_debug(fname, paths, record, target_id, star_dir, sigma3):
              star_dec=float(record["star_dec"]), star_dir=np.asarray(star_dir, float), mag=float(record["mag"]),
              best_utc=np.array(str(record["best_utc"])), best_et=float(record["best_et"]), r_km=float(record["r_km"]),
              sigma3_km=float(sigma3), min_distance_km=float(record["min_distance"]),
-             site=np.array([config.LON, config.LAT, config.ELE], float), version=np.array(__version__),
+             site=np.array(site_lle(record), float), version=np.array(__version__),
              ellipsoid=np.array("WGS84 a=6378.137 km f=1/298.257223563"), height_m=0.0)
 
 
@@ -1109,6 +1111,56 @@ def owc_opt():
     """The chosen site's equipment for screen.owc_limit / extinction_loss (from pysyzygos_config, i.e. sites.py)."""
     return dict(aperture=config.pick_aperture_cm, frames=config.pick_frames, mag_adjust=config.pick_mag_adjust,
                 extinction=config.pick_extinction)
+
+
+EARTH = getattr(config, "search_scope", "site") == "earth"      # search anywhere on Earth (no site, no Sun/altitude limits)
+
+
+def site_lle(record):
+    """(lon, lat, ele_m) the event is described for: the site, or (search anywhere on Earth) the event's own point
+    on the center line at the closest approach to the Earth's center, at height 0."""
+    if EARTH and record.get("ground_lon") is not None:
+        return float(record["ground_lon"]), float(record["ground_lat"]), 0.0
+    return config.LON, config.LAT, config.ELE
+
+
+# Math: FP.1, FP.2 (slide FP): the plane through the geocentre (an observer at the Earth's centre).
+def earth_point(target_id, star_dir, et_guess, bracket_s, r_km):
+    """Search anywhere on Earth: the shadow's closest approach to the Earth's centre (the axis in the fundamental
+    plane through the geocentre, asteroid 'CN' from the geocentre) within et_guess +/- bracket_s/2, and whether any
+    part of the shadow (radius r_km) touches the Earth: the WGS84 ellipsoid's outline on the plane is an ellipse
+    with semi-axes A (x, east) and sqrt(A^2 sin^2 d + C^2 cos^2 d) (y, north; d = the star's declination).
+    Returns None (misses the Earth) or dict(et, x, y, miss (km, plane), lon, lat (deg: the axis point on the ground
+    at et; for a shadow touching only with its edge, the ground point just inside the Earth's outline nearest the
+    axis), central (the axis itself meets the Earth))."""
+    from pysyzygos import earth
+    from pysyzygos.paths import plane_basis
+    x_ax, y_ax, z_ax = plane_basis(star_dir)
+    def xy(dt):
+        v = np.asarray(spice.spkpos(str(target_id), et_guess + dt, 'J2000', 'CN', '399')[0])
+        return np.array([v @ x_ax, v @ y_ax])
+    r = minimize_scalar(lambda dt: float(np.hypot(*xy(dt))), bounds=(-bracket_s / 2, bracket_s / 2), method='bounded',
+                        options={'xatol': 1e-3, 'maxiter': 1000})
+    dt = float(r.x)
+    if min(dt + bracket_s / 2, bracket_s / 2 - dt) < 1.0:             # on the bracket's edge: not a real minimum
+        return None
+    p = xy(dt)
+    a, c = earth.A_KM, earth.C_KM
+    sd = float(star_dir[2]) / float(np.linalg.norm(star_dir))
+    b = math.sqrt(a * a * sd * sd + c * c * (1.0 - sd * sd))
+    if (p[0] / (a + r_km)) ** 2 + (p[1] / (b + r_km)) ** 2 > 1.0:
+        return None
+    k = (p[0] / a) ** 2 + (p[1] / b) ** 2
+    q = p * math.sqrt(0.998 / k) if k > 0.998 else p             # edge only: the nearest point just inside
+    et = et_guess + dt
+    R = spice.pxform('J2000', 'ITRF93', et)
+    try:
+        pt = spice.surfpt(R @ (q[0] * x_ax + q[1] * y_ax + 2.0 * a * z_ax), R @ (-z_ax), a, a, c)
+    except NotFoundError:
+        return None
+    lon, lat, _ = spice.recgeo(pt, a, earth.F)
+    return dict(et=et, x=float(p[0]), y=float(p[1]), miss=float(np.hypot(*p)), lon=math.degrees(lon),
+                lat=math.degrees(lat), central=bool(k <= 1.0))
 
 
 # Math: ST2 (slide ST2, via astrometry.corrected_star_dir), CA.2 (bracket-edge minima rejected), then
@@ -1130,12 +1182,26 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                                                  deflection=getattr(config, "light_deflection", True),
                                                  bodies=bodies.deflectors(target_id))
         ra, dec = np.arctan2(u1[1], u1[0]) % (2*np.pi), np.arcsin(np.clip(u1[2], -1.0, 1.0))
-    res = star_test(loc, spice.et2utc(et_guess, "ISOC", 3), bracket_s, ra, dec, target_id, r_search, config.max_shadow_dist)
+    gp = None
+    if EARTH:                                           # anywhere on Earth: the geocentric closest approach, then the
+        star_dir0 = np.array([np.cos(dec)*np.cos(ra), np.cos(dec)*np.sin(ra), np.sin(dec)])   # event at its point
+        gp = earth_point(target_id, star_dir0, et_guess, bracket_s, r_search)
+        if gp is None or not (win_lo <= gp['et'] <= win_hi):
+            print(f" --- misses the Earth (or outside the run window) --- ")
+            return False
+        loc = EarthLocation(lat=gp['lat']*u.deg, lon=gp['lon']*u.deg, height=0*u.m)
+        obs_geo = {'lon': math.radians(gp['lon']), 'lat': math.radians(gp['lat']), 'alt': 0.0}
+        res = star_test(loc, spice.et2utc(gp['et'], "ISOC", 3), 600.0, ra, dec, target_id, r_search, 1e5)
+        if res is None:
+            print(f" --- no solution at the ground point --- ")
+            return False
+    else:
+        res = star_test(loc, spice.et2utc(et_guess, "ISOC", 3), bracket_s, ra, dec, target_id, r_search, config.max_shadow_dist)
     if res is None:
         print (f" --- miss --- ")
         return False
     # minimum on the bracket edge is not a real minimum; a neighbouring window/candidate finds it
-    if min(res['best_et'] - (et_guess - bracket_s/2), (et_guess + bracket_s/2) - res['best_et']) < 1.0:
+    if not EARTH and min(res['best_et'] - (et_guess - bracket_s/2), (et_guess + bracket_s/2) - res['best_et']) < 1.0:
         print (f" --- not real --- ")
         return False
     if not (win_lo <= res['best_et'] <= win_hi):
@@ -1146,7 +1212,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         return False
     star_dir = np.array([np.cos(dec)*np.cos(ra), np.cos(dec)*np.sin(ra), np.sin(dec)])
     ok, star_alt, sun_alt = observable(res['best_et'], star_dir, obs_geo)
-    if not ok:
+    if not ok and not EARTH:                           # anywhere on Earth: kept, with the altitudes at its point
         print (f" --- not visible --- ")
         return False                                   # drop this line to log invisible events too
     m_ast = (apparent_mag_HG(res['best_et'], target_id, size['H'], size.get('G') or 0.15)
@@ -1167,6 +1233,10 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                   star_alt=star_alt, sun_alt=sun_alt, m_ast=m_ast, **met, **moon,
                   observable=res['observable'],
                   corr_parallax_mas=corr["parallax_mas"], corr_deflection_mas=corr["deflection_mas"])
+    if gp is not None:                                 # anywhere on Earth: where and when, geocentric
+        record.update(scope="earth", ground_lon=round(gp["lon"], 5), ground_lat=round(gp["lat"], 5),
+                      geo_utc=spice.et2utc(gp["et"], "ISOC", 3), geo_miss_km=round(gp["miss"], 3),
+                      geo_x_km=round(gp["x"], 3), geo_y_km=round(gp["y"], 3), central=gp["central"])
     dx, dy = besselian_offsets(res['best_et'], star_dir, obs_geo, target_id)
     record.update(offset_east_km=dx, offset_north_km=dy,
                   max_duration_s=2*size['r_km']/met['speed_kms'])
@@ -1224,7 +1294,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             if not record.get("star_err_smaa_mas"):                # the star's error ellipse (circle) for the favorites
                 record.update(star_err_smaa_mas=s_mas, star_err_smia_mas=s_mas, star_err_pa_deg=0.0)
         record.update(path_sigma1_km=sigma3 / 3.0, sigma_source=(src if sigma3_h else "default") + (" + star" if s_km else ""),
-                      p_site=site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
+                      p_site=float("nan") if EARTH else site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
         contacts = []
         record["kind"] = bodies.kind(target_id)
         if bodies.is_body(target_id):                        # disappearance and reappearance at the site
@@ -1264,7 +1334,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                 names = dict(star_ucac4=me["ucac4"].iloc[0], star_tyc=me["tyc"].iloc[0], star_hip=me["hip"].iloc[0])
         record.update(names)
         # the site's own horizon (horizon.py, OccultWatcher's [User Horizon]): behind it / near it, as a warning
-        site_ = getattr(config, "site", None) or {}
+        site_ = {} if EARTH else (getattr(config, "site", None) or {})
         hz_flag, hz_alt, hz_sep = horizon.assess(site_.get("horizon") or [], record.get("star_alt"), record.get("star_az"),
                                                  float(site_.get("horizon_margin", 15.0)))
         record.update(horizon_flag=hz_flag, horizon_alt=float("nan") if hz_alt is None else round(hz_alt, 1),
@@ -1275,7 +1345,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             return False
         # the site's height moves the center line it sees across the track (the map lines are at height 0)
         try:
-            hs = height_shift_km(target_id, star_dir, res['best_et'], config.LON, config.LAT, config.ELE / 1000.0)
+            lon_, lat_, ele_ = site_lle(record)
+            hs = height_shift_km(target_id, star_dir, res['best_et'], lon_, lat_, ele_ / 1000.0) if ele_ else None
         except Exception:                                                  # a side value: never stops the search
             hs = None
         record.update(height_shift_km=float("nan") if hs is None else round(hs, 3))
@@ -1293,8 +1364,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             os.makedirs(config.map_dir, exist_ok=True)
             paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
                                 sat_km=binaries.zone_km(target_id),    # known satellite: its zone on the map
-                                height_km=config.ELE / 1000.0)         # + the center line at the site's height
-            paths["center_height_name"] = f"Center line at site height ({config.ELE:.0f} m)"
+                                height_km=site_lle(record)[2] / 1000.0)   # + the center line at the site's height
+            paths["center_height_name"] = f"Center line at site height ({site_lle(record)[2]:.0f} m)"
             paths["pm_alts"] = []                                         # the centre line with each other proper motion
             for e in pm_alts:
                 if abs(e["east"]) + abs(e["north"]) < 1.0:
@@ -1307,7 +1378,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                 except Exception as ex:
                     print(f" --- no path for proper motion {e['label']}: {ex}")
             write_shadow_kml(paths, f"{config.map_dir}/{stem}.kml",
-                             f"{record['target_name']} / Gaia {row.source_id}", observer=(config.LON, config.LAT))
+                             f"{record['target_name']} / Gaia {row.source_id}", observer=site_lle(record)[:2])
             if getattr(config, "debug_save_paths", False):               # debug: the geodetic path for later checks
                 try:
                     save_path_debug(f"{config.map_dir}/{stem}_path.npz", paths, record, target_id, star_dir, sigma3)
@@ -1354,7 +1425,7 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
              limits=dict(mag_limit=config.MAG_MIN, min_star_alt=config.MIN_STAR_ALT, max_sun_alt=config.MAX_SUN_ALT,
                          reach_km=config.max_shadow_dist, min_mag_drop=getattr(config, "min_mag_drop", 0.1),
                          min_dur_s=config.pick_min_dur_s),
-             earth_pck=EARTH_PCK, targets_from=globals().get("TARGETS_FROM", ""),
+             earth_pck=EARTH_PCK, targets_from=globals().get("TARGETS_FROM", ""), scope="earth" if EARTH else "site",
              corrections=dict(star_parallax=bool(getattr(config, "star_parallax", True)),
                               light_deflection=bool(getattr(config, "light_deflection", True)),
                               gaia_pm_bias=bool(getattr(config, "gaia_pm_bias", True)),
@@ -1440,7 +1511,7 @@ def target_test_corridor(loc, plan, target_id, size, local=None, stars_cands=Non
         # the observer's closest approach can be up to margin/speed away from the Earth-centre estimate
         bracket = corridor.solver_bracket_s(plan, cand.j)
         # cheap early gate (Sun and asteroid altitude) before any solver work
-        if not window_is_observable(cand.et_guess, bracket, obs_geo, target_id):
+        if not EARTH and not window_is_observable(cand.et_guess, bracket, obs_geo, target_id):
             RUN["gated"] += 1
             continue
         # only the candidates need exact space motion: propagate each to its own event time

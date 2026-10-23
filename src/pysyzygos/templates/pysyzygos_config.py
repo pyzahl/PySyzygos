@@ -104,6 +104,8 @@ pick_hmax = 17.0         # asteroids with H below this (pysyzygos pick --all: ev
 ### CONFIG OUTPUT
 
 hits_output_cvs_file = 'hits_log.csv'        # export of the current results (the database below holds them)
+search_scope = "site"         # "site": events the site can observe; "earth": every event whose shadow touches the
+                              # Earth (no site, Sun, altitude or reach limits; each described at its center-line point)
 results_db = "pysyzygos.db"     # results database in the data folder: runs, events, favorites (db.py)
 results_new_series = False     # True: this run starts a fresh results list (the GUI's "Start a fresh results list")
 

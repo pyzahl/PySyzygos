@@ -14,21 +14,50 @@ from pysyzygos.gui_common import KSTARS_OPT, PYSYZYGOS, load_ui_state, resizable
 # the SQL filter's help: columns of the view hits, the run's site, and the functions (db.HITS, db.FUNCTIONS)
 SQL_NAMES = ([(n, "%" if k == "pct" else u, m) for n, _, k, u, m in db.HITS]
              + [("site", "", "the site the search was for (its name in sites.py)")] + list(db.FUNCTIONS))
+# the tab's sources: label, results list, and where their files are (paths relative to the data folder)
+SOURCES = {"site": "Search results (your sites)", "earth": "Search results: anywhere on Earth",
+           "observed": "Observed events (Occult archive)"}
+
+
+def source_files(pg, key):
+    """dict(csv, db, lst, out, url) of a results source (SOURCES)."""
+    from pysyzygos import observed
+    res_db = os.path.join(ROOT, getattr(pg.config, "results_db", "pysyzygos.db"))
+    if key == "observed":
+        _, d, c = observed.paths()
+        return dict(csv=c, db=d, lst=observed.LIST, out=os.path.join(ROOT, "observed_report.html"),
+                    url="/out/observed_report.html")
+    if key == "earth":
+        return dict(csv=os.path.join(ROOT, "earth_log.csv"), db=res_db, lst="earth",
+                    out=os.path.join(ROOT, "earth_report.html"), url="/out/earth_report.html")
+    return dict(csv=os.path.join(ROOT, pg.config.hits_output_cvs_file), db=res_db, lst="main",
+                out=os.path.join(ROOT, "hits_report.html"), url="/out/hits_report.html")
+
+
+def where_key(src):
+    return "sql_where" if src == "site" else f"sql_where_{src}"
+
+
 SQL_EXAMPLES = ["mag < 11 AND chance > 30", "duration >= 1 AND sun_alt < -12", "ruwe < 1.4 AND star_flag = ''",
                 "utc < '2026-11-15' AND star_alt > 20", "horizon = '' AND mag_drop > 0.5", "name LIKE '%Phaethon%'",
-                "star_alt > horizon_alt(star_az) + 5"]
+                "star_alt > horizon_alt(star_az) + 5", "cbet <> ''", "fit_quality >= 3 AND chords >= 5",
+                "abs(dx_across) > 2 * radius"]
 
 
 def panel(pg):
     """The results tab's controls (inside its ui.tab_panel)."""
     with ui.tab_panel(pg.t_res):
         with ui.row().classes("items-center"):
+            pg.res_src = ui.select(SOURCES, value=load_ui_state().get("results_source") or "site", label="Show",
+                                   on_change=lambda e: pg.res_switch(e.value)).classes("w-72").props("dense").tooltip(
+                "Your searches at your sites; searches anywhere on Earth (Search tab, 'Where'); or the observed "
+                "occultations of the IOTA / Occult archive (System tab, Occult data: 'observations')")
             ui.button("Rebuild report", on_click=lambda: pg.build_report()).props("outline")
             if getattr(pg.config, "owc_feeds", True):                    # config owc_feeds (on by default)
                 ui.button("Check OWC Feeds", on_click=lambda: pg.owc_check("results")).props("outline dense").tooltip(
                     "Look these events up in OccultWatcher Cloud: prediction feeds (tags) and signed-up stations, "
                     "shown under the asteroid with a link to the OWC event page (one request per second)")
-            ui.link("Open in a new tab", "/out/hits_report.html", new_tab=True)
+            pg.res_link = ui.link("Open in a new tab", "/out/hits_report.html", new_tab=True)
             ui.button("CSV", on_click=lambda: pg.hits_csv()).props("outline dense").tooltip(
                 "Download the events the table shows (its filter and sort order) as a CSV table."
                 " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added)")
@@ -77,7 +106,7 @@ def handlers(pg):
         """Look the Results or Favorites events up in OccultWatcher Cloud (owc.py), then show the tables again."""
         from pysyzygos import owc
         if which == "results":
-            path = os.path.join(ROOT, pg.config.hits_output_cvs_file)
+            path = source_files(pg, pg.res_src.value)["csv"]
             with open(path, newline="") if os.path.isfile(path) else open(os.devnull) as f:
                 recs = list(csv.DictReader(f))
         else:
@@ -100,17 +129,53 @@ def handlers(pg):
             pg.load_favs(pg.fav_cur["key"])
     pg.owc_check = owc_check
 
+    def cur():
+        """The shown source's files (source_files)."""
+        return source_files(pg, pg.res_src.value)
+    pg.res_files = cur
+
+    def cur_where():
+        return (load_ui_state().get(where_key(pg.res_src.value)) or "").strip()
+
+    def show_frame():
+        f = cur()
+        pg.res_link.props(f"href={f['url']}")
+        if os.path.isfile(f["out"]):
+            pg.frame.props(f"src={f['url']}?t={int(time.time())}")
+        else:
+            pg.frame.props("src=about:blank")
+
     async def build_report(rc=0):
-        where = (load_ui_state().get("sql_where") or "").strip()
-        await run_process(PYSYZYGOS + ["report", pg.config.hits_output_cvs_file] + (["--where", where] if where else []),
+        f, src, where = cur(), pg.res_src.value, cur_where()
+        if not os.path.isfile(f["csv"]) and not os.path.isfile(os.path.splitext(f["csv"])[0] + ".runs.jsonl"):
+            ui.notify({"observed": "The observed events are not there yet: System tab, Occult data, add "
+                                   "'observations' (the archive is then built into a database)",
+                       "earth": "No search anywhere on Earth yet: Search tab, Where: anywhere on Earth"}.get(
+                          src, "No search results yet (run a search)"), type="warning", multi_line=True)
+            show_frame()
+            return
+        await run_process(PYSYZYGOS + ["report", f["csv"], "-o", f["out"], "--db", f["db"], "--list", f["lst"]]
+                          + (["--sort", "date"] if src == "observed" else []) + (["--where", where] if where else []),
                           pg.log)
-        pg.frame.props(f"src=/out/hits_report.html?t={int(time.time())}")
+        show_frame()
         sql_show()
     pg.build_report = build_report
 
+    async def res_switch(src):
+        save_ui_state(results_source=src)
+        pg.sql_in.value = cur_where()
+        sql_show()
+        f = cur()
+        if os.path.isfile(f["out"]):
+            show_frame()
+        else:
+            await build_report()
+    pg.res_switch = res_switch
+    pg.res_show_frame = show_frame
+
     # ------------------------------------------------ SQL filter
     def sql_show():
-        where = (load_ui_state().get("sql_where") or "").strip()
+        where = cur_where()
         pg.sql_note.text = f"SQL filter active: {where}   (Clear in 'SQL filter' to show all events)" if where else ""
 
     async def sql_apply():
@@ -118,11 +183,11 @@ def handlers(pg):
         if not where:
             return await sql_clear()
         try:
-            n = len(await run.io_bound(db.where_keys, pg.results_db(), where))
+            n = len(await run.io_bound(db.where_keys, cur()["db"], where, cur()["lst"]))
         except ValueError as ex:
             ui.notify(f"SQL filter not usable: {ex}", type="negative", multi_line=True)
             return
-        save_ui_state(sql_where=where)
+        save_ui_state(**{where_key(pg.res_src.value): where})
         ui.notify(f"SQL filter: {n} event(s) of the current results list match", type="positive" if n else "warning")
         await pg.build_report()
     pg.sql_apply = sql_apply
@@ -153,7 +218,7 @@ def handlers(pg):
 
     async def sql_clear():
         pg.sql_in.value = ""
-        save_ui_state(sql_where="")
+        save_ui_state(**{where_key(pg.res_src.value): ""})
         await pg.build_report()
     pg.sql_clear = sql_clear
 
@@ -231,20 +296,22 @@ def connect(pg):
     pg.sql_fields.on("rowClick", lambda e: pg.sql_insert(e.args[1]["name"]))
     pg.sql_saved_refresh()
     pg.sql_show()
-    if os.path.isfile(os.path.join(ROOT, "hits_report.html")):        # the last report, at once (Rebuild: a new one)
-        pg.frame.props(f"src=/out/hits_report.html?t={int(time.time())}")
+    pg.sql_in.value = (load_ui_state().get(where_key(pg.res_src.value)) or "")
+    pg.sql_show()
+    pg.res_show_frame()                                                 # the last report, at once (Rebuild: a new one)
 
     async def hits_csv():
-        path = os.path.join(ROOT, pg.config.hits_output_cvs_file)
+        f = pg.res_files()
+        path = f["csv"]
         if not os.path.isfile(path):
-            ui.notify("No search results yet (run a search)", type="warning")
+            ui.notify("No events in this list yet", type="warning")
             return
         from pysyzygos import report
         run = report.read_last_run(path) or {}             # name it like the picks: site, window
         site, start = (run.get("site") or {}).get("name"), str(run.get("window_start") or "")[:10]
         name = (f"hits_{pg.picks._safe(site)}__{start}_{float(run['window_days']):g}d.csv"
                 if site and start and run.get("window_days") else os.path.basename(path))
-        rows, keys = exports.results_rows(pg.results_db(), "main"), await pg.shown_keys(pg.frame)
+        rows, keys = await run.io_bound(exports.results_rows, f["db"], f["lst"]), await pg.shown_keys(pg.frame)
         shown = exports.only_shown(rows, keys)
         if keys is not None and not shown:
             ui.notify("No events shown (the filter hides them all): nothing to export", type="warning")

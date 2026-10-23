@@ -23,6 +23,10 @@ def panel(pg):
                 "Back to the site's default star limit")
             pg.s_drop = ui.number("Min. drop (mag)", value=getattr(pg.config, "min_mag_drop", 0.1), step=0.05)
         pg.s_mag_note = ui.label().classes("text-xs text-slate-500")
+        with ui.row().classes("items-center gap-2"):
+            pg.s_scope = ui.toggle({"site": "At the site", "earth": "Anywhere on Earth"}, value="site",
+                                   on_change=lambda e: pg.scope_changed()).props("dense no-caps")
+            pg.s_scope_note = ui.label().classes("text-xs text-slate-500")
         pg.s_use_file = ui.switch("Targets from the saved pick of this site (Pick tab)", value=True).tooltip(
             "Uses the newest saved pick of the selected site whose window covers the search window; "
             "without one, targets.py or the list in pysyzygos_config.py")
@@ -64,12 +68,22 @@ def handlers(pg):
                     write_maps=bool(pg.s_maps.value), write_previews=bool(pg.s_prev.value),
                     star_parallax=bool(pg.s_plx.value), light_deflection=bool(pg.s_defl.value),
                     gaia_online_check=bool(pg.s_dbl.value))
-        if not pg.s_use_file.value:
+        earth = pg.s_scope.value == "earth"
+        if not pg.s_use_file.value or earth:
             over["targets"] = [t for t in pg.s_targets.value.replace(",", " ").split() if t]
+            if earth and not over["targets"]:
+                ui.notify("Anywhere on Earth: list the asteroids below", type="warning")
+                return
         over["results_new_series"] = bool(pg.s_fresh.value)          # db.py: a fresh results list = a new series
+        if earth:                                                    # every event whose shadow touches the Earth
+            over.update(search_scope="earth", results_list="earth", hits_output_cvs_file="earth_log.csv",
+                        max_shadow_dist=0.0)
 
         async def done(rc):
             if rc == 0:
+                src = "earth" if earth else "site"
+                if pg.res_src.value != src:
+                    pg.res_src.value = src                           # (shows that list's last report)
                 await pg.build_report()
                 pg.tabs.value = pg.t_res
         await run_process(PYSYZYGOS + ["run", "search", json.dumps(over)], pg.log,
@@ -78,6 +92,10 @@ def handlers(pg):
 
     def saved_info(*_):
         """Search tab: which saved pick the search will use for the selected site and window."""
+        if pg.s_scope.value == "earth":
+            pg.targets_warn_s.text = "Anywhere on Earth: the search uses the list below (a pick is per site)."
+            pg.targets_warn_s.classes(replace="text-sm w-full text-slate-600")
+            return
         if not pg.s_use_file.value:
             pg.targets_warn_s.text = "The search uses the list below."
             pg.targets_warn_s.classes(replace="text-sm w-full text-slate-600")
@@ -96,8 +114,19 @@ def handlers(pg):
             pg.targets_warn_s.classes(replace="text-sm w-full text-amber-700")
     pg.saved_info = saved_info
 
+    def scope_changed():
+        earth = pg.s_scope.value == "earth"
+        pg.s_use_file.set_enabled(not earth)
+        pg.s_scope_note.text = ("every event whose shadow touches the Earth, for the asteroids listed below, by day "
+                                "or night: no site, Sun, altitude or reach limits; each event is described at its "
+                                "center-line point (results list 'anywhere on Earth')" if earth else
+                                "events the selected site can observe (its limits and reach)")
+        pg.saved_info()
+    pg.scope_changed = scope_changed
+
 
 def connect(pg):
     """Wire the tab up and fill it (run after all tabs' handlers)."""
     for el in (pg.s_start, pg.s_days, pg.s_use_file):
         el.on_value_change(pg.saved_info)
+    pg.scope_changed()
