@@ -1163,7 +1163,8 @@ pysyzygos --port 8090 --no-browser
   covers the window.
   The report is rebuilt and shown under **Results** when the run finishes.
 * **Results**: the HTML report with its maps and previews.
-  **Filter** (the bar above the table): faintest star (G), shortest duration, smallest drop, lowest star altitude,
+  **Filter** (the bar above the table): a time window (from / to, UTC), faintest star (G), shortest duration,
+  smallest drop, lowest star altitude,
   highest Sun altitude, largest RUWE, smallest chance, and checkboxes that hide supplement stars, uncertain stars,
   close/double stars, twilight events, events near or behind your horizon and estimated sizes (or show only asteroids
   with a known satellite). It filters at once and says "showing n of m". **Save as...** keeps the settings under a
@@ -1175,7 +1176,9 @@ pysyzygos --port 8090 --no-browser
   names appear as buttons while you type, the list "Fields" gives all of them with unit and meaning (target, name, utc, mag, mag_drop, duration, star_alt, sun_alt, chance (%), distance, radius, sigma, ruwe, star_flag, horizon, ...),
   and conditions can be saved under a name. Opened while empty, the box starts with the filter bar's settings as SQL
   (**From filter bar** does it any time), e.g. `mag <= 12.5 AND star_flag = ''`: change an AND into an OR, add
-  parentheses, and so on. The database is opened read-only for it. The same condition works on the
+  parentheses, and so on. The database is opened read-only for it, a condition is one expression (no `;`), and a
+  query that runs longer than 10 s is stopped; a condition that cannot be used shows SQLite's message and changes
+  nothing. The same condition works on the
   command line: `pysyzygos report hits_log.csv --where "mag < 11"`; the columns are the view `hits` in
   `pysyzygos.db`, also handy in an SQLite tool.
   On Linux with KStars running, each event also gets a

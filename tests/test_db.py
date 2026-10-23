@@ -98,12 +98,30 @@ try:                                                     # a condition that woul
 except ValueError:
     pass
 assert con.execute("SELECT count(*) FROM events").fetchone()[0] == n
+import time as _t
+t0 = _t.time()
+try:                                                     # an endless query is stopped (time limit), with a message
+    db.where_keys(dbp, "(WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT max(x) FROM c) > 0",
+                  max_s=1.0)
+    raise AssertionError("an endless query was not stopped")
+except ValueError as ex:
+    assert "too long" in str(ex) and _t.time() - t0 < 10, (ex, _t.time() - t0)
+for odd in ("1=1) UNION SELECT name, sql FROM sqlite_master --", "mag < 11 --", "name = 'O''Brien'"):
+    try:                                                 # odd but read-only: fine or a clean error, nothing written
+        db.where_keys(dbp, odd)
+    except ValueError:
+        pass
+assert con.execute("SELECT count(*) FROM events").fetchone()[0] == n
 assert {h[0] for h in db.HITS} >= {"mag", "mag_drop", "duration", "chance", "ruwe", "star_alt", "sun_alt"}
 # the filter bar as SQL (a template for custom conditions): AND-joined; unknown RUWE/drop/chance pass, as in the bar
 q = db.filter_to_sql({"mag": 12.5, "ruwe": 1.4, "hide": ["sup", "twi"], "only": ["moon"]})
 assert q == ("mag <= 12.5 AND (ruwe IS NULL OR ruwe <= 1.4) AND star_flag = '' AND sun_alt <= -12 "
              "/* only +moon: no SQL column */"), q
 assert db.filter_to_sql({}) == "" and db.filter_to_sql(None) == ""
+q = db.filter_to_sql({"from": "2026-11-01T00:30", "to": "2026-11-01T23:59"})
+assert q == "utc >= '2026-11-01T00:30' AND utc <= '2026-11-01T23:59:59.999'", q          # the minute 'to' included
+assert db.filter_to_sql({"from": "2026-11-01'; DROP", "to": "x"}) == ""                    # only well-formed times
+assert db.where_keys(dbp, q) == [("3200", "2026-11-01T01:00:00.123")]
 assert db.where_keys(dbp, db.filter_to_sql({"mag": 11, "ruwe": 2.0})) == [("3200", "2026-11-01T01:00:00.123")]
 assert {t for t, _ in db.where_keys(dbp, db.filter_to_sql({"hide": ["sup"]}))} == {"4089"}
 assert db.where_keys(dbp, db.filter_to_sql({"only": ["moon"]}))                          # the comment is valid SQL

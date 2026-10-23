@@ -1102,7 +1102,8 @@ def event_key(target_id, utc):
 
 
 def filter_attrs(e):
-    """The row's filter values: star mag, duration (s), drop, star and Sun altitude, RUWE, chance (%), flags."""
+    """The row's filter values: event time (Unix s, UTC), star mag, duration (s), drop, star and Sun altitude, RUWE,
+    chance (%), flags."""
     from pysyzygos import binaries
     flags = [k for k, ok in (
         ("sup", bool(e.get("sflag"))), ("unc", bool(star_uncertain(e) or star_noted(e))), ("dbl", bool(e.get("dhint"))),
@@ -1112,7 +1113,8 @@ def filter_attrs(e):
     v = lambda x, nd=3: "" if x is None else f"{x:.{nd}f}"
     dur = e.get("contact_dur") if e.get("body") and e.get("contact_dur") else e.get("dur")
     chance = None if e.get("p_site") is None else 100.0 * e["p_site"]
-    return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}"'
+    t = e["when"].timestamp() if e.get("when") is not None else None
+    return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}" data-ftime="{v(t, 0)}"'
             f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
             f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}"')
@@ -1122,7 +1124,12 @@ def filter_bar():
     num = lambda key, label, unit, step, tip: (
         f'<label title="{esc(tip)}">{label} <input type="number" step="{step}" data-f="{key}">{unit}</label>')
     hide = "".join(f'<label><input type="checkbox" data-h="{k}">{esc(t)}</label>' for k, t in FILTER_FLAGS)
+    when = lambda key, label, tip: (f'<label title="{esc(tip)}">{label} <input type="datetime-local" data-t="{key}">'
+                                    f'</label>')
     return ('<details class="fbar" id="fbar"><summary>Filter <span id="fcount"></span></summary><div class="frow">'
+            + when("from", "from (UTC)", "first event time, UTC (the table's times)")
+            + when("to", "to", "last event time, UTC (this minute included)")
+            + '</div><div class="frow">'
             + num("mag", "G ≤", "", "0.1", "faintest star (Gaia G)")
             + num("dur", "duration ≥", " s", "0.1", "shortest event")
             + num("drop", "drop ≥", " mag", "0.05", "smallest magnitude drop")
@@ -1146,6 +1153,7 @@ FILTER_CSS = """
 .fbar summary{cursor:pointer;font-weight:600}.fbar.factive summary{color:var(--accent)}
 .frow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0}
 .frow label{white-space:nowrap;font-size:.9rem}.frow input[type=number]{width:5.2em;margin-left:4px}
+.frow input[type=datetime-local]{margin-left:4px;font:inherit;font-size:.85rem}
 .flab{color:var(--muted);font-size:.85rem}.fnote{color:var(--muted);font-size:.8rem}#fcount{font-weight:normal}
 .fbar button{font:inherit;font-size:.85rem;padding:2px 10px;border:1px solid var(--line);border-radius:6px;
  background:var(--head);color:var(--ink);cursor:pointer}.fbar button:hover{border-color:var(--accent);color:var(--accent)}
@@ -1157,16 +1165,21 @@ FILTER_JS = """<script>
 var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
 var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
 var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1};
+function tsec(v,end){var t=Date.parse(v+'Z');return isNaN(t)?NaN:t/1000+(end?59.999:0);}
 function spec(){var s={},h=[],o=[];
+ bar.querySelectorAll('input[data-t]').forEach(function(i){if(i.value&&!isNaN(tsec(i.value)))s[i.dataset.t]=i.value;});
  bar.querySelectorAll('input[data-f]').forEach(function(i){if(i.value!==''&&!isNaN(parseFloat(i.value)))s[i.dataset.f]=parseFloat(i.value);});
  bar.querySelectorAll('input[data-h]').forEach(function(i){if(i.checked)h.push(i.dataset.h);});
  bar.querySelectorAll('input[data-o]').forEach(function(i){if(i.checked)o.push(i.dataset.o);});
  if(h.length)s.hide=h;if(o.length)s.only=o;return s;}
 function setForm(s){s=s||{};
+ bar.querySelectorAll('input[data-t]').forEach(function(i){i.value=s[i.dataset.t]||'';});
  bar.querySelectorAll('input[data-f]').forEach(function(i){i.value=(s[i.dataset.f]!==undefined)?s[i.dataset.f]:'';});
  bar.querySelectorAll('input[data-h]').forEach(function(i){i.checked=(s.hide||[]).indexOf(i.dataset.h)>=0;});
  bar.querySelectorAll('input[data-o]').forEach(function(i){i.checked=(s.only||[]).indexOf(i.dataset.o)>=0;});}
-function pass(r,s){for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
+function pass(r,s){var tm=parseFloat(r.dataset.ftime);
+ if(!isNaN(tm)){if(s.from&&tm<tsec(s.from))return false;if(s.to&&tm>tsec(s.to,true))return false;}
+ for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
   v=parseFloat(v);if(LIM[k]<0?v>s[k]:v<s[k])return false;}
  var fl=(r.dataset.fflags||'').split(' ');
  for(var i=0;i<(s.hide||[]).length;i++)if(fl.indexOf(s.hide[i])>=0)return false;

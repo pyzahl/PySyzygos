@@ -46,6 +46,7 @@ during an occultation. Up to version 0.18 it was called PyOccult.
   - [Gravitational light deflection and stellar parallax (built in 0.10.0, 2026-10-04)](#gravitational-light-deflection-and-stellar-parallax-built-in-0100-2026-10-04)
 - [Part 7: Future plans](#part-7-future-plans)
   - [Major solar-system bodies as targets (planets and moons built in 0.14.0; Earth's Moon open)](#major-solar-system-bodies-as-targets-planets-and-moons-built-in-0140-earths-moon-open)
+  - [PySyzygos as a web service (far future; noted 2026-10-22)](#pysyzygos-as-a-web-service-far-future-noted-2026-10-22)
 - [Supplemental: related tools (notes for later)](#supplemental-related-tools-notes-for-later)
 
 ---
@@ -963,6 +964,33 @@ from the `L:`/`P:`/`M:` prefix) has to change, most important first:
 
 Hit log: a `target_kind` column (asteroid, planet, moon, moon_earth) so the report can list planet events with or
 apart from asteroid events. The OWC check, the pick tool and the saved picks stay asteroid-only.
+
+### PySyzygos as a web service (far future; noted 2026-10-22)
+
+The GUI is already a web application (NiceGUI serves it; every run is its own process), but it is made for one user
+on their own computer: it listens on 127.0.0.1 only, because it starts programs and trusts whoever uses it. Running it
+for several people on a dedicated (virtual) machine is possible; the points to solve, for web-service experts:
+
+1. **Users and their data.** Everything personal is per data folder today (sites, favorites, the results database,
+   `gui_state.json`): the simplest path is one data folder per user, with the large read-only data shared by all (star
+   catalog, kernels, pre-screens). A few settings are global per server today and must become per user (the job
+   slots, the "+ high-RUWE stars" switch, the KStars/Stellarium location option). Login in front of the app: a
+   reverse proxy for HTTPS (nginx, Caddy) with a login service (e.g. oauth2-proxy, Authelia, Keycloak), or NiceGUI's
+   own authentication.
+2. **Jobs and resources.** A search or pick takes seconds to minutes of CPU, and the GUI runs one main job at a time:
+   a service needs a job queue with per-user limits. JPL Horizons and SBDB limits then apply to the whole server, so
+   the orbit and size caches matter more; the "live search engine" idea (one resident process with the catalog,
+   pre-screen and orbits loaded; section 3.8) fits a service well.
+3. **Hardening.** The `/api/...` routes trust the local user: no login, and some change data through simple GET
+   requests (favorites, filter sets), open to cross-site request forgery on a public server. Uploads (horizon photos,
+   Occult listings) need size and type limits; the System tab (catalog updates, cache, offline copies) becomes admin
+   only. Already sound: the SQL filter (read-only connection, one expression, 10 s limit) and the way runs are started
+   (argument lists, no shell).
+4. **Features tied to the local machine.** The KStars and Stellarium buttons drive programs on the same computer as
+   the server; for a service the user's browser would have to talk to the user's own Stellarium (its Remote Control
+   interface) directly. Offline copies and the data-folder handling are local concepts too.
+5. **Licenses and terms.** GPL code: fine for a free service. Gaia data: CC BY-NC 3.0 IGO (a non-commercial service is
+   fine). JPL's API usage terms to be checked then.
 
 ---
 

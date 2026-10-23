@@ -132,6 +132,7 @@ def handlers(pg):
             spec = await ui.run_javascript(
                 f"const f=getHtmlElement({pg.frame.id});const d=f&&f.contentDocument;const b=d&&d.getElementById('fbar');"
                 "if(!b)return null;const s={},h=[],o=[];"
+                "b.querySelectorAll('input[data-t]').forEach(i=>{if(i.value)s[i.dataset.t]=i.value;});"
                 "b.querySelectorAll('input[data-f]').forEach(i=>{if(i.value!==''&&!isNaN(parseFloat(i.value)))s[i.dataset.f]=parseFloat(i.value);});"
                 "b.querySelectorAll('input[data-h]').forEach(i=>{if(i.checked)h.push(i.dataset.h);});"
                 "b.querySelectorAll('input[data-o]').forEach(i=>{if(i.checked)o.push(i.dataset.o);});"

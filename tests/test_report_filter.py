@@ -9,7 +9,7 @@ base = dict(tid="99999999", utc="2026-11-01T01:02:03.456", body=False, mag=10.5,
             sflag="", star_sigma=None, rad=5.0, dhint="", hz=("", None, None), size_src="SBDB diameter")
 a = R.filter_attrs(base)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', a))
-assert vals == dict(mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00",
+assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00",
                     flags=""), vals
 e = dict(base, sflag="RUWE 1.70", star_sigma=8.0, dhint="companion", sun=-8.0, hz=("near", 20.0, 3.0),
          size_src="H only, albedo assumed", ruwe=None, p_site=None)
@@ -19,6 +19,10 @@ bar = R.filter_bar()
 assert all(f'data-f="{k}"' in bar for k in ("mag", "dur", "drop", "alt", "sun", "ruwe", "chance"))
 assert all(f'data-h="{k}"' in bar for k, _ in R.FILTER_FLAGS) and 'data-o="moon"' in bar and 'id="fset"' in bar
 assert "/api/filters/save" in R.FILTER_JS and "pyo_filter:" in R.FILTER_JS
+assert 'data-t="from"' in bar and 'data-t="to"' in bar and 'type="datetime-local"' in bar     # the time window (UTC)
+from datetime import datetime, timezone
+t = datetime(2026, 11, 1, 1, 2, 3, tzinfo=timezone.utc)
+assert f'data-ftime="{t.timestamp():.0f}"' in R.filter_attrs(dict(base, when=t))
 # the CSV downloads keep the page's rows in its order (exports.only_shown with the visible rows' event keys)
 from pysyzygos import exports as X
 assert 'data-ev="99999999|' in R.filter_attrs(dict(base, utc="2026-11-01T01:02:03.456"))

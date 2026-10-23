@@ -12,7 +12,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   name, which is only the case for bright stars with a proper or Bayer name. The message says which name was marked.
   For KStars, a crosshair FOV symbol of your own marks the star at the center of the map (README: "Marking the star
   in KStars"). Stellarium's first click after a time-zone change no longer lands elsewhere.
-- **Filters for the result lists**: a filter bar above the Results, Favorites and Planets & Moons tables (faintest
+- **Filters for the result lists**: a filter bar above the Results, Favorites and Planets & Moons tables (a time
+  window from / to in UTC, faintest
   star, duration, drop, star and Sun altitude, RUWE, chance; hide supplement, uncertain or double stars, twilight,
   horizon, estimated sizes; only asteroids with a satellite), instant, with named filter sets shared by the pages.
   **SQL filter** on the Results tab for any condition (`mag < 11 AND chance > 30`), with field suggestions, a field

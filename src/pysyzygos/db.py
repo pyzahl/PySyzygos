@@ -21,7 +21,7 @@ written out as hits_log.csv and hits_log.runs.jsonl (exports with consistent col
 download and other tools). An existing hits_log.csv / runs.jsonl / favorites.json is imported once.
 """
 from pysyzygos.version import __version__
-import csv, json, math, os, sqlite3, tempfile, time
+import csv, json, math, os, re, sqlite3, tempfile, time
 
 SCHEMA = 1
 DEFAULT = "pysyzygos.db"
@@ -149,6 +149,10 @@ def filter_to_sql(spec):
     """The filter bar's settings ({'mag': 12.5, ..., 'hide': [...], 'only': [...]}) as an SQL condition, every
     part joined with AND; '' for no filter. 'only +moon' has no column: kept as a comment."""
     parts = []
+    for k, op, tail in (("from", ">=", ""), ("to", "<=", ":59.999")):    # time window: ISO text compares in order
+        v = str((spec or {}).get(k) or "").strip()
+        if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d", v):
+            parts.append(f"utc {op} '{v}{tail}'")
     for k, tpl in FILTER_SQL.items():
         v = (spec or {}).get(k)
         if isinstance(v, (int, float)):
@@ -160,10 +164,13 @@ def filter_to_sql(spec):
     return sql
 
 
-def where_keys(path, where, lst="main", series=None, limit=100000):
+WHERE_MAX_S = 10.0          # a condition's query is stopped after this long (e.g. an endless recursive subquery)
+
+
+def where_keys(path, where, lst="main", series=None, limit=100000, max_s=WHERE_MAX_S):
     """The events of a results list's series (default: its current one) that match an SQL condition on the hits
-    view, as [(target, utc), ...]. Read-only (the condition cannot change anything); raises ValueError with
-    SQLite's message for a bad condition."""
+    view, as [(target, utc), ...]. Safe with any text: a read-only connection (mode=ro + query_only: nothing can be
+    written), one statement only, at most max_s seconds; raises ValueError with SQLite's message for a bad condition."""
     if ";" in where:
         raise ValueError("one condition only (no ';')")
     con = connect(path)                                       # the view exists and is current
@@ -172,10 +179,14 @@ def where_keys(path, where, lst="main", series=None, limit=100000):
     con = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=30)
     try:
         con.execute("PRAGMA query_only = ON")
+        end = time.monotonic() + max_s
+        con.set_progress_handler(lambda: 1 if time.monotonic() > end else 0, 10000)   # nonzero: SQLite stops
         try:
             rows = con.execute(f"SELECT target, utc FROM hits WHERE series = ? AND ({where}) LIMIT ?",
                                (ser, limit)).fetchall()
         except sqlite3.Error as ex:
+            if time.monotonic() > end:
+                raise ValueError(f"the condition took too long (stopped after {max_s:g} s)") from None
             raise ValueError(str(ex)) from None
         return [(str(t), str(u)) for t, u in rows]
     finally:

@@ -233,11 +233,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   View `hits` (2026-10-22, `create_hits_view` in every connect, from `db.HITS` = (column, record field(s) a|b first
   non-empty, kind num/pct/text, unit, meaning): typed columns, numeric text of old CSV imports converted, ''/nan ->
   NULL, chance = p_site x 100; "drop" is an SQL keyword: column mag_drop). `where_keys(path, where, lst)`: current
-  series, read-only connection (mode=ro + query_only), no ';', bad SQL -> ValueError. report `--where/--db/--list`
+  series, read-only connection (mode=ro + query_only), no ';', bad SQL -> ValueError; WHERE_MAX_S 10 s via
+  set_progress_handler ("took too long"); the condition sits in parentheses after "series = ? AND" (an OR cannot
+  leave the list); load_extension "not authorized"; checked: UNION/comment tricks, DROP, ';', endless recursive CTE. report `--where/--db/--list`
   (+ page note .sqlnote); GUI Results "SQL filter (advanced)" (gui_results: sql_in, word suggestions sql_sugg,
   Fields table rowClick inserts, examples, saved conditions gui_state sql_queries, active sql_where used by every
   build_report; gui_results.connect). Report filter bar (all layouts): rows carry data-f* (`report.filter_attrs`:
-  mag dur drop alt sun ruwe chance% flags sup/unc/dbl/twi/hz/est/moon), `filter_bar`/FILTER_JS: instant filter,
+  mag dur drop alt sun ruwe chance% flags sup/unc/dbl/twi/hz/est/moon; data-ftime = Unix s UTC for the time window
+  from/to (datetime-local inputs data-t, read as UTC; 'to' includes its minute; SQL utc >= 'from' / <= 'to:59.999')), `filter_bar`/FILTER_JS: instant filter,
   "showing n of m", named sets via GUI `/api/filters|save|delete` (gui_state filters; file:// -> localStorage),
   the page's last filter in localStorage pyo_filter:<path>; favorites select-all and mass actions only on shown
   rows (event 'pyofilter'). GUI start rewrites favorites.html (new page code). CSV = what is shown: rows carry
