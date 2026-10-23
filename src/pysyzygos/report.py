@@ -235,7 +235,7 @@ def find_kml(kml_dir, target_id, when, ext="kml"):
 JPL_SBDB = U.URL_JPL_SBDB_PAGE                                       # asteroid page, + number
 VIZIER_GAIA = U.URL_VIZIER_GAIA_DR3                                   # star, + Gaia DR3 id
 KML_NS = "{http://www.opengis.net/kml/2.2}"
-LINE_STYLES = (("Centre", "#15803d", 3, None), ("Shadow limit", "#dc2626", 2, None), ("1-sigma", "#7c3aed", 1.5, "2 4"),
+LINE_STYLES = (("Center line at site height", "#65a30d", 2, "10 4"), ("Centre", "#15803d", 3, None), ("Shadow limit", "#dc2626", 2, None), ("1-sigma", "#7c3aed", 1.5, "2 4"),
                ("3-sigma", "#d97706", 2, "6 6"), ("Satellite zone", "#0891b2", 1.5, "1 5"),
                ("Proper motion", "#db2777", 1.5, "8 3 2 3"))       # the centre with another proper motion (pmcheck)
 
@@ -262,6 +262,7 @@ def kml_to_data(path):
             for prefix, col, w, d in LINE_STYLES:
                 if name.startswith(prefix):
                     color, width, dash = col, w, d
+                    break
             lines.append(dict(name=name, color=color, width=width, dash=dash, pts=pts))
         elif pt is not None and pt.text:
             c = pt.text.strip().split(",")
@@ -370,7 +371,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 hz=(str(r.get("horizon_flag") or "").strip(), num(r.get("horizon_alt")), num(r.get("horizon_sep_deg"))),
                 mag=mag, drop=drop, dur=dur, alt=alt,
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
-                miss=miss, margin=margin, rad=rad, kml=kml, kml_abs=kml_abs, preview=preview,
+                miss=miss, margin=margin, rad=rad, hshift=num(r.get("height_shift_km")), kml=kml, kml_abs=kml_abs, preview=preview,
                 m_ast=num(r.get("m_ast")), m_before=num(r.get("m_before")), calc=num(r.get("calc_s")),
                 sun=num(r.get("sun_alt")),
                 margin_mag=num(r.get("mag_margin")), airmass=num(r.get("airmass")), ext=num(r.get("extinction_mag")),
@@ -768,7 +769,19 @@ def shadow_cell(e):
                f'{m:.1f} km out</span></span>')
     else:
         sub = f'<span class="sub" title="{m:.1f} km outside the shadow path">{m:.1f} km out</span>'
-    return f'<td class="num" data-s="{e["miss"]:.3f}" style="min-width:5.5em">{e["miss"]:.1f} km{sub}</td>'
+    tip = height_text(e.get("hshift"))
+    tip = f' title="{esc(tip)}"' if tip else ""
+    return f'<td class="num" data-s="{e["miss"]:.3f}" style="min-width:5.5em"{tip}>{e["miss"]:.1f} km{sub}</td>'
+
+
+def height_text(km):
+    """The site-height shift of the center line (record height_shift_km) as a sentence; '' if not known."""
+    if km is None:
+        return ""
+    side = "A" if km >= 0 else "B"
+    return (f"Your site's height moves the center line you see {abs(km):.2f} km across the track (towards limit {side}) "
+            f"from the one at height 0 (the map shows both); the distance shown already includes it")
+
 
 
 def map_cell(e):

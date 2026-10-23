@@ -23,7 +23,7 @@ import warnings, erfa
 warnings.filterwarnings("ignore", category=erfa.ErfaWarning)
 
 from pysyzygos import config
-from pysyzygos.paths import shadow_path, path_sigma3_km, path_error, write_shadow_kml, site_probability
+from pysyzygos.paths import shadow_path, path_sigma3_km, path_error, write_shadow_kml, site_probability, height_shift_km
 from pysyzygos import corridor
 from pysyzygos import doubles          # close and double stars at an event
 from pysyzygos import horizon          # the site's own horizon (OccultWatcher [User Horizon])
@@ -1062,8 +1062,8 @@ def save_path_debug(fname, paths, record, target_id, star_dir, sigma3):
     Occult's default output; Earth orientation ITRF93), centre-line duration (s,
     NaN where none); and the event: target_id, target_name, star (Gaia DR3 source_id), star_ra / star_dec (deg, the
     corrected direction the path uses), star_dir (J2000 unit vector), mag, best_utc, best_et, r_km, sigma3_km,
-    min_distance_km, site (lon, lat, ele m), version. Read: d = np.load(fname); d['center'][:, 1:3]; str(d['best_utc'])."""
-    plain = {k: v for k, v in paths.items() if k != "pm_alts"}
+    min_distance_km, site (lon, lat, ele m), version; 'center_height' is the centre line at the site's height (ele). Read: d = np.load(fname); d['center'][:, 1:3]; str(d['best_utc'])."""
+    plain = {k: v for k, v in paths.items() if k not in ("pm_alts", "center_height_name")}
     plain.update({f"pm_{i}": pts for i, (_, pts) in enumerate(paths.get("pm_alts") or [], 1)})   # other proper motions
     lines = {name: np.array([(et, lon, lat, np.nan if dur is None else dur) for et, lon, lat, dur in pts], float)
              .reshape(-1, 4) for name, pts in plain.items()}
@@ -1246,6 +1246,12 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
                   f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there): left out (horizon_filter)")
             return False
+        # the site's height moves the center line it sees across the track (the map lines are at height 0)
+        try:
+            hs = height_shift_km(target_id, star_dir, res['best_et'], config.LON, config.LAT, config.ELE / 1000.0)
+        except Exception:                                                  # a side value: never stops the search
+            hs = None
+        record.update(height_shift_km=float("nan") if hs is None else round(hs, 3))
         print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
               + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
                  + ")" if record["star_flag"] else ""))
@@ -1259,7 +1265,9 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         if config.write_maps and res['min_distance'] < r_search + config.max_shadow_dist:   # shadow + reach, as logged
             os.makedirs(config.map_dir, exist_ok=True)
             paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
-                                sat_km=binaries.zone_km(target_id))    # known satellite: its zone on the map
+                                sat_km=binaries.zone_km(target_id),    # known satellite: its zone on the map
+                                height_km=config.ELE / 1000.0)         # + the center line at the site's height
+            paths["center_height_name"] = f"Center line at site height ({config.ELE:.0f} m)"
             paths["pm_alts"] = []                                         # the centre line with each other proper motion
             for e in pm_alts:
                 if abs(e["east"]) + abs(e["north"]) < 1.0:

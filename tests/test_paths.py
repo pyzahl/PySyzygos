@@ -179,6 +179,48 @@ root = ET.parse('/tmp/graze.kml').getroot()
 ns = {'k': 'http://www.opengis.net/kml/2.2'}
 print("\nKML (grazing case): linestrings", len(root.findall('.//k:LineString', ns)),
       "placemarks", len(root.findall('.//k:Placemark', ns)))
+# the centre line at the site's height (height_km): its points lie h above the ellipsoid on the shadow axis, and
+# height_shift_km equals the separation of the two lines across the ground track, measured on dense lines
+s6, x6, y6, z6 = make_stub(1500.0, -2500.0, 5.0, 3.3)
+m6 = load_module()
+H_KM = 2.0
+p6 = m6.shadow_path('4272', STAR, ET0, 2.0, 6.0, half_span=20.0, step=1.0, height_km=H_KM)
+assert len(p6['center_height']) == len(p6['center']) > 30
+for (et, lon, lat, _), (et0, lon0, lat0, _) in zip(p6['center_height'], p6['center']):
+    R = s6.pxform('J2000', 'ITRF93', et)
+    # the raised point itself: from lon/lat and the height, back to J2000, then onto the plane
+    lo, la = np.radians(lon), np.radians(lat)
+    n_ = np.array([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)])
+    p_h = R.T @ (geodetic_to_xyz(lon, lat) + H_KM * n_)
+    p_0 = R.T @ geodetic_to_xyz(lon0, lat0)
+    assert abs((p_h - p_0) @ x6) < 1e-3 and abs((p_h - p_0) @ y6) < 1e-3, "not on the same axis point"
+assert m6.shadow_path('4272', STAR, ET0, 2.0, 6.0, half_span=5.0, step=1.0).keys() == p6.keys() - {'center_height'}
+site_lon, site_lat = p6['center'][20][1], p6['center'][20][2]               # a site on the centre line, at ET0
+shift = m6.height_shift_km('4272', STAR, ET0, site_lon, site_lat, H_KM)
+o = geodetic_to_xyz(site_lon, site_lat)
+lo, la = np.radians(site_lon), np.radians(site_lat)
+e_ = np.array([-np.sin(lo), np.cos(lo), 0.0]); n_ = np.array([-np.sin(la) * np.cos(lo), -np.sin(la) * np.sin(lo), np.cos(la)])
+enu = lambda pts: np.array([[(geodetic_to_xyz(p[1], p[2]) - o) @ e_, (geodetic_to_xyz(p[1], p[2]) - o) @ n_] for p in pts])
+Cl, Hl = enu(p6['center']), enu(p6['center_height'])
+t = np.array([p[0] for p in p6['center']]) - ET0
+fc = [np.polyfit(t, Cl[:, k], 3) for k in (0, 1)]
+fh = [np.polyfit(t, Hl[:, k], 3) for k in (0, 1)]
+tan = np.array([np.polyval(np.polyder(fc[k]), 0.0) for k in (0, 1)]); tan /= np.linalg.norm(tan)
+nrm = np.array([-tan[1], tan[0]])
+# the raised line's point nearest the site's centre point: where its offset is perpendicular to the tangent
+tt = np.linspace(-20, 20, 40001)
+Hp = np.c_[np.polyval(fh[0], tt), np.polyval(fh[1], tt)]
+Cp = np.array([np.polyval(fc[0], 0.0), np.polyval(fc[1], 0.0)])
+sep = (Hp[np.argmin(np.abs((Hp - Cp) @ tan))] - Cp) @ nrm
+print(f"site height shift: function {shift:+.4f} km, measured {abs(sep):.4f} km across")
+assert abs(abs(shift) - abs(sep)) < 0.002, (shift, sep)
+# the sign: '+' = the edge_plus side (A)
+ep = enu(p6['edge_plus'])[20]
+assert np.sign(shift) == np.sign((ep - Cp) @ ((Hp[np.argmin(np.abs((Hp - Cp) @ tan))] - Cp))), "sign"
+# a site where the star is below 1 deg: None (here the antipode of the centre point)
+assert m6.height_shift_km('4272', STAR, ET0, site_lon - 180.0, -site_lat, H_KM) is None
+print("height shift: ok")
+
 # chance that the shadow covers a site (site_probability)
 P = load_module().site_probability
 assert P(0, 5, 0) == 1.0 and P(6, 5, 0) == 0.0                     # no uncertainty: inside or not

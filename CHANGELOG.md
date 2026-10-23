@@ -31,6 +31,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Shared pre-screens from several machines**: `prescreen publish` starts its list (`prescreens.json`) from the
   mirror's current one, so a build published on another machine stays listed; `pysyzygos prescreen merge [lists]
   --check` combines lists without repacking and checks that every archive is on the mirror.
+- **Center line at the site's height**: maps and KML get a dashed light-green line, the center line on a surface
+  raised by the site's height (the other lines stay at height 0 on WGS84, as Occult's). It lies about
+  h / tan(star altitude) towards the star's azimuth (2000 m at 30°: 3.5 km). The record field `height_shift_km`
+  (signed: + towards limit A) gives the shift across the track at the site; shown on hover over the shadow distance
+  and in the favorites' event summary. Distances and chances were always computed for the site in 3-D.
 - **Sort order remembered**: the Results, Favorites and Planets & Moons tables keep the column you sorted last (and
   its direction), also after the report is rebuilt or the page reloaded.
 

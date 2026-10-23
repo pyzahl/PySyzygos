@@ -1332,12 +1332,18 @@ pysyzygos report bodies_log.csv -o bodies_report.html --layout bodies   # planet
 | shadow limits (red) | radius r | the asteroid's **size** (best estimate) |
 | 1-sigma limits (purple, dotted) | r + 1 sigma | the **orbit** uncertainty: where the shadow edge may lie |
 | 3-sigma limits (orange, dashed) | r + 3 sigma | the **orbit** uncertainty |
+| center line at site height (light green, dashed; map and KML) | the center line on a surface raised by your site's height | where an observer at **your height** sees the central event: the other lines are at height 0 on the WGS84 ellipsoid (as Occult's paths); the line moves by about h / tan(star altitude) towards the star's azimuth (2000 m at 30° altitude: 3.5 km) |
 | satellite zone (cyan, dotted; only for asteroids with a known moon) | r + the moon's distance + its radius | where a **satellite's** shadow can pass: its position at the event is not predicted, so it can be anywhere in this band; observers outside the main path may see a short extra event |
 
 * The sigma lines are **not** a size uncertainty. Sigma is the uncertainty of the asteroid's **position** (its
   orbit) at the event time: JPL Horizons' 3-sigma value (RSS), converted to km at the asteroid's distance and divided
   by 3; without a Horizons value it is `default_sigma3_km` (10 km, so sigma 3.3 km). The 1-sigma lines enclose the
   real shadow edge about 2 times in 3, the 3-sigma lines almost always.
+* **Your site's height**: all lines are drawn at height 0 (WGS84), like Occult's and OccultWatcher's paths. A site
+  higher up sees the path moved towards the star by about h / tan(star altitude); the map's dashed light-green line
+  is the center line at your site's height, and the shadow distance hint (Results) and the event summary
+  (Favorites: "Site height shift") give how far it moves across the track at your site. The shadow distance and the
+  chance already include it (the search solves for your site in 3-D).
 * The **size** uncertainty (diameter range, e.g. SBDB diameter +/- 3 sigma, or from H with an assumed albedo) is not
   drawn. It sets the search range (largest likely radius + your reach), and the favorites show it in their size line.
   An **\*** after the asteroid name (Results, Favorites, Pick tab) marks a size estimated from H with an assumed

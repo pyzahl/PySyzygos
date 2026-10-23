@@ -52,7 +52,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   Env `PYSYZYGOS_CATALOG=<folder>` overrides `gaia_local_dir` for one run (GUI header selector sets it).
 - `pysyzygos_config.py` (user file in HOME, not in git; template `pysyzygos/templates/pysyzygos_config.py`): run config (targets, window, site, thresholds). Optional: `map_dir`, `min_mag_drop`, `search_mode` (`corridor`/`windows`), `corridor_step_s`,
   `gaia_local_dir` (required by corridor mode), `gaia_local_gmax`.
-- `pysyzygos/paths.py`: shadow ground track (centre, limits, 3-sigma) as KML.
+- `pysyzygos/paths.py`: shadow ground track (centre, limits, 3-sigma) as KML. Lines at height 0 on WGS84 (Occult's);
+  `height_km=` adds 'center_height' (surfpt on a+h, c+h: the height-h surface to < 1 cm up to 5 km; search passes ELE,
+  KML "Center line at site height (N m)", report LINE_STYLES first match wins); `height_shift_km` = h/tan(alt)
+  towards the star's azimuth, across the ground track (direction from the axis's ground points at et -+ 30 s) ->
+  record `height_shift_km` (end; + = A side), report `height_text` (shadow cell title), favorites "Site height
+  shift". Checked 2026-10-22: 0.533 vs 0.535 km measured between the lines (2000 m, alt 75 deg).
 - `pysyzygos/report.py`: `hits_log.csv` (+ last run of `hits_log.runs.jsonl` for the header) to HTML/Markdown with an embedded Leaflet map. Standard library only.
 - `pysyzygos/pick.py`: event finder over all asteroids (OWC-style) for a window; writes `pick_events.csv` and
   `targets.py`, and saves both per site + window in `picks/` (`pysyzygos/picks.py`; pysyzygos/search.py with

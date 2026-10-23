@@ -592,8 +592,11 @@ def event_info(entry):
           ("Combined mag (G)", f"{f('m_combined'):.2f}" if f("m_combined") is not None else "—"),
           ("Max duration", f"{f('max_duration_s'):.2f} s" if f("max_duration_s") is not None else "—"),
           ("Mag drop (G)", f"{drop:.2f}" if drop is not None else "—"),
-          ("Shadow width", f"{2 * rad:.1f} km" if rad else "—"),
-          ("Moon phase", f"{illum:.0f}% sunlit" if illum is not None else "—"),
+          ("Shadow width", f"{2 * rad:.1f} km" if rad else "—")] + \
+         ([("Site height shift", f"{abs(f('height_shift_km')):.2f} km to side "
+                                 f"{'A' if f('height_shift_km') >= 0 else 'B'} (map lines at height 0)")]
+          if f("height_shift_km") is not None else []) + \
+         [("Moon phase", f"{illum:.0f}% sunlit" if illum is not None else "—"),
           ("Solar elong.", f"{elong:.0f}°" if elong is not None else "—"),
           ("Moon elong.", f"{msep:.0f}°" if msep is not None else "—")]
     ra, dec = f("star_ra"), f("star_dec")

@@ -31,14 +31,17 @@ def plane_basis(star_vector):
 
 # Math: AS.1 (slide AS): each ground point G's centre line shifted by v_perp (|A - E| - |A - G|)/c (light time
 # from that point, as LT.1 for the site; in the code ast0 = A - E, p_j = G - E).
-def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, step=None, sat_km=None):
+def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, step=None, sat_km=None, height_km=None):
     """Ground track of the shadow axis and its limits.
 
     Returns {name: [(et, lon_deg, lat_deg, duration_s_or_None), ...]} for
     'center', 'edge_plus', 'edge_minus' (+/- r_km), 'sigma1_plus', 'sigma1_minus' (+/- (r_km + sigma3_km / 3), the
     1-sigma limits) and 'sigma_plus', 'sigma_minus' (+/- (r_km + sigma3_km)); with sat_km (a known satellite's distance
     plus radius, binaries.zone_km) also 'satellite_plus', 'satellite_minus' (+/- (r_km + sat_km)): where the
-    satellite's shadow can pass.
+    satellite's shadow can pass. With height_km (the site's height above the WGS84 ellipsoid, |h| >= 1 m) also
+    'center_height': the center line on the surface raised by that height (where an observer at the site's height
+    sees the central event; the other lines are at height 0, as Occult's), shifted by about h / tan(star altitude)
+    towards the star's azimuth.
     '+' is the side 90 deg counter-clockwise of the shadow's motion in the plane (x east, y north).
     duration_s is the centre-line duration 2*r/(shadow speed relative to the ground point).
 
@@ -85,6 +88,11 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
     if sat_km:
         offsets.update(satellite_plus=r_km + sat_km, satellite_minus=-(r_km + sat_km))
     out = {k: [] for k in offsets}
+    radii = {}
+    if height_km is not None and abs(height_km) >= 0.001:              # the center line at the site's height
+        offsets['center_height'] = 0.0
+        out['center_height'] = []
+        radii['center_height'] = (a + height_km, b + height_km, c + height_km)   # the height-h surface to < 1 cm up to 5 km
 
     for et in ets:
         ast0, _ = spice.spkpos(tid, et, 'J2000', 'CN', '399')          # same convention as the solver
@@ -108,7 +116,7 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
             try:
                 for _ in range(3):                                      # geocentric light time first, then the point's
                     vertex = axis_pt + shift + off * n3 + 2.0 * a * z_ax
-                    point = spice.surfpt(R @ vertex, R @ (-z_ax), a, b, c)
+                    point = spice.surfpt(R @ vertex, R @ (-z_ax), *radii.get(name, (a, b, c)))
                     p_j = R.T @ point
                     shift = v_perp * (dist0 - float(np.linalg.norm(ast0 - p_j))) / C_KM_S
             except NotFoundError:
@@ -120,6 +128,50 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
                 dur = 2.0 * r_km / np.linalg.norm(v_axis - v_ground)
             out[name].append((et, np.degrees(lon), np.degrees(lat), dur))
     return out
+
+
+# The site-height shift: horizontal displacement h / tan(alt) towards the star's azimuth (the ray meets the raised
+# surface h / sin(alt) earlier), its component across the ground track (the axis's ground points 30 s apart).
+def height_shift_km(target_id, star_dir, et, lon_deg, lat_deg, h_km):
+    """How far the center line at the site's height (h_km above the WGS84 ellipsoid) lies from the one at height 0,
+    across the ground track at the site: km, signed ('+' = towards the A side, shadow_path's 'edge_plus'); None with
+    the star below 1 deg. A ray along the star direction meets the raised surface h / sin(alt) before the ellipsoid,
+    h / tan(alt) horizontally towards the star's azimuth. The ground track's direction comes from the shadow axis's
+    ground points at et -+ 30 s (Earth-fixed: the Earth's rotation turns it away from the plane's along-track
+    direction); where the axis misses the Earth then, the horizontal part of the plane's across-track vector."""
+    from pysyzygos import earth
+    a, c = earth.A_KM, earth.C_KM
+    x_ax, y_ax, z_ax = plane_basis(star_dir)
+    lon, lat = np.radians(lon_deg), np.radians(lat_deg)
+    R = spice.pxform('J2000', 'ITRF93', et)
+    up = np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])     # ITRF93 from here on
+    zf = R @ z_ax
+    sin_alt = float(up @ zf)
+    if sin_alt < np.sin(np.radians(1.0)):
+        return None
+    tid = str(target_id)
+    p0, _ = spice.spkpos(tid, et - 0.5, 'J2000', 'CN', '399')
+    p1, _ = spice.spkpos(tid, et + 0.5, 'J2000', 'CN', '399')
+    v = np.array([(p1 - p0) @ x_ax, (p1 - p0) @ y_ax])
+    n = np.array([-v[1], v[0]]) / np.linalg.norm(v)
+    n3 = R @ (n[0] * x_ax + n[1] * y_ax)                                # across the track, as in shadow_path
+    try:
+        pts = []
+        for t in (et - 30.0, et + 30.0):
+            ast, _ = spice.spkpos(tid, t, 'J2000', 'CN', '399')
+            Rt = spice.pxform('J2000', 'ITRF93', t)
+            axis_pt = ast - (ast @ z_ax) * z_ax
+            pts.append(np.asarray(spice.surfpt(Rt @ (axis_pt + 2.0 * a * z_ax), Rt @ (-z_ax), a, a, c)))
+        along = pts[1] - pts[0]
+        along -= (along @ up) * up
+        across = np.cross(up, along)                                    # left of the ground motion
+        if across @ n3 < 0:                                             # the A side, as the plane's
+            across = -across
+    except NotFoundError:
+        across = n3 - (n3 @ up) * up
+    across /= np.linalg.norm(across)
+    toward_star = zf - sin_alt * up                                     # horizontal, length cos(alt)
+    return float(h_km / sin_alt * (toward_star @ across))
 
 
 def site_probability(miss_km, r_km, sigma1_km):
@@ -203,6 +255,9 @@ def write_shadow_kml(paths, filename, title, observer=None, tick_every=10):
              line("1-sigma limit B", paths.get('sigma1_minus', []), "ffff66cc", 1),
              line("3-sigma limit A", paths['sigma_plus'], "ff00ffff", 2),
              line("3-sigma limit B", paths['sigma_minus'], "ff00ffff", 2)]
+    if paths.get('center_height'):                                          # the center line at the site's height
+        parts.append(line(paths.get('center_height_name') or "Center line at site height",
+                          paths['center_height'], "ff00aa00", 2))
     if paths.get('satellite_plus'):                                         # known satellite: where its shadow can pass
         parts += [line("Satellite zone A", paths['satellite_plus'], "ffffaa00", 1),
                   line("Satellite zone B", paths['satellite_minus'], "ffffaa00", 1)]
