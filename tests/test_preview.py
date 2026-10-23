@@ -39,4 +39,23 @@ svg = P.render_svg(stars, dict(ra=ra0, dec=dec0, g=11.0), track, (w, h), disks=[
     dict(ra=ra0 + east, dec=dec0, r_arcsec=0.01, label="Amalthea", main=False, moon=True)])
 plus = [p_ for p_ in ET.fromstring(svg).iter(ns + "path") if p_.get("stroke") == "#22d3ee"]
 assert len(plus) == 1 and plus[0].find(ns + "title").text == "Amalthea"
+# magnifier: a companion 2" east and 1" north, 1 mag fainter; the asteroid moves east at 1"/s through the target
+assert P.zoom_field_arcsec(None) == 30.0 and P.zoom_field_arcsec(0.4) == 10.0 and P.zoom_field_arcsec(12.0) == 36.0
+assert P.zoom_field_arcsec(30.0) == 30.0 and P.zoom_field_arcsec(2.0, fixed=20.0) == 20.0
+ce, cn = 2.0 / 3600 / math.cos(math.radians(dec0)), 1.0 / 3600
+zs = dict(ra=np.array([ra0, ra0 + ce]), dec=np.array([dec0, dec0 + cn]), g=np.array([11.0, 12.0]))
+ztr = [(t_, ra0 + t_ / 3600 / math.cos(math.radians(dec0)), dec0) for t_ in range(-6, 7, 2)]
+z = dict(stars=zs, field_arcsec=10.0, track=ztr, delta_km=1.5e8, r_km=10.0, seeing_arcsec=2.0)
+svg = P.render_svg(stars, dict(ra=ra0, dec=dec0, g=11.0), track, (w, h), zoom=z)
+root = ET.fromstring(svg)
+k = P.ZOOM_PX / 10.0
+cores = {c.find(ns + "title").text: c for c in root.iter(ns + "circle")
+         if c.find(ns + "title") is not None and c.get("fill") == "#f8fafc" and c.get("r") and float(c.get("r")) > 1.0}
+comp = next(c for t_, c in cores.items() if "\u0394G +1.00" in t_)
+tip = comp.find(ns + "title").text
+assert abs(float(comp.get("cx")) - (P.ZOOM_PX / 2 - 2.0 * k)) < 0.3 and abs(float(comp.get("cy")) - (P.ZOOM_PX / 2 - 1.0 * k)) < 0.3
+assert "2.24\u2033 at PA 63\u00b0" in tip, tip                               # east of north: atan2(2, 1)
+assert "passes it +2.0 s" in tip, tip                                             # 2" ahead along the motion at 1"/s
+assert f"{math.radians(1 / 3600) * 1.5e8:,.0f} km" in tip, tip                 # 1" across the track at 1.5e8 km
+assert "\u0394G +1.0 \u00b7 2.2\u2033" in svg and "zoom 10\u2033" in svg and "asteroid \u2300 28 mas" in svg
 print("PREVIEW TESTS PASSED")

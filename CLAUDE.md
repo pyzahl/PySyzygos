@@ -205,7 +205,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   notes (show_site, prescreen_options, ...) are attributes of pg. index() calls all panels, then all handlers, then
   the connects in the old order (site, header, search, pick, system, favorites): elements are created in the same
   order as before. A new element or function used by another tab: assign it to pg. `pysyzygos/geo.py`: IP/place/elevation lookups (setup + GUI). `pysyzygos/preview.py`:
-  event preview SVG per hit (`maps/<target>_<stamp>.svg`), shown by the report's Preview button.
+  event preview SVG per hit (`maps/<target>_<stamp>.svg`), shown by the report's Preview button. Magnifier
+  (2026-10-23, `zoom=` -> `_zoom_svg`, ZOOM_PX 184 top right): `zoom_field_arcsec` (3 x nearest neighbour, 10-50,
+  30 default; config preview_zoom/_arcsec/preview_seeing_arcsec), stars = LOCAL.cone 40" without a mag cap, core +
+  seeing halo (radialGradient), labels dG/sep (<= ZOOM_DMAG 6), tooltip PA, passing time along/rate, shadow offset
+  across x delta_km; track from the SITE (spkcpo; geocentric is off by the parallax, arcsec) in whole-second ticks.
+  Planets/moons: none. tests/test_preview.py.
 - `pysyzygos/bodies.py` (2026-10-08): planets/moons as targets, prefix + name (`P:Jupiter`, `M:Io`; `L:Moon` later),
   REGISTRY (NAIF id, centre = system barycentre, kind, V(1,0), phase coeff, rough sigma3), GROUPS ("jupiter").
   `ensure_kernel`: Horizons VECTORS (CENTER 500@<bary>, 20 min, ICRF) -> SPK type 13 via `spkw13` in cache_path

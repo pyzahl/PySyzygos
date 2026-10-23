@@ -4,6 +4,18 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [Unreleased]
+
+### Added
+- **Magnifier in the event preview**: a zoom on the target star in the preview's top right corner (10-50″: 3 x the
+  nearest neighbour's distance, 30″ without one) shows close pairs and companions clearly. Every catalog star there
+  is a sharp core plus a halo of the seeing's size (2″, `preview_seeing_arcsec`): where halos overlap, the stars
+  blend in a camera. Neighbours up to 6 mag fainter are labelled with their G difference and separation; on hover:
+  position angle, when the asteroid passes it (s from the event) and how far its shadow path lies from the target
+  star's. The asteroid's track there is the one seen from your site (the geocentric one is off by the parallax,
+  arcseconds at this scale), with dots every few seconds, and its apparent diameter (mas). Config `preview_zoom`,
+  `preview_zoom_arcsec`.
+
 ## [1.4.0] "Beyond Horizons" - 2026-10-23
 
 Result lists you can filter (filter bar, named sets, SQL), the horizon from an ordinary 360° photo aligned by the

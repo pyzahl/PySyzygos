@@ -489,7 +489,7 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    drops, durations, shadow paths (KML maps) and star-field previews. **Star G limit** (default from your telescope)
    and the minimum drop apply to this run.
 5. **Results**: the event list with a **Map** (shadow path with shadow, 1-sigma and 3-sigma limits and your site),
-   a **Preview** (star field and camera frame), a **Globe** (the whole Earth seen from the star with the path and
+   a **Preview** (star field and camera frame, with a magnifier on the target star for close pairs and companions), a **Globe** (the whole Earth seen from the star with the path and
    minute marks, and the event parameters) and the **KML** for Google Earth for each event; a
    **Stellarium** button that points Stellarium at the event (any system, Remote Control plugin), on Linux with
    KStars running also a **KStars** button, and a **☆** button that adds the event to your favorites.
@@ -795,6 +795,7 @@ for s in home field; do PYSYZYGOS_SITE=$s pysyzygos pick -o pick_$s.csv --target
 | `write_maps`, `map_dir` | `True`, `"maps"` | write a KML ground track for every logged event |
 | `write_previews` | `True` | write an event preview (SVG) for every hit next to its KML |
 | `preview_mag_limit`, `preview_field_factor` | `16.0`, `3.0` | faintest star drawn; preview field = this x the camera field (at least 10′) |
+| `preview_zoom`, `preview_zoom_arcsec`, `preview_seeing_arcsec` | `True`, `None`, `2.0` | the preview's magnifier on the target star (top right): on/off; its field (None: 3 x the nearest neighbour's distance, 10-50″, 30″ without one); the seeing drawn as each star's halo |
 | `default_sigma3_km` | `10.0` | path uncertainty used when JPL Horizons has none |
 | `cache_path` | `/dev/shm` or the temp folder | asteroid orbit files and SBDB downloads (RAM on Linux, emptied on reboot) |
 | `sbdb_max_age_days` | `30` | asteroid size and orbit downloads are refreshed after this many days |

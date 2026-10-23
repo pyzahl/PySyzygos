@@ -117,6 +117,9 @@ debug_save_paths = False    # debug: also save each event's geodetic shadow path
 write_previews = True       # event preview image (star field, camera frame, asteroid track) per hit, as SVG in map_dir
 preview_mag_limit = 16.0    # faintest star drawn (Gaia G)
 preview_field_factor = 3.0  # preview field = this x the camera field (at least 10 arcmin)
+preview_zoom = True         # magnifier on the target star in the preview's top right corner (close pairs, companions)
+preview_zoom_arcsec = None  # its field in arcsec; None: 3 x the nearest neighbour's distance, 10-50 arcsec (30 without)
+preview_seeing_arcsec = 2.0 # halo size of each star in the magnifier: overlapping halos blend in a camera
 default_sigma3_km = 10.0
 
 ## cache folder for all tools (asteroid SPKs, SBDB downloads). /dev/shm is RAM on Linux (fast, emptied on reboot);

@@ -973,7 +973,7 @@ def write_preview(record, target_id, stem):
     fov = preview.camera_fov_arcmin(config.camera_focal_mm, config.camera_sensor_mm)
     field = max(config.preview_field_factor * max(fov), 10.0)
     et = record["best_et"]
-    disks, sub, name, zoom = None, None, None, None
+    disks, sub, name, zoom_field = None, None, None, None
     if bodies.is_body(target_id):                        # the planet or moon as a disk, with its system's bodies
         b, disks, name = bodies.parse(target_id), [], bodies.name(target_id)
         for t in [t for t in bodies.GROUPS.get(b["group"], [target_id]) if t in bodies.LOADED]:
@@ -998,8 +998,8 @@ def write_preview(record, target_id, stem):
             if sep <= 15.0:
                 seps.append(sep)
         main_r = max([dk["r_arcsec"] for dk in disks if dk["main"]] or [1.0]) / 60
-        zoom = float(max(2.4 * max(seps or [0.0]), 16 * main_r, 2.0))
-        field = zoom
+        zoom_field = float(max(2.4 * max(seps or [0.0]), 16 * main_r, 2.0))
+        field = zoom_field
         dur = record.get("duration_s") or 0.0
         sub = (f"Gaia DR3 {record['star']} \u00b7 G {record['mag']:.2f} \u00b7 "
                + (f"D {record['d_utc'][11:21]} \u00b7 R {record['r_utc'][11:21]} UT \u00b7 {dur / 60:.1f} min"
@@ -1012,11 +1012,37 @@ def write_preview(record, target_id, stem):
     # track span: about a quarter of the field, between 30 min and 12 h each side
     (a0, d0), (a1, d1) = radec(et - 600.0), radec(et + 600.0)
     rate = np.hypot((a1 - a0) * np.cos(np.radians(d0)), d1 - d0) * 60 / 20.0            # arcmin per minute
-    span = int(np.clip(field / 4 / max(rate, 1e-9), 30 if zoom is None else 2, 720))
+    span = int(np.clip(field / 4 / max(rate, 1e-9), 30 if zoom_field is None else 2, 720))
     track = [(m, *radec(et + 60.0 * m)) for m in np.linspace(-span, span, 13)]
     # the searched strip (corridor.plan_corridor): Earth radius + body radius + reach, at the event distance
     corr_km = corridor.EARTH_R_KM + float(record.get("r_max_km") or record.get("r_km") or 0.0) + float(config.max_shadow_dist)
     delta = float(np.linalg.norm(spice.spkpos(target_id, et, 'J2000', 'CN', '399')[0]))
+    zoom = None
+    if getattr(config, "preview_zoom", True) and disks is None:   # magnifier on the target star (asteroids)
+        try:
+            zs = LOCAL.cone(record["star_ra"], record["star_dec"], 40.0 / 3600.0)   # every star of the catalog
+            zra, zde = corridor.propagate_linear(zs, 2000.0 + et / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
+            zg = zs.phot_g_mean_mag.to_numpy().astype(float)
+            sep = np.hypot(((zra - record["star_ra"] + 180.0) % 360.0 - 180.0) * np.cos(np.radians(record["star_dec"])), zde - record["star_dec"]) * 3600
+            others = sep[~((sep < 0.05) & (np.abs(zg - record["mag"]) < 0.3))]     # not the target star itself
+            fa = preview.zoom_field_arcsec(float(others.min()) if len(others) else None,
+                                           getattr(config, "preview_zoom_arcsec", None))
+            # the track across the box: about 1.2 box widths, ticks in whole seconds
+            half = max(1, int(np.ceil(0.6 * fa / max(rate, 1e-6))))   # rate: arcmin/min = arcsec/s
+            step_s = next((x for x in (1, 2, 5, 10, 30, 60, 120, 300, 600) if half / x <= 6), 600)
+            half = int(np.ceil(half / step_s)) * step_s
+            # seen from the site (the geocentric track is off by the parallax, arcseconds at this scale)
+            from pysyzygos import earth
+            site = spice.georec(math.radians(config.LON), math.radians(config.LAT), config.ELE / 1000.0, earth.A_KM, earth.F)
+            def radec_site(t):
+                v = spice.spkcpo(target_id, t, 'J2000', 'OBSERVER', 'CN', site, '399', 'ITRF93')[0][:3]
+                _, a, d = spice.recrad(v)
+                return np.degrees(a), np.degrees(d)
+            ztrack = [(float(t_), *radec_site(et + t_)) for t_ in np.arange(-half, half + step_s, step_s)]
+            zoom = dict(stars=dict(ra=zra, dec=zde, g=zg), field_arcsec=fa, track=ztrack, delta_km=delta,
+                        r_km=float(record.get("r_km") or 0.0), seeing_arcsec=getattr(config, "preview_seeing_arcsec", 2.0))
+        except Exception as ex:                                         # the preview without it
+            print(f" --- no zoom in the preview: {ex}")
     svg = preview.render_svg(dict(ra=ra, dec=de, g=stars.phot_g_mean_mag.to_numpy()),
                              dict(ra=record["star_ra"], dec=record["star_dec"], g=record["mag"]), track, fov,
                              config.preview_field_factor,
@@ -1024,7 +1050,8 @@ def write_preview(record, target_id, stem):
                              subtitle=sub or (f"Gaia DR3 {record['star']} \u00b7 G {record['mag']:.2f} \u00b7 drop "
                                       f"{record['mag_drop']:.2f} mag \u00b7 max {record['max_duration_s']:.2f} s \u00b7 "
                                       f"miss {record['min_distance']:.1f} km"), disks=disks, body_name=name,
-                             field_arcmin=zoom, corridor_arcsec=np.degrees(corr_km / delta) * 3600, corridor_km=corr_km)
+                             field_arcmin=zoom_field, corridor_arcsec=np.degrees(corr_km / delta) * 3600, corridor_km=corr_km,
+                             zoom=zoom)
     os.makedirs(config.map_dir, exist_ok=True)
     with open(f"{config.map_dir}/{stem}.svg", "w", encoding="utf-8") as f:
         f.write(svg)
