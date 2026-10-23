@@ -103,20 +103,30 @@ def panel(pg):
                                   on_upload=lambda e: pg.pano_upload(e)).props(
                             "accept=.jpg,.jpeg,.png flat dense").classes("w-56").tooltip(
                             "Equirectangular (2:1), as a 360° camera or a phone's photo sphere saves it, taken "
-                            "level at the telescope. With the sky made transparent (PNG), the horizon line can be "
-                            "read from it")
+                            "level at the telescope. The horizon line is read from it: from a transparent sky (PNG), "
+                            "or found automatically in a photo with a reasonably clear blue sky (check the line)")
                         pg.hz_az = ui.number("Azimuth at the photo's left edge (°)", value=0, min=0, max=360,
                                              step=0.5).classes("w-56").on_value_change(lambda e: pg.hz_draw())
                         pg.hz_fit = ui.button("Fit to the horizon line", on_click=lambda: pg.pano_fit()).props(
                             "flat dense").tooltip("Turn the photo so that its horizon lies best on the horizon "
-                                                  "points above (needs a photo with transparent sky)")
+                                                  "points above (needs a horizon line read from the photo)")
                         pg.hz_from = ui.button("Horizon from the photo", on_click=lambda: pg.pano_points()).props(
-                            "flat dense").tooltip("The horizon points from the photo's transparent sky (whole "
+                            "flat dense").tooltip("The horizon points from the photo's horizon line (whole "
                                                   "degrees, as UserHorizon.txt); replaces the points above")
                         pg.hz_dl = ui.button("UserHorizon.txt", on_click=lambda: pg.hz_download()).props(
                             "flat dense").tooltip("Download the horizon as OccultWatcher's UserHorizon.txt")
                         ui.button("Remove photo", on_click=lambda: pg.pano_set(None)).props(
                             "flat dense color=negative")
+                    with ui.row().classes("items-center gap-3"):
+                        pg.hz_sun_in = ui.input("Sun at (site's local time)", placeholder="16:45:04 or 2026-10-22 16:45"
+                                                ).classes("w-64").props("dense clearable").tooltip(
+                            "When the photo was taken: the Sun's position then is drawn on the photo (yellow); turn "
+                            "the photo (azimuth at its left edge) until the Sun in it sits in the ring. Time only: today")
+                        ui.button("Show Sun", on_click=lambda: pg.hz_sun()).props("flat dense")
+                        ui.button("Align by the Sun", on_click=lambda: pg.hz_sun_align()).props("flat dense").tooltip(
+                            "Find the Sun's disk in the photo and set the azimuth at its left edge so that it sits at "
+                            "the Sun's position at the time above")
+                        pg.hz_sun_info = ui.label().classes("text-sm text-slate-600")
                     pg.hz_info = ui.label().classes("text-sm text-slate-600")
                     pg.hz_pic = ui.html("")
 
@@ -141,6 +151,8 @@ def handlers(pg):
         pg.hz_filter.value = bool(s.get("horizon_filter", False))
         pg.HZ["image"] = s.get("horizon_image") if s.get("horizon_image") and os.path.isfile(s["horizon_image"]) else None
         pg.hz_az.value = float(s.get("horizon_image_az", 0.0))
+        pg.HZ["sun"] = None                                          # the Sun marker belongs to the site shown before
+        pg.hz_sun_info.text = ""
         pg.hz_set([tuple(p) for p in s.get("horizon") or []] or None, s.get("horizon_name", ""))
         pg.site_title.text = f"Site: {name}"
         try:
@@ -156,7 +168,68 @@ def handlers(pg):
         pg.update_derived()
     pg.show_site = show_site
 
-    pg.HZ = dict(pts=None, name="", image=None)                     # the horizon in the form (horizon.py, panorama.py)
+    pg.HZ = dict(pts=None, name="", image=None, sun=None)           # the horizon in the form (horizon.py, panorama.py)
+    pg.HZ_TZ = {}                                                     # site (lat, lon) -> IANA time zone (looked up once)
+
+    async def hz_sun():
+        """The Sun's azimuth and altitude at the form's site at the time typed (the site's local time; time only:
+        today there), drawn on the photo to line it up (panorama.sun_altaz)."""
+        import datetime as dt
+        from zoneinfo import ZoneInfo
+        from pysyzygos import panorama
+        txt = (pg.hz_sun_in.value or "").strip()
+        if not txt:
+            pg.HZ["sun"] = None
+            pg.hz_sun_info.text = ""
+            pg.hz_draw()
+            return
+        try:
+            la, lo = float(pg.lat.value), float(pg.lon.value)
+        except (TypeError, ValueError):
+            ui.notify("Set the site's position first", type="warning")
+            return
+        key = (round(la, 3), round(lo, 3))
+        if key not in pg.HZ_TZ:
+            pg.HZ_TZ[key] = await run.io_bound(geo.timezone, la, lo)
+        tzname = pg.HZ_TZ.get(key)
+        tz = ZoneInfo(tzname) if tzname else dt.datetime.now().astimezone().tzinfo
+        m = re.fullmatch(r"(?:(\d{4}-\d\d-\d\d)[ T])?(\d{1,2}):(\d\d)(?::(\d\d(?:\.\d*)?))?\s*([aApP][mM])?", txt)
+        if not m:
+            ui.notify("Time as 16:45:04, 4:45:04 pm or 2026-10-22 16:45", type="warning")
+            return
+        day = dt.date.fromisoformat(m.group(1)) if m.group(1) else dt.datetime.now(tz).date()
+        hh, mm, ss = int(m.group(2)), int(m.group(3)), float(m.group(4) or 0)
+        if m.group(5):
+            hh = hh % 12 + (12 if m.group(5).lower() == "pm" else 0)
+        t = dt.datetime(day.year, day.month, day.day, hh, mm, int(ss), int((ss % 1) * 1e6), tzinfo=tz)
+        az, alt = panorama.sun_altaz(la, lo, t)
+        pg.HZ["sun"] = (az, alt)
+        pg.hz_sun_info.text = (f"Sun at {t:%Y-%m-%d %H:%M:%S} {tzname or t.tzname()} "
+                               f"({t.astimezone(dt.timezone.utc):%H:%M:%S} UTC): azimuth {az:.1f}°, altitude {alt:.1f}°"
+                               + ("  (below the horizon)" if alt < -0.8 else ""))
+        pg.hz_draw()
+    pg.hz_sun = hz_sun
+
+    async def hz_sun_align():
+        from pysyzygos import panorama
+        if not pg.HZ.get("image"):
+            ui.notify("Load a 360° photo first", type="warning")
+            return
+        await hz_sun()
+        if not pg.HZ.get("sun"):
+            ui.notify("Type the photo's time first (Sun at ...)", type="warning")
+            return
+        found = await run.io_bound(panorama.sun_in_photo, pg.HZ["image"])
+        if not found:
+            ui.notify("No Sun found in the photo (no clear saturated disk above the horizon)", type="warning")
+            return
+        x_deg, alt_photo = found
+        az, alt = pg.HZ["sun"]
+        pg.hz_az.value = round((az - x_deg) % 360.0, 1)          # redraws (hz_az's change handler)
+        ui.notify(f"Azimuth at the photo's left edge set to {pg.hz_az.value:.1f}° (the Sun's disk at {x_deg:.1f}° in "
+                  f"the photo, its azimuth then {az:.1f}°); its height in the photo {alt_photo:.1f}° against "
+                  f"{alt:.1f}°: save the site to keep it", type="positive", multi_line=True, timeout=10000)
+    pg.hz_sun_align = hz_sun_align
 
     def hz_draw():
         from pysyzygos import horizon, panorama
@@ -166,7 +239,8 @@ def handlers(pg):
         pg.hz_from.set_visibility(bool(img and prof))
         pg.hz_dl.set_visibility(bool(pts))
         if img:
-            pg.hz_pic.content = panorama.svg(img, float(pg.hz_az.value or 0), pts, float(pg.hz_margin.value or 15), width=900)
+            pg.hz_pic.content = panorama.svg(img, float(pg.hz_az.value or 0), pts, float(pg.hz_margin.value or 15),
+                                             width=900, sun=pg.HZ.get("sun"))
         else:
             pg.hz_pic.content = horizon.svg(pts, width=540, height=110) if pts else ""
         txt = (f"{pg.HZ['name'] or 'horizon'}: {len(pts)} points, highest {max(h for _, h in pts)}°" if pts
@@ -201,8 +275,10 @@ def handlers(pg):
         if meta.get("profile") and pg.HZ["pts"]:
             pg.pano_fit()
         pg.hz_draw()
-        ui.notify(f"Photo set for site {pg.state['name']}" + ("" if meta.get("profile") else
-                  " (no transparent sky: set the azimuth at its left edge by hand)") + ": save the site to keep it",
+        how = {"transparent sky": " (horizon line from its transparent sky)",
+               "sky detection": " (horizon line found automatically: check it, e.g. with 'Horizon from the photo')"}
+        ui.notify(f"Photo set for site {pg.state['name']}" + (how.get(meta.get("profile_from"), "") if meta.get("profile")
+                  else " (no sky found: set the azimuth at its left edge by hand)") + ": save the site to keep it",
                   type="positive", timeout=8000)
     pg.pano_upload = pano_upload
 

@@ -1,5 +1,6 @@
 """panorama.py - a site's 360-degree photo (equirectangular, 2:1, as a GoPro MAX / Insta360 / phone 'photo sphere'
-saves it) as a picture of its horizon: the horizon line read from a photo whose sky was made transparent, the
+saves it) as a picture of its horizon: the horizon line read from a photo whose sky was made transparent (else,
+for a clear blue sky, found automatically: sky_mask), the
 azimuth reference (the azimuth at the photo's left edge, set by hand or fitted to the site's UserHorizon points), a
 thumbnail kept in the data folder (horizons/), and an SVG with the horizon line, the margin and the star drawn on it.
 
@@ -30,13 +31,50 @@ def check_size(im):
         raise ValueError(f"{w} x {h} pixels is not a 360-degree equirectangular photo (width = 2 x height)")
 
 
+def sky_mask(rgb):
+    """Sky pixels (bool, H x W) of an equirectangular photo with a reasonably clear sky, for a photo without a
+    transparent sky: blue enough (also the darker zenith) or bright and grey (haze, glare near the Sun), and connected
+    to the top rows (so blue roofs, cars or water below the skyline do not count); the top 3 deg (stitched zenith)
+    count as sky, holes inside the sky (clouds) are filled. Blue gaps in foliage stay ground (branches block too).
+    Checked on two real panoramas (a London park, a garden): the line follows tree crowns and roof edges."""
+    from scipy import ndimage
+    f = np.asarray(rgb, float)[..., :3]
+    r, g, b = f[..., 0], f[..., 1], f[..., 2]
+    v, mn = f.max(axis=2), f.min(axis=2)
+    sat = (v - mn) / np.maximum(v, 1.0)
+    cand = ((b > r + 8) & (b >= g - 5) & (v > 70)) | ((v > 200) & (sat < 0.18))
+    p = 8                                                       # the photo wraps around: pad with its other edge, so
+    cand = np.pad(cand, ((p, p), (p, p)), mode="wrap")          # the smoothing does not eat into the left/right edges
+    cand[:p], cand[-p:] = cand[p:p + 1], cand[-p - 1:-p]        # (top/bottom: repeated, not wrapped)
+    cand = ndimage.binary_opening(cand, iterations=1)
+    lab, _ = ndimage.label(cand)
+    top = set(np.unique(lab[p: p + max(2, f.shape[0] // 40)]).tolist()) - {0}
+    sky = ndimage.binary_closing(np.isin(lab, list(top)), iterations=2)[p:-p, p:-p]
+    sky[: max(1, f.shape[0] // 60)] = True
+    return ndimage.binary_fill_holes(sky)
+
+
+def ground(im):
+    """(ground mask, how): from the alpha channel when the photo has a transparent sky ('transparent sky'), else
+    from sky_mask ('sky detection'); (None, '') when neither gives a usable sky (less than 2 % of the photo)."""
+    if "A" in im.getbands():
+        a = np.asarray(im.getchannel("A")) >= OPAQUE
+        if not a.all():
+            return a, "transparent sky"
+    sky = sky_mask(np.asarray(im.convert("RGB")))
+    if sky[sky.shape[0] // 60:].mean() < 0.02:                  # (almost) no sky found below the zenith rows
+        return None, ""
+    return ~sky, "sky detection"
+
+
 def profile(im):
-    """Horizon altitude (deg) per STEP_DEG column from the left edge, from the alpha channel (transparent = sky): per
-    column the first row below which ground continues for ~0.3 deg (a wire or bird in the sky does not count); the
-    altitude of the highest such column in each STEP_DEG bin; below 0 deg kept (valley views). None without alpha."""
-    if "A" not in im.getbands():
+    """Horizon altitude (deg) per STEP_DEG column from the left edge, from the ground mask (ground(): transparent
+    sky, else sky detection): per column the first row below which ground continues for ~0.3 deg (a wire or bird in
+    the sky does not count); the altitude of the highest such column in each STEP_DEG bin; below 0 deg kept (valley
+    views). None without a usable sky."""
+    a, _ = ground(im)
+    if a is None:
         return None
-    a = np.asarray(im.getchannel("A")) >= OPAQUE
     h, w = a.shape
     k = max(3, int(round(h / 600)))                            # ~0.3 deg of ground
     run = np.ones_like(a)
@@ -71,11 +109,12 @@ def save(src, site_name, folder=FOLDER, source=""):
     im = _image(src)
     check_size(im)
     prof = profile(im)
+    how = ground(im)[1] if prof is not None else ""
     os.makedirs(folder, exist_ok=True)
     base = os.path.join(folder, slug(site_name))
     meta = dict(version=__version__, source=os.path.basename(source or ""), size=list(im.size), step_deg=STEP_DEG,
                 created=time.strftime("%Y-%m-%d %H:%M"),
-                profile=None if prof is None else [round(float(x), 2) for x in prof])
+                profile=None if prof is None else [round(float(x), 2) for x in prof], profile_from=how)
     for path, data in ((base + ".jpg", thumbnail(im)), (base + ".json", json.dumps(meta).encode())):
         with open(path + ".tmp", "wb") as f:
             f.write(data)
@@ -150,9 +189,69 @@ def fit_az_left(prof, pts, step=STEP_DEG):
     return best[:2]
 
 
-def svg(jpg, az_left, pts=None, margin=None, star=None, alt_range=(-10, 70), width=900, label=""):
-    """The photo with north at the left (azimuth 0..360), altitudes alt_range, the horizon line pts (white), the margin
-    above it (dashed red) and star (az, alt) as a red ring with label. The photo embedded as a data URI."""
+def sun_altaz(lat, lon, utc):
+    """(azimuth from north through east, altitude) of the Sun's centre in degrees at a site (geodetic lat, east lon)
+    and time (aware datetime): NOAA's solar position formulas (accuracy ~0.01 deg; with refraction), for lining up a
+    photo by the Sun in it. Standard library only."""
+    from datetime import timezone
+    t = utc.astimezone(timezone.utc)
+    jd = t.timestamp() / 86400.0 + 2440587.5
+    T = (jd - 2451545.0) / 36525.0
+    L0 = (280.46646 + T * (36000.76983 + 0.0003032 * T)) % 360.0
+    M = 357.52911 + T * (35999.05029 - 0.0001537 * T)
+    e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T)
+    Mr = math.radians(M)
+    C = (math.sin(Mr) * (1.914602 - T * (0.004817 + 0.000014 * T)) + math.sin(2 * Mr) * (0.019993 - 0.000101 * T)
+         + math.sin(3 * Mr) * 0.000289)
+    om = 125.04 - 1934.136 * T
+    lam = math.radians(L0 + C - 0.00569 - 0.00478 * math.sin(math.radians(om)))
+    eps0 = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60
+    eps = math.radians(eps0 + 0.00256 * math.cos(math.radians(om)))
+    dec = math.asin(math.sin(eps) * math.sin(lam))
+    y = math.tan(eps / 2) ** 2
+    L0r = math.radians(L0)
+    eot = 4 * math.degrees(y * math.sin(2 * L0r) - 2 * e * math.sin(Mr) + 4 * e * y * math.sin(Mr) * math.cos(2 * L0r)
+                           - 0.5 * y * y * math.sin(4 * L0r) - 1.25 * e * e * math.sin(2 * Mr))      # minutes
+    minutes = t.hour * 60 + t.minute + t.second / 60 + t.microsecond / 6e7
+    ha = math.radians(((minutes + eot + 4 * lon) / 4 - 180 + 180) % 360 - 180)
+    la = math.radians(lat)
+    alt = math.asin(math.sin(la) * math.sin(dec) + math.cos(la) * math.cos(dec) * math.cos(ha))
+    az = math.degrees(math.atan2(math.sin(ha), math.cos(ha) * math.sin(la) - math.tan(dec) * math.cos(la))) + 180
+    h = math.degrees(alt)
+    if h > -0.575:                                              # refraction (NOAA)
+        te = math.tan(math.radians(h))
+        r = (58.1 / te - 0.07 / te ** 3 + 0.000086 / te ** 5) if h > 5 else \
+            (1735 + h * (-518.2 + h * (103.4 + h * (-12.79 + h * 0.711)))) if h > -0.575 else 0
+        h += r / 3600
+    return az % 360.0, h
+
+
+def sun_in_photo(jpg, min_px=30):
+    """(degrees from the photo's left edge, altitude) of the Sun's disk in the photo: the centre of the largest
+    saturated white area above the photo's horizon (min_px pixels at least), or None. With sun_altaz at the photo's
+    time this gives the azimuth at the left edge (Sun's azimuth minus the first value); the altitude difference shows
+    how level the photo is (glare can shift the centre a little: ~1 deg seen)."""
+    from scipy import ndimage
+    from PIL import Image
+    im = np.asarray(Image.open(jpg).convert("RGB")).astype(float)
+    h, w, _ = im.shape
+    bright = im.min(axis=2) > 250
+    bright[h // 2 + h // 18:] = False                           # not below 10 deg under the photo's horizon
+    lab, n = ndimage.label(bright)
+    if not n:
+        return None
+    sizes = ndimage.sum(bright, lab, range(1, n + 1))
+    k = int(np.argmax(sizes)) + 1
+    if sizes[k - 1] < min_px:
+        return None
+    cy, cx = ndimage.center_of_mass(bright, lab, k)
+    return float(cx / w * 360.0), float(90.0 - cy / h * 180.0)
+
+
+def svg(jpg, az_left, pts=None, margin=None, star=None, alt_range=(-10, 70), width=900, label="", sun=None):
+    """The photo with north at the left (azimuth 0..360, ticks every 5 and 10 deg), altitudes alt_range, the horizon
+    line pts (white), the margin above it (dashed red), star (az, alt) as a red ring with label, and sun (az, alt) as
+    a yellow disk (to line the photo up by the Sun in it). The photo embedded as a data URI."""
     lo, hi = alt_range
     s = width / 360.0                                          # px per degree, both ways
     height = (hi - lo) * s
@@ -175,6 +274,21 @@ def svg(jpg, az_left, pts=None, margin=None, star=None, alt_range=(-10, 70), wid
         out.append(f'<line x1="{a * s:.1f}" x2="{a * s:.1f}" y1="0" y2="{height:.1f}" stroke="#fff" '
                    f'stroke-opacity="0.25" stroke-width="0.6"/><text x="{min(max(a * s, 8), width - 8):.1f}" y="12" '
                    f'font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">{lab}</text>')
+    for a in range(5, 360, 5):                                   # azimuth ticks: 5 deg short, 10 deg longer + number
+        tick = 7 if a % 10 == 0 else 4
+        out.append(f'<line x1="{a * s:.1f}" x2="{a * s:.1f}" y1="0" y2="{tick}" stroke="#fff" stroke-width="0.8"/>'
+                   f'<line x1="{a * s:.1f}" x2="{a * s:.1f}" y1="{height - tick:.1f}" y2="{height:.1f}" stroke="#fff" '
+                   f'stroke-width="0.8"/>')
+        if a % 10 == 0 and a % 45:
+            out.append(f'<text x="{a * s:.1f}" y="{height - 9:.1f}" font-size="9" fill="#fff" text-anchor="middle" '
+                       f'stroke="#000" stroke-width="2" stroke-opacity="0.5" paint-order="stroke">{a}</text>')
+    if sun is not None and sun[0] is not None and sun[1] is not None:
+        ux, uy = (sun[0] % 360.0) * s, y(sun[1])
+        out.append(f'<circle cx="{ux:.1f}" cy="{uy:.1f}" r="9" fill="none" stroke="#facc15" stroke-width="2.5"/>'
+                   f'<circle cx="{ux:.1f}" cy="{uy:.1f}" r="2.5" fill="#facc15"/>'
+                   f'<text x="{ux:.1f}" y="{uy - 13:.1f}" font-size="11" font-weight="bold" fill="#facc15" '
+                   f'text-anchor="middle" stroke="#000" stroke-width="3" paint-order="stroke">Sun '
+                   f'{sun[0]:.1f}°</text>')
     if pts:
         line = " ".join(f"{a * s:.1f},{y(h):.1f}" for a, h in pts)
         out.append(f'<polyline points="{line}" fill="none" stroke="#fff" stroke-width="1.6"/>')

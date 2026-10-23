@@ -1117,7 +1117,21 @@ def filter_attrs(e):
     return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}" data-ftime="{v(t, 0)}"'
             f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
-            f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}"')
+            f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
+            + (f' data-fsite="{esc((e.get("site") or {}).get("name") or "")}"' if e.get("site") else ""))
+
+
+def horizon_js(events, meta):
+    """The horizons of the page's sites (the run's site; on the favorites page each row's) for the filter's
+    'clear of horizon': window.PYO_HZ = {site: [[az, alt], ...]}, window.PYO_HZSITE = the page's site."""
+    names = {meta.get("site_name") or ""} | {(e.get("site") or {}).get("name") or "" for e in events}
+    try:
+        from pysyzygos import db
+        hz = {n: p for n, p in db._horizons().items() if n in names}
+    except Exception:
+        hz = {}
+    data = json.dumps(hz).replace("</", "<\\/")
+    return (f"<script>window.PYO_HZ={data};window.PYO_HZSITE={json.dumps(meta.get('site_name') or '')};</script>")
 
 
 def filter_bar():
@@ -1137,6 +1151,8 @@ def filter_bar():
             + num("sun", "Sun ≤", "°", "1", "highest Sun altitude (e.g. -12: no twilight)")
             + num("ruwe", "RUWE ≤", "", "0.1", "Gaia RUWE (stars without a value pass)")
             + num("chance", "chance ≥", " %", "1", "chance that the shadow covers the site")
+            + num("hzc", "clear of horizon ≥", "°", "1", "star at least this high above your site's horizon "
+                  "(sites.py horizon); sites without a horizon pass")
             + '</div><div class="frow"><span class="flab">hide:</span>' + hide
             + '<span class="flab">only:</span><label><input type="checkbox" data-o="moon">+moon</label></div>'
             '<div class="frow"><select id="fset" aria-label="Saved filter sets"></select>'
@@ -1177,7 +1193,14 @@ function setForm(s){s=s||{};
  bar.querySelectorAll('input[data-f]').forEach(function(i){i.value=(s[i.dataset.f]!==undefined)?s[i.dataset.f]:'';});
  bar.querySelectorAll('input[data-h]').forEach(function(i){i.checked=(s.hide||[]).indexOf(i.dataset.h)>=0;});
  bar.querySelectorAll('input[data-o]').forEach(function(i){i.checked=(s.only||[]).indexOf(i.dataset.o)>=0;});}
+var HZ=window.PYO_HZ||{},HZ0=window.PYO_HZSITE||'';
+function hzAlt(site,az){var p=HZ[site];if(!p||!p.length)return null;az=((az%360)+360)%360;var b=null;   // horizon.altitude
+ for(var i=0;i+1<p.length;i++){var a0=p[i][0],h0=p[i][1],a1=p[i+1][0],h1=p[i+1][1];
+  if(a0<=az&&az<=a1){var h=(a1===a0)?Math.max(h0,h1):h0+(h1-h0)*(az-a0)/(a1-a0);b=(b===null)?h:Math.max(b,h);}}
+ return b===null?0:b;}
 function pass(r,s){var tm=parseFloat(r.dataset.ftime);
+ if(s.hzc!==undefined){var az=parseFloat(r.dataset.faz),al=parseFloat(r.dataset.falt),h=hzAlt(r.dataset.fsite||HZ0,az);
+  if(h!==null&&!isNaN(az)&&!isNaN(al)&&al-h<s.hzc)return false;}
  if(!isNaN(tm)){if(s.from&&tm<tsec(s.from))return false;if(s.to&&tm>tsec(s.to,true))return false;}
  for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
   v=parseFloat(v);if(LIM[k]<0?v>s[k]:v<s[k])return false;}
@@ -1289,7 +1312,7 @@ def to_html(events, meta):
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
-</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
+</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
 
@@ -1438,6 +1461,7 @@ def main(argv=None):
                           else "PySyzygos asteroid occultation events")
     meta = dict(title=a.title, layout=layout, span=span, sort=a.sort, sql=sql_note, info=header_info(run, lat, lon), observer=observer, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 paths=paths, tiles=a.tile_url, obs=[lat, lon] if lat is not None and lon is not None else None,
+                site_name=((run or {}).get("site") or {}).get("name", ""),
                 site=dict(lat=lat, lon=lon, ele=(run or {}).get("site", {}).get("ele", 0.0))
                 if lat is not None and lon is not None else None)
     text = to_markdown(events, meta) if fmt_name == "md" else to_html(events, meta)

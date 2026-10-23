@@ -9,7 +9,7 @@ base = dict(tid="99999999", utc="2026-11-01T01:02:03.456", body=False, mag=10.5,
             sflag="", star_sigma=None, rad=5.0, dhint="", hz=("", None, None), size_src="SBDB diameter")
 a = R.filter_attrs(base)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', a))
-assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00",
+assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00", az="",
                     flags=""), vals
 e = dict(base, sflag="RUWE 1.70", star_sigma=8.0, dhint="companion", sun=-8.0, hz=("near", 20.0, 3.0),
          size_src="H only, albedo assumed", ruwe=None, p_site=None)
@@ -31,4 +31,8 @@ pairs = [({"n": i}, dict(target_id=t, best_utc=u)) for i, (t, u) in enumerate(
 keys = [R.event_key("3", "2026-11-03T00:00:00.9"), R.event_key("1", "2026-11-01T00:00:00")]
 assert [p[0]["n"] for p in X.only_shown(pairs, keys)] == [2, 0]             # shown rows only, in the page's order
 assert X.only_shown(pairs, None) == pairs and X.only_shown(pairs, []) == []  # page not readable: all; none shown: none
+# horizon clearance: rows carry azimuth and (favorites) site; the page carries the horizons of its sites
+a = R.filter_attrs(dict(base, az=123.4, site=dict(name="Hill")))
+assert 'data-faz="123.4"' in a and 'data-fsite="Hill"' in a and 'data-f="hzc"' in R.filter_bar()
+assert "hzAlt" in R.FILTER_JS and R.horizon_js([], {}).startswith("<script>window.PYO_HZ=")
 print("REPORT FILTER TESTS PASSED")

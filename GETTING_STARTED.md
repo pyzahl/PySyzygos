@@ -62,8 +62,15 @@ them at the top right.
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
 
-Optional, under **Horizon**: your own horizon (trees, buildings, hills) as OccultWatcher's `UserHorizon.txt`, and a
-360° photo of the site, on which the horizon line is drawn; events whose star is behind it are marked.
+Optional, under **Horizon**: your own horizon (trees, buildings, hills), so that events whose star is behind it are
+marked. Either load OccultWatcher's `UserHorizon.txt`, or make the horizon from a **360° photo** of the site:
+1. Take the photo level at the telescope on a day with a reasonably clear blue sky (a 360° camera or a phone's
+   photo sphere), and note the time.
+2. **Load a 360° photo**: the horizon line is found in it automatically (a few clouds are fine).
+3. Type the time you took it in **Sun at** (your local time, e.g. `4:45 pm`) and click **Align by the Sun**: the
+   photo is turned so that the Sun in it sits where the Sun really was. Azimuth ticks every 5° and 10° help to check.
+4. **Horizon from the photo** turns the line into horizon points; **Save sites.py** keeps everything.
+   **UserHorizon.txt** downloads the horizon for OccultWatcher too.
 
 <img width="1890" height="1731" alt="image" src="https://github.com/user-attachments/assets/a8a6e041-bccc-4bff-bbc4-f83ee9f3809b" />
 
@@ -110,13 +117,18 @@ The **Results** tab lists every event, best first. For each one:
 * **Globe**: the whole Earth as seen from the star, with the path and minute marks; below it, the geometry at true
   scale and how the Sun's gravity bends the starlight.
 * **KML**: the path for Google Earth.
-* **Stellarium** (and on Linux **KStars**): points the planetarium program at the star at the event time.
+* **Stellarium** (and on Linux **KStars**): points the planetarium program at the star at the event time, from
+  your site, and marks the star (Stellarium selects it; in KStars a crosshair field-of-view symbol of your own marks
+  the center, see the README).
 * **☆**: keeps the event in your favorites.
 
 Star the events you like.
 
-A long list? Open **Filter** above the table: for example G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no twilight) and
-"hide uncertain star". **Save as...** keeps such a filter under a name for later (also in Favorites).
+A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
+twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it) and "hide
+uncertain star". **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
+exactly what the table shows. For anything else there is the **SQL filter** on the Results tab, e.g.
+`mag < 11 AND chance > 30`: it starts with your filter's settings, which you can then change.
 
 <img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/c4f4c7d9-f685-46d0-ba22-780502e32452" />
 

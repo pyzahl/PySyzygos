@@ -13,14 +13,21 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   For KStars, a crosshair FOV symbol of your own marks the star at the center of the map (README: "Marking the star
   in KStars"). Stellarium's first click after a time-zone change no longer lands elsewhere.
 - **Filters for the result lists**: a filter bar above the Results, Favorites and Planets & Moons tables (a time
-  window from / to in UTC, faintest
+  window from / to in UTC, clearance above the site's horizon (applied afterwards, also to searches run without
+  it), faintest
   star, duration, drop, star and Sun altitude, RUWE, chance; hide supplement, uncertain or double stars, twilight,
   horizon, estimated sizes; only asteroids with a satellite), instant, with named filter sets shared by the pages.
   **SQL filter** on the Results tab for any condition (`mag < 11 AND chance > 30`), with field suggestions, a field
   list, examples and saved conditions; read-only on a new database view `hits`; also `report --where`.
-  The SQL box starts with the filter bar's settings written as SQL, to edit from there.
+  The SQL box starts with the filter bar's settings written as SQL, to edit from there. `horizon_alt(star_az)` in a
+  condition gives the site's horizon altitude in the star's direction: `star_alt > horizon_alt(star_az) + 5`.
   The CSV downloads export what the table shows: its filter and sort order. The Results tab shows the last report
   as soon as the GUI starts.
+- **Horizon from an ordinary 360° photo**: with a reasonably clear blue sky the horizon line is now found
+  automatically (before, the sky had to be made transparent first); a few clouds are fine, blue roofs or water below
+  the skyline are not taken for sky. Check the drawn line; **Horizon from the photo** then makes the horizon points.
+  **Align by the Sun**: type when the photo was taken, and the photo is turned so that the Sun's disk in it sits at
+  the Sun's computed position (azimuth ticks every 5° and 10° on the picture).
 - **Shared pre-screens from several machines**: `prescreen publish` starts its list (`prescreens.json`) from the
   mirror's current one, so a build published on another machine stays listed; `pysyzygos prescreen merge [lists]
   --check` combines lists without repacking and checks that every archive is on the mirror.

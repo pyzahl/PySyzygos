@@ -11,8 +11,12 @@ from pysyzygos.home import HOME as ROOT
 from nicegui import run, ui
 from pysyzygos.gui_common import KSTARS_OPT, PYSYZYGOS, load_ui_state, resizable_box, run_process, save_ui_state
 
+# the SQL filter's help: columns of the view hits, the run's site, and the functions (db.HITS, db.FUNCTIONS)
+SQL_NAMES = ([(n, "%" if k == "pct" else u, m) for n, _, k, u, m in db.HITS]
+             + [("site", "", "the site the search was for (its name in sites.py)")] + list(db.FUNCTIONS))
 SQL_EXAMPLES = ["mag < 11 AND chance > 30", "duration >= 1 AND sun_alt < -12", "ruwe < 1.4 AND star_flag = ''",
-                "utc < '2026-11-15' AND star_alt > 20", "horizon = '' AND mag_drop > 0.5", "name LIKE '%Phaethon%'"]
+                "utc < '2026-11-15' AND star_alt > 20", "horizon = '' AND mag_drop > 0.5", "name LIKE '%Phaethon%'",
+                "star_alt > horizon_alt(star_az) + 5"]
 
 
 def panel(pg):
@@ -61,7 +65,7 @@ def panel(pg):
                     columns=[dict(name="name", label="Column", field="name", align="left"),
                              dict(name="unit", label="Unit", field="unit", align="left"),
                              dict(name="meaning", label="Meaning", field="meaning", align="left")],
-                    rows=[dict(name=n, unit=("%" if k == "pct" else u), meaning=m) for n, _, k, u, m in db.HITS],
+                    rows=[dict(name=n, unit=u, meaning=m) for n, u, m in SQL_NAMES],
                     row_key="name").props("dense flat").classes("w-full text-xs")
         with resizable_box("results", 75):                            # drag the corner to resize (remembered)
             pg.frame = ui.element("iframe").style("width: 100%; height: 100%; border: 0; display: block")
@@ -158,11 +162,11 @@ def handlers(pg):
         m = re.search(r"([A-Za-z_]+)$", pg.sql_in.value or "")
         word = m.group(1).lower() if m else ""
         pg.sql_sugg.clear()
-        hits = [h for h in db.HITS if word and h[0].startswith(word) and h[0] != word][:10]
+        hits = [h for h in SQL_NAMES if word and h[0].startswith(word) and h[0] != word][:10]
         with pg.sql_sugg:
-            for name, _, kind, unit, meaning in hits:
+            for name, unit, meaning in hits:
                 ui.button(name, on_click=lambda n=name: sql_complete(n)).props("dense flat no-caps size=sm").tooltip(
-                    meaning + (f" ({'%' if kind == 'pct' else unit})" if unit or kind == "pct" else ""))
+                    meaning + (f" ({unit})" if unit else ""))
 
     def sql_complete(name):
         txt = pg.sql_in.value or ""

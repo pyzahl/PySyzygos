@@ -103,7 +103,8 @@ def _num_sql(field):
 def create_hits_view(con):
     """Create the view hits from HITS, or replace it when this code defines it differently (once after an update).
     Safe with several connections opening at the same time."""
-    cols = ["e.id AS id", "e.series AS series", "e.kind AS kind", "e.run_id AS run"]
+    cols = ["e.id AS id", "e.series AS series", "e.kind AS kind", "e.run_id AS run",
+            "COALESCE(json_extract(r.summary, '$.site.name'), '') AS site"]
     for name, fields, kind, _, _ in HITS:
         parts = []
         for f in fields.split("|"):
@@ -115,7 +116,7 @@ def create_hits_view(con):
         if kind == "text" and len(parts) == 1:
             expr = f"COALESCE({expr}, '')"
         cols.append(f"{expr} AS {name}")
-    sql = "CREATE VIEW hits AS SELECT " + ", ".join(cols) + " FROM events e"
+    sql = "CREATE VIEW hits AS SELECT " + ", ".join(cols) + " FROM events e LEFT JOIN runs r ON r.id = e.run_id"
     row = con.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name='hits'").fetchone()
     if row and row[0] == sql:                                   # current already: nothing to do (the usual case)
         return
@@ -133,6 +134,44 @@ def create_hits_view(con):
             con.execute("ROLLBACK")
         except sqlite3.OperationalError:
             pass
+
+
+# functions usable in conditions (registered by where_keys): name, unit, meaning (also the GUI's field list)
+FUNCTIONS = [
+    ("horizon_alt(star_az)", "deg", "your horizon's altitude at that azimuth, for the list's site (NULL: no horizon "
+     "set for it); e.g. star_alt > horizon_alt(star_az) + 5"),
+    ("horizon_alt(star_az, site)", "deg", "the same for each event's own site (column site) or a named one"),
+]
+
+
+def _horizons():
+    """{site name: horizon points [(az, alt)]} of sites.py in the data folder (sites without a horizon left out)."""
+    try:
+        from pysyzygos.sitesfile import load_sites
+        sites, _ = load_sites()
+    except Exception:
+        return {}
+    return {n: [tuple(map(float, p)) for p in (v.get("horizon") or [])] for n, v in sites.items() if v.get("horizon")}
+
+
+def _horizon_functions(con, list_site):
+    """Register horizon_alt(az [, site]) on a connection: the site's horizon altitude (horizon.altitude, the search's
+    own interpolation) at an azimuth; NULL for a site without a horizon or an unknown azimuth."""
+    from pysyzygos import horizon as H
+    hz = {}
+
+    def alt(az, site):
+        if not hz:
+            hz.update(_horizons() or {"": []})
+        pts = hz.get(site or "")
+        if az is None or not pts:
+            return None
+        try:
+            return H.altitude(pts, float(az))
+        except (TypeError, ValueError):
+            return None
+    con.create_function("horizon_alt", 1, lambda az: alt(az, list_site), deterministic=True)
+    con.create_function("horizon_alt", 2, alt, deterministic=True)
 
 
 # the report's filter bar (report.filter_bar: limits and flags) as a condition on hits, to start a custom one from;
@@ -157,6 +196,9 @@ def filter_to_sql(spec):
         v = (spec or {}).get(k)
         if isinstance(v, (int, float)):
             parts.append(tpl.format(v=f"{v:g}"))
+    v = (spec or {}).get("hzc")                                   # clear of the site's horizon by at least v deg
+    if isinstance(v, (int, float)):
+        parts.append(f"(horizon_alt(star_az, site) IS NULL OR star_alt - horizon_alt(star_az, site) >= {v:g})")
     parts += [FILTER_HIDE_SQL[h] for h in (spec or {}).get("hide", []) if h in FILTER_HIDE_SQL]
     sql = " AND ".join(parts)
     if "moon" in (spec or {}).get("only", []):
@@ -175,10 +217,16 @@ def where_keys(path, where, lst="main", series=None, limit=100000, max_s=WHERE_M
         raise ValueError("one condition only (no ';')")
     con = connect(path)                                       # the view exists and is current
     ser = current_series(con, lst) if series is None else series
+    row = con.execute("SELECT summary FROM runs WHERE series = ? ORDER BY id DESC LIMIT 1", (ser,)).fetchone()
     con.close()
+    try:
+        list_site = (json.loads(row[0] or "{}").get("site") or {}).get("name", "") if row else ""
+    except ValueError:
+        list_site = ""
     con = sqlite3.connect(f"file:{os.path.abspath(path)}?mode=ro", uri=True, timeout=30)
     try:
         con.execute("PRAGMA query_only = ON")
+        _horizon_functions(con, list_site)
         end = time.monotonic() + max_s
         con.set_progress_handler(lambda: 1 if time.monotonic() > end else 0, 10000)   # nonzero: SQLite stops
         try:

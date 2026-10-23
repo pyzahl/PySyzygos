@@ -125,6 +125,33 @@ assert db.where_keys(dbp, q) == [("3200", "2026-11-01T01:00:00.123")]
 assert db.where_keys(dbp, db.filter_to_sql({"mag": 11, "ruwe": 2.0})) == [("3200", "2026-11-01T01:00:00.123")]
 assert {t for t, _ in db.where_keys(dbp, db.filter_to_sql({"hide": ["sup"]}))} == {"4089"}
 assert db.where_keys(dbp, db.filter_to_sql({"only": ["moon"]}))                          # the comment is valid SQL
+# horizon_alt(az [, site]) in conditions: the site's horizon from sites.py (the data folder = working folder), the
+# list's site from its last run; NULL without a horizon (the bar's template then lets the event pass)
+hz_dir = tempfile.mkdtemp()
+open(os.path.join(hz_dir, "sites.py"), "w").write(
+    "default_site = 'Hill'\nsites = {'Hill': dict(lat=1.0, lon=2.0, ele=0, horizon=[(0, 10), (180, 30), (360, 10)]),"
+    " 'Flat': dict(lat=1.0, lon=2.0, ele=0)}\n")
+here = os.getcwd()
+os.chdir(hz_dir)
+try:
+    hdb = os.path.join(hz_dir, "h.db")
+    hc = db.connect(hdb)
+    hr, _ = db.start_run(hc, "corridor", new_series=True)
+    db.add_event(hc, hr, dict(target_id="1", best_utc="2026-11-01T00:00:00", star_alt=25.0, star_az=90.0))   # hz 20
+    db.add_event(hc, hr, dict(target_id="2", best_utc="2026-11-02T00:00:00", star_alt=25.0, star_az=180.0))  # hz 30
+    db.finish_run(hc, hr, dict(site=dict(name="Hill")))
+    hc.commit()
+    assert [t for t, _ in db.where_keys(hdb, "star_alt > horizon_alt(star_az)")] == ["1"]
+    assert [t for t, _ in db.where_keys(hdb, "star_alt - horizon_alt(star_az, site) >= 5")] == ["1"]
+    assert db.where_keys(hdb, "horizon_alt(star_az, 'Flat') IS NULL AND horizon_alt(star_az, 'Nowhere') IS NULL")
+    assert [t for t, _ in db.where_keys(hdb, db.filter_to_sql({"hzc": 5}))] == ["1"]
+    hc.execute("UPDATE runs SET summary = ? WHERE id = ?", ('{"site": {"name": "Flat"}}', hr))
+    hc.commit()
+    assert len(db.where_keys(hdb, db.filter_to_sql({"hzc": 5}))) == 2                    # no horizon: both pass
+    hc.close()
+finally:
+    os.chdir(here)
+
 # several connections opening at once (GUI start: a background task and the page) must not fail on the view
 import threading
 errs, par = [], os.path.join(d, "parallel.db")

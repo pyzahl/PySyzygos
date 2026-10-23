@@ -1149,9 +1149,14 @@ pysyzygos --port 8090 --no-browser
   programs); events whose star is behind it are marked ⛰ yellow, those closer to it than the margin (default 15°) red.
   A **360° photo** of the site (equirectangular, 2:1, as a 360° camera or a phone's photo sphere saves it, taken level
   at the telescope) shows the horizon over the real view, and in the favorites panel the star at the event time on it.
-  Set the azimuth at the photo's left edge, or let **Fit to the horizon line** find it. With the sky made transparent
-  (PNG), **Horizon from the photo** reads the horizon line from it, and **UserHorizon.txt** downloads it for
-  OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
+  Set the azimuth at the photo's left edge, or let **Fit to the horizon line** find it. The horizon line is read from
+  the photo: from a sky made transparent (PNG), or found automatically when the sky is reasonably clear and blue
+  (a few clouds are fine; check the drawn line). To find the azimuth, type the time the photo was taken in **Sun at**
+  (the site's local time): the Sun's position then is drawn on the photo, and **Align by the Sun** turns the photo so
+  that the Sun's disk in it sits there (it also says how far the disk's height differs: a check that the photo is
+  level). Azimuth ticks every 5° and 10° help to read directions. **Horizon from the photo** turns the line into
+  horizon points, and
+  **UserHorizon.txt** downloads them for OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
 * **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, then **Run pick**; the pick is
   saved for the selected site and window. **Saved picks of this site** lists them (newest window first); the
   selected one's events appear in a sortable table, with the target asteroids marked. **Use for search** sets the
@@ -1164,7 +1169,8 @@ pysyzygos --port 8090 --no-browser
   The report is rebuilt and shown under **Results** when the run finishes.
 * **Results**: the HTML report with its maps and previews.
   **Filter** (the bar above the table): a time window (from / to, UTC), faintest star (G), shortest duration,
-  smallest drop, lowest star altitude,
+  smallest drop, lowest star altitude, how far the star must clear your site's horizon (also for searches run
+  before the horizon was set: it uses the horizon in `sites.py` now and the star's direction stored per event),
   highest Sun altitude, largest RUWE, smallest chance, and checkboxes that hide supplement stars, uncertain stars,
   close/double stars, twilight events, events near or behind your horizon and estimated sizes (or show only asteroids
   with a known satellite). It filters at once and says "showing n of m". **Save as...** keeps the settings under a
@@ -1176,7 +1182,10 @@ pysyzygos --port 8090 --no-browser
   names appear as buttons while you type, the list "Fields" gives all of them with unit and meaning (target, name, utc, mag, mag_drop, duration, star_alt, sun_alt, chance (%), distance, radius, sigma, ruwe, star_flag, horizon, ...),
   and conditions can be saved under a name. Opened while empty, the box starts with the filter bar's settings as SQL
   (**From filter bar** does it any time), e.g. `mag <= 12.5 AND star_flag = ''`: change an AND into an OR, add
-  parentheses, and so on. The database is opened read-only for it, a condition is one expression (no `;`), and a
+  parentheses, and so on. `horizon_alt(star_az)` gives your horizon's altitude in the star's direction for the
+  list's site (`horizon_alt(star_az, site)` for each event's own site, or a site name), e.g.
+  `star_alt > horizon_alt(star_az) + 5`; it is NULL for a site without a horizon. The database is opened read-only
+  for it, a condition is one expression (no `;`), and a
   query that runs longer than 10 s is stopped; a condition that cannot be used shows SQLite's message and changes
   nothing. The same condition works on the
   command line: `pysyzygos report hits_log.csv --where "mag < 11"`; the columns are the view `hits` in

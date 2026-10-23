@@ -249,7 +249,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   all rows) -> `exports.only_shown(pairs, keys)` keeps and orders them (hits_csv, fav_csv, bodies_csv; toast says
   how many). Results tab loads the existing hits_report.html at start (gui_results.connect). create_hits_view replaces the view only when its SQL
   differs (BEGIN IMMEDIATE, a concurrent creation tolerated): dropping it on every connect made the GUI start fail
-  ("view hits already exists": backfill thread + write_page connecting at once). `db.filter_to_sql(spec)`
+  ("view hits already exists": backfill thread + write_page connecting at once).
+  Horizon applied afterwards (2026-10-22): view column `site` (runs.summary site.name via LEFT JOIN), SQL functions
+  `horizon_alt(az)` (list's site = last run of the series) / `horizon_alt(az, site)` registered in where_keys
+  (`_horizon_functions`: horizon.altitude on sites.py points, `db._horizons()`; NULL without a horizon),
+  db.FUNCTIONS for the GUI help (SQL_NAMES in gui_results); bar field `hzc` "clear of horizon >=" (rows data-faz,
+  favorites data-fsite; page `report.horizon_js` = window.PYO_HZ of its sites; JS hzAlt = horizon.altitude; no
+  horizon -> pass); SQL template "(horizon_alt(star_az, site) IS NULL OR star_alt - horizon_alt(...) >= v)".
+  Checked: favorites page vs Python horizon.altitude, same 9 of 20 hidden at 5 deg. `db.filter_to_sql(spec)`
   (FILTER_SQL / FILTER_HIDE_SQL; often-unknown fields as "x IS NULL OR ...", unc = star_sigma <= 0.5 radius, only
   +moon -> /* comment */, no column): the SQL box is filled from the frame's bar when opened empty
   (`sql_from_bar`, also a button); checked equal to the bar's selection on real data for 14 specs. Verified in headless
@@ -332,6 +339,20 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   favorites `fav_pano` (site by lat/lon in sites.py; star_alt/star_az, else report.alt_az) -> f_pano. Dependency
   Pillow (uv.lock). horizons/ gitignored, in cleanup SETTINGS. tests/test_panorama.py (synthetic photo). First use:
   Seewis observatory (GoPro MAX, transparent-sky PNG): left edge 195.8 deg, 1.2 deg median vs its UserHorizon.
+  Sky detection (2026-10-22) for photos without a transparent sky: `sky_mask(rgb)` (blue: b > r+8, b >= g-5, v > 70;
+  or bright grey v > 200, sat < 0.18 (haze, glare); opening; only regions touching the top rows (blue roofs/water
+  below do not count); closing; top 3 deg = sky; fill holes (clouds); padded with wrap-around first, else the
+  smoothing ate the left/right edges); `ground(im)` -> (mask, 'transparent sky' | 'sky detection') or (None, '')
+  under 2 % sky; `profile` uses it; meta `profile_from`; GUI notify says which. Checked on the stored London (Royal
+  Observatory, cloudy) and home photos: lines on tree crowns/roof; home vs its 11 OW points: 19-44 vs 23-45 deg where
+  low, trees 65-85 vs 80. test_panorama: synthetic sky/cloud/skyline/lake case.
+  Aligning by the Sun (2026-10-22): `sun_altaz(lat, lon, utc)` (NOAA solar formulas + refraction; vs astropy <=
+  0.01 deg, test uses Greenwich references), `sun_in_photo(jpg)` (largest saturated white blob above -10 deg ->
+  (deg from left edge, alt)), svg(sun=) yellow ring + "Sun az", azimuth ticks every 5/10 deg with numbers. GUI Site
+  tab: "Sun at (site's local time)" (hz_sun: geo.timezone of the form's position, cached pg.HZ_TZ; 16:45:04,
+  4:45:04 pm or 2026-10-22 16:45) + "Align by the Sun" (hz_sun_align: hz_az = sun az - disk position). First use:
+  Camp photo, Sun at 4:45:04 pm EDT 242.8 deg -> left edge 183.0 deg, disk 1 deg low. A GoPro file name's 13-digit
+  number is the file's save time, not the capture time.
 - GUI job slots (2026-10-19): `Job.proc` = the main job (search, pick, pre-screen, setup, report, catalog: one at a
   time, blocking each other), `Job.fav` = the Favorites tab's path-verification tasks (run, export, compare, steps,
   keep), independent of the main job; `run_process(..., slot="fav")`, `stop_process(log, slot)`. The Favorites tab
