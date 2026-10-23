@@ -40,6 +40,9 @@ the site solve to millimeters (a self-consistency check of the geodetic path).
   h / tan(star altitude) towards the star's azimuth (2000 m at 30°: 3.5 km). The record field `height_shift_km`
   (signed: + towards limit A) gives the shift across the track at the site; shown on hover over the shadow distance
   and in the favorites' event summary. Distances and chances were always computed for the site in 3-D.
+- **The math as slides (PDF) with each release**: `pysyzygos_math.pdf`, built from `docs/math` (`make`), the
+  computations step by step with numbered formulas and an appendix of code cross-references (which function
+  implements which formula, checked at every build). Attached to the GitHub release; not kept in git.
 - **Sort order remembered**: the Results, Favorites and Planets & Moons tables keep the column you sorted last (and
   its direction), also after the report is rebuilt or the page reloaded.
 
