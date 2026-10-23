@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.3.4 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.4.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).

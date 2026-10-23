@@ -4,7 +4,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
-## [Unreleased]
+## [1.4.0] "Beyond Horizons" - 2026-10-23
+
+Result lists you can filter (filter bar, named sets, SQL), the horizon from an ordinary 360° photo aligned by the
+Sun, the star marked in Stellarium and KStars, the center line at the site's height, and path lines that agree with
+the site solve to millimeters (a self-consistency check of the geodetic path).
 
 ### Added
 - **The star marked in Stellarium and KStars**: the report's Stellarium button now also selects the star (by its HIP
@@ -14,9 +18,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   in KStars"). Stellarium's first click after a time-zone change no longer lands elsewhere.
 - **Filters for the result lists**: a filter bar above the Results, Favorites and Planets & Moons tables (a time
   window from / to in UTC, clearance above the site's horizon (applied afterwards, also to searches run without
-  it), faintest
-  star, duration, drop, star and Sun altitude, RUWE, chance; hide supplement, uncertain or double stars, twilight,
-  horizon, estimated sizes; only asteroids with a satellite), instant, with named filter sets shared by the pages.
+  it), faintest star, duration, drop, star and Sun altitude, RUWE, chance; hide supplement, uncertain or double
+  stars, twilight, horizon, estimated sizes; only asteroids with a satellite), instant, with named filter sets shared
+  by the pages.
   **SQL filter** on the Results tab for any condition (`mag < 11 AND chance > 30`), with field suggestions, a field
   list, examples and saved conditions; read-only on a new database view `hits`; also `report --where`.
   The SQL box starts with the filter bar's settings written as SQL, to edit from there. `horizon_alt(star_az)` in a
@@ -39,11 +43,19 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Sort order remembered**: the Results, Favorites and Planets & Moons tables keep the column you sorted last (and
   its direction), also after the report is rebuilt or the page reloaded.
 
+### Changed
+- **Documentation**: the math slides (`docs/math`) got section pages with their contents, numbered formulas in
+  boxes, the Besselian frame at the start of "How it works", a slide on the asteroid's size from H and the albedo
+  (SZ), the asteroid's astrometry and "what the observer sees" on two slides each, the observer's fundamental plane
+  named as such, and full references (Cantat-Gaudin & Brandt, Klioner, Lindegren, Pravec & Harris, WGS84, EGM96,
+  IERS, Brent). ABOUT.md: running PySyzygos as a web service, noted as a far-future plan.
+
 ### Fixed
 - **Path lines and the site solve agree to millimeters**: each path point's light time now uses the distance to
-  where that point sees the asteroid (before: where the Earth's centre sees it, up to 5 cm off along the shadow's
-  motion, largest with the star high). Checked on (3200) Phaethon 2019-07-29: path points put into the search's
-  own site solve give 0.3-2.7 mm from the shadow axis (VERIFICATION.md section 4).
+  where that point sees the asteroid (before: where the Earth's center sees it, up to 5 cm off on the ground, largest
+  with the star high; at most about 6 cm for any asteroid). Self-consistency check on (3200) Phaethon 2019-07-29:
+  all 7454 points of all path lines, put as sites into the search's own observer-plane solve, lie within 3.1 mm of
+  their line's offset; the comparison with Occult's path is unchanged (VERIFICATION.md sections 3 and 4).
 
 ## [1.3.4] "Beyond Horizons" - 2026-10-21
 
@@ -974,6 +986,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
+[1.4.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.4.0
 [1.3.2]: https://github.com/pyzahl/PySyzygos/compare/v1.3.0...main
 [1.3.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.0
 [1.2.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.2.01

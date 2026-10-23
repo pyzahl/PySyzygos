@@ -648,16 +648,19 @@ anyway (other orbits; OWC times to 0.1 s).
   under 1 mas (a few cm). Scale: 1 mas of Earth orientation is 3 cm on the ground, 1 ms of UT1 about 46 cm at the
   equator. So the Earth-rotation term of -0.15 to -0.20 s in the Occult path fit (section 3) is not a property of
   PySyzygos's Earth orientation; it was the light-time error found next (section 3, update 2026-10-16).
-- **Geodetic path against the observer's plane** (2026-10-22; (3200) Phaethon, 2019-07-29, orbit JPL#1022): points of
-  the drawn path (`paths.shadow_path`: geocentric plane, ray onto WGS84 at height 0, each point's own light time) put
-  into the search's observer-plane routine (`besselian_offsets`: the asteroid from that site with `spkcpo` 'CN') as
-  sites at height 0. Center line near touch-down, at the center and near leaving: distance from the shadow axis at
-  the point's time 0.3, 2.7 and 1.5 mm; the solver's closest approach there 0.0001-0.0002 ms from the point's time;
-  12 points on the shadow and 3-sigma limit lines: the limit's offset to 2.1 mm. The first run showed up to 4.8 cm
-  at the center (0.6 cm near the limb): the path's light-time correction took the site-asteroid distance to where
-  the Earth's centre sees the asteroid, leaving out its radial motion during the ~20 ms difference; fixed. The two
-  ways to compute the path agree to millimeters: the path's plane is only the construction, the result is the same
-  as solving at each site.
+- **Geodetic path against the observer's plane** (2026-10-22, 1.4.0; (3200) Phaethon, 2019-07-29, orbit JPL#1022):
+  every point of every drawn line (`paths.shadow_path`: geocentric plane, ray onto WGS84 at height 0, each point's
+  own light time; 1 s steps, 7454 points on the center, shadow, 1-sigma and 3-sigma lines) put as a site at height 0
+  into the search's observer-plane routine (`besselian_offsets`: the asteroid from that site with `spkcpo` 'CN'):
+  the distance from the shadow axis at the point's time equals the line's offset within 3.1 mm (median 0.7-1 mm);
+  the solver's closest approach at center-line points falls on the point's time within 0.0002 ms. The first run
+  showed up to 5.3 cm (largest with the star high, near 0 at the limb): the path's light-time correction took the
+  site-asteroid distance to where the Earth's center sees the asteroid, leaving out its radial motion during the
+  ~20 ms difference; fixed. The old error was about v_across x v_radial x R/c^2 (barycentric speeds), at most ~6 cm
+  for any asteroid (42 km/s near the Earth's orbit), ~1 cm for main-belt ones. The comparison with Occult
+  (section 3), rerun with the fix: means +47.54 m across, -7.691 ms along (before +47.51 m, -7.693 ms), the fits
+  unchanged. The two ways to compute the path agree to millimeters: the path's plane is only the construction, the
+  result is the same as solving at each site. Kept as a rerunnable check.
 - **Planets and moons** (0.14.0):
   - Ephemeris: the kernel built from Horizons vectors (SPK type 13, 20 min steps) reproduces Horizons to ~1 m;
     NAIF's `jup365.bsp` and Horizons agree to millimeters at sample times.
