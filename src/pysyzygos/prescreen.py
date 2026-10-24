@@ -163,10 +163,10 @@ def build_chunk(spice, rows, et0, et1, index, opt, step_s=600.0, n_track=ST.N_TR
     # the grid reaches PAD_S beyond the window: an event's track can start or end up to HALF_MAX_S from its
     # Earth-centre time, and the shadow elements need the orbit on both sides of it
     ets = np.arange(et0 - PAD_S, et1 + PAD_S + step_s, step_s)
-    sun = np.asarray(spice.spkpos("10", ets, "J2000", "LT+S", "399")[0])
+    sun = np.asarray(spice.spkpos("SUN", ets, "J2000", "LT+S", "EARTH")[0])
     fr = dict(ets=ets, step=step_s, sun_u=sun / np.linalg.norm(sun, axis=1, keepdims=True),
               rot=np.array([spice.pxform("J2000", "ITRF93", float(t)) for t in ets]))      # (T,3,3)
-    sun_bary = np.asarray(spice.spkpos("10", ets, "J2000", "NONE", "0")[0]) / O.AU_KM
+    sun_bary = np.asarray(spice.spkpos("SUN", ets, "J2000", "NONE", "0")[0]) / O.AU_KM
     pad = pad_for_pm(1500.0, ets)
     years = 2000.0 + ets.mean() / (365.25 * 86400.0) - GAIA_EPOCH_YEAR
     dm_drop = SC.drop_cut(opt["min_drop"]) if opt["min_drop"] > 0 else 99.0

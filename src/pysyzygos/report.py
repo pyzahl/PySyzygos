@@ -1021,9 +1021,22 @@ def html_row_observed(e):
         cb = (r.get("sat_cbet") or "").strip()
         sat = (f'<span class="badge kind" title="{esc("satellite " + (r.get("sat_name") or "(unnamed)") + ": " + (r.get("sat_fit") or "") + (", separation " + str(r.get("sat_sep_mas")) + " mas" if r.get("sat_sep_mas") else "") + (", diameter " + str(r.get("sat_dia_km")) + " km" if r.get("sat_dia_km") else ""))}">'
                f'+moon</span>' + (f' <span title="announced in CBET {esc(cb)}">CBET {esc(cb)}</span>' if cb else ""))
-    da, dt = n("chk_across_km"), n("chk_along_s")
-    chk_tip = esc(r.get("chk_note") or "")
-    chk = (f'{da:+.1f} km \u00b7 {dt:+.2f} s' if da is not None and dt is not None else
+    da, dt, ds = n("chk_across_km"), n("chk_along_s"), n("chk_site_dt_s")
+    chords = r.get("chk_chords") or []
+    if isinstance(chords, str):
+        try:
+            chords = json.loads(chords)
+        except ValueError:
+            chords = []
+    lines = [f"{c.get('observer', '')}, {c.get('place', '')}: mid-time {c['dt_mid_s']:+.2f} s, {c['dist_km']:.1f} km from "
+             f"the center line, duration {c['dur_obs_s']:.2f} s (predicted {c['dur_pred_s']:.2f} s)"
+             + (" [visual]" if c.get("method") == "f" else "") + (" [excluded by Occult]" if "x" in (c.get("include") or "") else "")
+             for c in chords if "dt_mid_s" in c]
+    chk_tip = esc("\n".join(["Observed minus predicted at the observers' sites:"] + lines
+                             + ([f"Archive's fitted centre: {da:+.1f} km across, {dt:+.2f} s along"] if da is not None else [])
+                             ) if lines else (r.get("chk_note") or ""))
+    chk = (f'{ds:+.2f} s <span class="sub">{len(lines)} site' + ("s" if len(lines) != 1 else "") + '</span>'
+           if ds is not None else f'{da:+.1f} km \u00b7 {dt:+.2f} s' if da is not None and dt is not None else
            ('<span class="sub">' + esc(r.get("chk_note") or "") + '</span>' if r.get("chk_note") else "\u2014"))
     obs_tip = esc(sites_text(r) or r.get("observers") or "")
     star_tip = esc(" \u00b7 ".join(x for x in (f"Gaia DR3 {e['star']}" if e.get("star") else "", r.get("star_catalog") or "",
@@ -1043,7 +1056,7 @@ def html_row_observed(e):
         f'<td data-s="{s(q, 0)}" title="fit code {esc(r.get("fit_code") or "")}">{esc(r.get("fit_quality_text") or "")}</td>'
         f'<td class="num" data-s="{s(maj, 1)}" title="{size_tip}">{size}</td>'
         f'<td data-s="{esc(r.get("sat_cbet") or "")}">{sat}</td>'
-        f'<td class="num" data-s="{s(abs(da) if da is not None else None, 2)}" title="{chk_tip}">{chk}</td>'
+        f'<td class="num" data-s="{s(abs(ds) if ds is not None else abs(da) if da is not None else None, 3)}" title="{chk_tip}">{chk}</td>'
         "</tr>")
 
 
@@ -1362,8 +1375,8 @@ def to_html(events, meta):
                 '<th data-k title="Quality of the fit to the chords">Fit</th>'
                 '<th class="num" data-k title="Fitted ellipse, km">Size (km)</th>'
                 '<th data-k title="Satellite seen in this event; CBET that announced its discovery">Satellite</th>'
-                '<th class="num" data-k title="Observed minus predicted (PySyzygos, obs-check): across the track in '
-                'km, along the track in seconds">Obs \u2212 pred</th>')
+                '<th class="num" data-k title="Observed minus predicted (PySyzygos, obs-check): the chords\' mid-times '
+                'at the observers\' sites (median, s; each on hover), else the archive\'s fitted centre">Obs \u2212 pred</th>')
         body = "".join(html_row_observed(e) for e in events)
     elif meta.get("layout") == "bodies":                           # planets & moons: contact times
         head = ('<th data-k>Body</th>'

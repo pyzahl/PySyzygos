@@ -13,11 +13,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   lists them with star, longest chord, chords / observers, fit, fitted size, satellites with the **CBET** that
   announced them, and every observer's site on hover; filter bar and SQL filter work on them (new columns
   `chords`, `observers`, `fit_quality`, `cbet`, `dx_across`, `dt_along`).
-- **Our predictions checked against every observed event**: **System → Check our predictions** (`pysyzygos
-  obs-check`) compares the observed position of each asteroid (archive's astrometric solution, 16,605 events) with
-  PySyzygos's prediction for that moment (today's JPL orbit, Gaia DR3 star with the search's corrections), across
-  the track in km and along it in seconds; shown per event (Results, "Obs - pred") and summarised by fit quality,
-  year, chords and star (`obs_check.md`). Resumable; one Horizons request per asteroid.
+- **Our predictions checked against the measured data of every observed event**: **System → Check our
+  predictions** (`pysyzygos obs-check`): every observer's measured disappearance and reappearance at the observer's
+  coordinates against PySyzygos's prediction at exactly that site (today's JPL orbit, Gaia DR3 star with the
+  search's corrections): chord mid-time (independent of size), duration with the catalog size and with the best
+  size known for the event (the fitted ellipse on our predicted path: tests our cross-track position), and every
+  miss. The archive's fitted centre only as a secondary reference. Shown per event (Results, "Obs - pred", each site
+  on hover) and summarised by method, accuracy, year and star (`obs_check.md`). Resumable; one Horizons request per
+  asteroid; kept when the dataset is removed or updated.
 - **Search anywhere on Earth**: **Search → Where: Anywhere on Earth** (config `search_scope = "earth"`) finds every
   event of the listed asteroids whose shadow touches the Earth, without a site or Sun / altitude / reach limits;
   each described at its center-line point at the closest approach to the Earth's centre; own results list.
@@ -29,6 +32,19 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   star's. The asteroid's track there is the one seen from your site (the geocentric one is off by the parallax,
   arcseconds at this scale), with dots every few seconds, and its apparent diameter (mas). Config `preview_zoom`,
   `preview_zoom_arcsec`.
+
+- **Updates from the GUI**: the System tab shows whether a newer version is available (when the tab is opened,
+  nowhere else), with its changelog, and updates a git install with one button (`git pull --ff-only`, the packages
+  if they changed, restart); refused with the reason on local changes or a diverged checkout. ZIP installs: the
+  newest release's link. `pysyzygos update [--check]`.
+
+### Fixed
+- **Asteroid numbers that are also SPICE body codes**: a search makes each target's number a SPICE name, so with
+  asteroid 5, 6, 10 or 399 among the targets, "5" (our name for Jupiter's barycentre in the light deflection), "6"
+  (Saturn), "10" (the Sun) or "399" (the Earth) meant that asteroid for the rest of the run: the light deflection
+  (and with 399 every geocentric position) was computed with the wrong body. The code now names these bodies (SUN,
+  JUPITER BARYCENTER, SATURN BARYCENTER, EARTH) and reads radii by code. Found by the check against the observed
+  events (3,000 of them failed after asteroid 5 had been checked). None of the saved picks here had these targets.
 
 ## [1.4.0] "Beyond Horizons" - 2026-10-23
 

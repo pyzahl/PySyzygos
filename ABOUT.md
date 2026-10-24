@@ -116,7 +116,7 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   unless the site's height is above the ellipsoid already (`ele_ref="ellipsoid"`, e.g. MPC codes). Before
   2026-10-16 `ele` was used as an ellipsoid height, off by the geoid (-107 to +85 m; for the test sites -32 to +48 m),
   which moves the path relative to the site by that over tan(star altitude).
-- **Asteroid as the observer sees it:** `spkcpo(target, et, 'J2000', 'OBSERVER', 'CN', site_itrf, '399', 'ITRF93')`, the
+- **Asteroid as the observer sees it:** `spkcpo(target, et, 'J2000', 'OBSERVER', 'CN', site_itrf, 'EARTH', 'ITRF93')`, the
   asteroid at et minus the light time from the observer (not from the Earth's centre), relative to the observer at et.
   `CN` is converged light time without stellar aberration: astrometric, like Gaia positions. Aberration is left out
   on purpose: it shifts the star and the asteroid by the same amount, so the occultation condition (both in the same
@@ -125,7 +125,7 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   its barycentric velocity; with the Earth-centre light time for everyone (up to 1.1.0) the shadow was up to
   (v/c) R sin(alt), ~0.4-0.9 km, off at the surface (in the Earth's frame: the shadow runs along the star's aberrated
   direction). The path lines (`paths.shadow_path`) apply the same per ground point. Elsewhere (scans, pick,
-  pre-screens) the asteroid is geocentric, `spkpos(target, et, 'J2000', 'CN', '399')` (399 = the Earth's centre;
+  pre-screens) the asteroid is geocentric, `spkpos(target, et, 'J2000', 'CN', 'EARTH')` (the Earth's centre, NAIF 399, named: asteroid numbers are SPICE names in a search;
   3 would be the Earth-Moon barycentre); their margins are many km.
 - **Offsets:** `(dx, dy)` = the first two components of `M @ (r_asteroid - r_observer)` (that `spkcpo` vector), km east and
   north. Miss distance = `hypot(dx, dy)`.
@@ -771,7 +771,7 @@ All checks, with their numbers and the discussion of the differences, are in
 
 ### Gravitational light deflection and stellar parallax (built in 0.10.0, 2026-10-04)
 
-**What PySyzygos does now.** The asteroid comes from `spkpos(..., 'CN', '399')`: light-time corrected, astrometric,
+**What PySyzygos does now.** The asteroid comes from `spkpos(..., 'CN', 'EARTH')`: light-time corrected, astrometric,
 with no stellar aberration and no gravitational light deflection. The star direction is the Gaia DR3 catalog
 direction, propagated with its proper motion (for stars brighter than G 13 corrected for Gaia's bright-star frame
 spin, Cantat-Gaudin & Brandt 2021, A&A 649, A124: up to 80 micro-arcsec/yr; `gaia_pm_bias`, since 2026-10-15) and,

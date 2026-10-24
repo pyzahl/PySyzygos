@@ -105,10 +105,132 @@ def predict(spice, target, star_row, et, use_parallax=True, use_deflection=True)
     z, corr = astrometry.corrected_star_dir(spice, u0, float(star_row["parallax"].iloc[0] or 0.0), et, target,
                                             parallax=use_parallax, deflection=use_deflection)
     x_ax, y_ax = date_axes(et, z)
-    p = np.asarray(spice.spkpos(target, et, "J2000", "CN", "399")[0])
-    p1 = np.asarray(spice.spkpos(target, et + 1.0, "J2000", "CN", "399")[0])
+    p = np.asarray(spice.spkpos(target, et, "J2000", "CN", "EARTH")[0])
+    p1 = np.asarray(spice.spkpos(target, et + 1.0, "J2000", "CN", "EARTH")[0])
     return dict(x=float(p @ x_ax), y=float(p @ y_ax), vx=float((p1 - p) @ x_ax), vy=float((p1 - p) @ y_ax),
-                dist_km=float(np.linalg.norm(p)), star_corr=corr)
+                dist_km=float(np.linalg.norm(p)), star_corr=corr, z=z)
+
+
+# ----------------------------------------------------------------------------------------------- at the sites
+DATUM_WGS84 = ("_", "", "*")                     # WGS84, or unspecified (taken as WGS84; '*' noted)
+VISUAL = "f"                                     # observing method 'visual' (personal equation, reaction times)
+
+
+def load_chords(dbp):
+    """{event key: ([positive chords], [misses])} from the observations database: a chord = one observer's main-star
+    D and R at one site (contacts, codes D/R), with the site (lon, lat, alt_m, datum), method, accuracies, personal
+    equations, Occult's include flags and time adjustment; misses from the record's obs_sites."""
+    con = db.connect(dbp)
+    ev = {r["id"]: json.loads(r["record"]) for r in con.execute("SELECT id, record FROM events")}
+    out = {}
+    for i, rec in ev.items():
+        out[ev_key(rec)] = ([], [s for s in (rec.get("obs_sites") or []) if s.get("result") == "miss"
+                                 and s.get("lat") is not None and s.get("lon") is not None])
+    pairs = {}
+    for r in con.execute("SELECT event_id, label, utc, data FROM contacts WHERE label IN ('D', 'R')"):
+        d = json.loads(r["data"])
+        k = (r["event_id"], d.get("observer"), d.get("lon"), d.get("lat"))
+        pairs.setdefault(k, {})[r["label"]] = (r["utc"], d)
+    con.close()
+    for (i, who, lon, lat), p in pairs.items():
+        if "D" in p and "R" in p and lon is not None and lat is not None and i in ev:
+            (ud, dd), (ur, dr) = p["D"], p["R"]
+            out[ev_key(ev[i])][0].append(dict(observer=who, place=dd.get("place", ""), lon=lon, lat=lat,
+                                              alt_m=dd.get("alt_m") or 0.0, datum=dd.get("datum", "_"),
+                                              method=dd.get("method", ""), d_utc=ud, r_utc=ur,
+                                              d_acc=dd.get("acc_s"), r_acc=dr.get("acc_s"), d_pe=dd.get("pe_s") or 0.0,
+                                              r_pe=dr.get("pe_s") or 0.0, include=dd.get("include", "_") + dr.get("include", "_"),
+                                              time_adj_s=dd.get("time_adj_s")))
+    return out
+
+
+# Math: OB.1, OB.2, LT.1, FP.1, FP.2 (slides OB, LT, FP): the shadow axis seen from the site (spkcpo 'CN').
+def site_solve(spice, target, z, lon, lat, alt_m, t_guess, span_s):
+    """(t_ca, d_km, v_kms, p0, w): the closest approach of the shadow axis to the site (geodetic WGS84 lon/lat deg,
+    alt_m above the ellipsoid) within t_guess +- span_s, the distance there (fundamental plane), the shadow's speed
+    relative to the site, and the axis minus the site at t_ca (p0, km, x east / y north) and its rate (w, km/s); the
+    asteroid as the site sees it (light time from the site), as the search's solver."""
+    from scipy.optimize import minimize_scalar
+    from pysyzygos import earth
+    from pysyzygos.paths import plane_basis
+    x_ax, y_ax, _ = plane_basis(z)
+    site = spice.georec(math.radians(lon), math.radians(lat), alt_m / 1000.0, earth.A_KM, earth.F)
+    def xy(t):
+        v = np.asarray(spice.spkcpo(target, t, "J2000", "OBSERVER", "CN", site, "EARTH", "ITRF93")[0][:3])
+        return np.array([v @ x_ax, v @ y_ax])
+    r = minimize_scalar(lambda dt: float(np.hypot(*xy(t_guess + dt))), bounds=(-span_s, span_s), method="bounded",
+                        options={"xatol": 1e-4, "maxiter": 500})
+    t = t_guess + float(r.x)
+    w = xy(t + 0.5) - xy(t - 0.5)
+    return t, float(r.fun), float(np.hypot(*w)), xy(t), w
+
+
+def best_size(rec):
+    """(a, b, pa_deg, text): the best size of the asteroid known for this event: the ellipse fitted to the chords
+    (when its axes were fitted, not assumed, and the fit gives a size), else the good shape-model fits' diameter,
+    else None."""
+    q = rec.get("fit_quality")
+    if rec.get("fit_major_km") and rec.get("fit_minor_km") and not rec.get("fit_assumed_size") and q in (2, 3, 4, 6):
+        a, b = rec["fit_major_km"] / 2.0, rec["fit_minor_km"] / 2.0
+        return a, b, float(rec.get("fit_pa_deg") or 0.0), f"fitted ellipse {2 * a:.1f} x {2 * b:.1f} km"
+    if rec.get("shape_dia_km"):
+        r = rec["shape_dia_km"] / 2.0
+        return r, r, 0.0, f"shape models {2 * r:.1f} km"
+    return None
+
+
+# The chord of the site's line through the ellipse (axes a, b, major axis at PA from north through east).
+def ellipse_chord(p0, w, a, b, pa_deg):
+    """(duration_s, mid_s): the site's track relative to the asteroid, s(t) = -(p0 + w t), through the ellipse
+    centred on the predicted shadow axis: how long it is inside and the middle of that time relative to t_ca."""
+    pa = math.radians(pa_deg)
+    e1, e2 = np.array([math.sin(pa), math.cos(pa)]), np.array([math.cos(pa), -math.sin(pa)])
+    u1, u2, w1, w2 = p0 @ e1, p0 @ e2, w @ e1, w @ e2
+    A = w1 * w1 / (a * a) + w2 * w2 / (b * b)
+    B = 2.0 * (u1 * w1 / (a * a) + u2 * w2 / (b * b))
+    C = u1 * u1 / (a * a) + u2 * u2 / (b * b) - 1.0
+    disc = B * B - 4.0 * A * C
+    return (math.sqrt(disc) / A if disc > 0 else 0.0), -B / (2.0 * A)
+
+
+def chord_checks(spice, target, z, chords, misses, r_km, t_ref, rec=None):
+    """Per chord: observed mid-time (D and R less the personal equations) minus the predicted closest approach at
+    that site (s); the predicted distance from the centre line (km) and chord duration for the archive's diameter;
+    per miss: the predicted distance (km). Returns (chord results, miss results)."""
+    from pysyzygos import geoid
+    out, out_m = [], []
+    best = best_size(rec or {})
+    for c in chords:
+        try:
+            td = spice.str2et(c["d_utc"]) - c["d_pe"]
+            tr = spice.str2et(c["r_utc"]) - c["r_pe"]
+            if not 0.0 < tr - td < 3600.0:
+                continue
+            h = c["alt_m"] + (geoid.height(c["lat"], c["lon"]) if c["datum"] in DATUM_WGS84 else 0.0)
+            t, d, v, p0, w = site_solve(spice, target, z, c["lon"], c["lat"], h, (td + tr) / 2.0, 300.0)
+            dur_pred = 2.0 * math.sqrt(r_km * r_km - d * d) / v if r_km and d < r_km else 0.0
+            x = dict(observer=c["observer"], place=c["place"], lat=round(c["lat"], 5), lon=round(c["lon"], 5),
+                     datum=c["datum"], method=c["method"], include=c["include"],
+                     dt_mid_s=round((td + tr) / 2.0 - t, 4), dist_km=round(d, 3),
+                     dur_obs_s=round(tr - td, 3), dur_pred_s=round(dur_pred, 3),
+                     acc_s=max(c["d_acc"] or 0.0, c["r_acc"] or 0.0), time_adj_s=c["time_adj_s"])
+            if best:                                              # the best size: the fitted ellipse on our center
+                dur_b, mid_b = ellipse_chord(p0, w, *best[:3])
+                x.update(dur_pred_best_s=round(dur_b, 3), dt_mid_best_s=round((td + tr) / 2.0 - (t + mid_b), 4))
+            out.append(x)
+        except Exception as ex:
+            out.append(dict(observer=c["observer"], note=f"{type(ex).__name__}"))
+    for m in misses:
+        try:
+            h = (m.get("alt_m") or 0.0) + (geoid.height(m["lat"], m["lon"]) if (m.get("datum") or "_") in DATUM_WGS84 else 0.0)
+            t, d, v, p0, w = site_solve(spice, target, z, m["lon"], m["lat"], h, t_ref, 1200.0)
+            y = dict(observer=m.get("observer", ""), dist_km=round(d, 3), outside_km=round(d - (r_km or 0.0), 3))
+            if best:                                              # a miss inside the best-size ellipse: a conflict
+                y["inside_best"] = bool(ellipse_chord(p0, w, *best[:3])[0] > 0.0)
+            out_m.append(y)
+        except Exception:
+            continue
+    return out, out_m
 
 
 def compare(rec, pr):
@@ -152,7 +274,9 @@ def run(since=None, asteroids=None, limit=None, workers=2, fresh=False, log=prin
     res_path, md_path = files()
     if fresh and os.path.isfile(res_path):
         os.remove(res_path)
-    done = load_results(res_path)
+    done = {k: x for k, x in load_results(res_path).items()      # failures (orbit, SPICE) are tried again, and
+            if not (x.get("chk_note") or "").startswith(("Spice", "no orbit"))   # results before the site check
+            and (x.get("chk_v") == 2 or x.get("chk_across_km") is None)}
     con = db.connect(dbp)
     recs = db.events(con, lst=observed.LIST)
     con.close()
@@ -176,6 +300,7 @@ def run(since=None, asteroids=None, limit=None, workers=2, fresh=False, log=prin
     if not order:
         return summarize(log=log)
     screen.load_kernels(spice)
+    chords = load_chords(dbp)                                            # the observers' sites and times
     local = gaia_local.LocalGaia(config.gaia_local_dir)
     log(f"obs-check: stars from {config.gaia_local_dir} (G <= {local.gmax})")
     import signal
@@ -227,9 +352,17 @@ def run(since=None, asteroids=None, limit=None, workers=2, fresh=False, log=prin
                             et = spice.str2et(r["best_utc"])
                             pr = predict(spice, t, row, et)
                             x.update(compare(r, pr), chk_note="", chk_star_g=float(row["phot_g_mean_mag"].iloc[0]))
+                            pos, mis = chord_checks(spice, t, pr["z"], *chords.get(ev_key(r), ([], [])),
+                                                    r.get("r_km"), et, r)
+                            good = [c["dt_mid_s"] for c in pos if "dt_mid_s" in c]   # all chords (Occult's flags not used)
+                            bs = best_size(r)
+                            x.update(chk_v=2, chk_size_best=bs[3] if bs else "", chk_chords=pos, chk_misses=mis,
+                                     chk_chord_n=len(good),
+                                     chk_site_dt_s=round(float(np.median(good)), 4) if good else None)
                             n_ok += 1
                         except Exception as ex:
-                            x["chk_note"] = f"{type(ex).__name__}: {str(ex)[:100]}"
+                            msg = " ".join(str(ex).split())
+                            x["chk_note"] = f"{type(ex).__name__}: {msg[msg.find('--') + 3:][:400] if '--' in msg else msg[:400]}"
                     out.write(json.dumps(x) + "\n")
                 out.flush()
                 spice.unload(fn)
@@ -323,7 +456,60 @@ def summarize(log=print):
             out.append(f"| {name} | {a['n']} | {a['median']:+.2f}, {a['mad']:.2f} | {a['p68']:.2f} / {a['p95']:.2f} | "
                        f"{t['median']:+.3f}, {t['mad']:.3f} | {t['p68']:.3f} / {t['p95']:.3f} | {m['p68']:.1f} |")
         return out + [""]
+    # 1) the measured data: every positive chord at its site (observer's times and coordinates, nothing else)
+    ch = [(r, x, c) for r, x in rows for c in (x.get("chk_chords") or []) if "dt_mid_s" in c]
+    if ch:
+        def ctable(title, groups):
+            out = [f"## {title}", "", "| Group | Chords | Mid-time obs - pred: median, scatter (s) | |dt| 68 % / 95 % "
+                   "(s) | Duration obs / pred, catalog size | Duration obs / pred, best size (chords) | Mid-time with "
+                   "best size: 68 % (s) |", "|---|---|---|---|---|---|---|"]
+            for name, sel in groups:
+                a = _stats([c["dt_mid_s"] for _, _, c in sel])
+                if not a:
+                    continue
+                q = [c["dur_obs_s"] / c["dur_pred_s"] for _, _, c in sel if c.get("dur_pred_s")]
+                qb = [c["dur_obs_s"] / c["dur_pred_best_s"] for _, _, c in sel if c.get("dur_pred_best_s")]
+                mb = _stats([c["dt_mid_best_s"] for _, _, c in sel if "dt_mid_best_s" in c])
+                out.append(f"| {name} | {a['n']} | {a['median']:+.3f}, {a['mad']:.3f} | {a['p68']:.3f} / {a['p95']:.3f} | "
+                           + (f"{float(np.median(q)):.2f} ({len(q)})" if q else "") + " | "
+                           + (f"{float(np.median(qb)):.2f}, scatter {1.4826 * float(np.median(np.abs(np.array(qb) - np.median(qb)))):.2f} ({len(qb)})" if qb else "")
+                           + " | " + (f"{mb['p68']:.3f}" if mb else "") + " |")
+            return out + [""]
+        L += ["## At the observers' sites (the measured data)", "",
+              "Each positive chord: the observer's measured disappearance and reappearance (less a visual observer's "
+              "reported personal equation) at the observer's coordinates (WGS84; height above sea level + EGM96 "
+              "geoid) against PySyzygos's closest approach of the shadow axis at that site (asteroid seen from the "
+              "site, as the search). Mid-time = (D + R) / 2, independent of the asteroid's size. Nothing of Occult's "
+              "solution is used; chords Occult excluded from its fit are included.", ""]
+        cy = lambda r: int(str(r.get("best_utc", "0000"))[:4] or 0)
+        L += ctable("Chord mid-times: all, and by method and timing", [
+            ("all chords", ch),
+            ("video, camera, photometer, drift scan (not visual)", [p for p in ch if p[2].get("method") != VISUAL]),
+            ("visual", [p for p in ch if p[2].get("method") == VISUAL]),
+            ("stated accuracy <= 0.05 s", [p for p in ch if (p[2].get("acc_s") or 9) <= 0.05]),
+            ("excluded by Occult from its fit", [p for p in ch if "x" in (p[2].get("include") or "")]),
+            ("datum not WGS84 / unspecified", [p for p in ch if p[2].get("datum") not in ("_", "")])])
+        L += ctable("Chord mid-times by year (not visual)", [
+            (f"{y}-{y + 4}" if y < 2020 else str(y), [p for p in ch if p[2].get("method") != VISUAL and
+                                                       (y <= cy(p[0]) <= y + 4 if y < 2020 else cy(p[0]) == y)])
+            for y in (1975, 1980, 1985, 1990, 1995, 2000, 2005, 2010, 2015) + tuple(range(2020, 2027))])
+        mis = [m for _, x in rows for m in (x.get("chk_misses") or [])]
+        if mis:
+            inside = sum(1 for m in mis if m["outside_km"] < 0)
+            mb = [m for m in mis if "inside_best" in m]
+            L += [f"Misses: {len(mis)} reported; PySyzygos predicts {len(mis) - inside} of them outside the shadow "
+                  f"(archive diameter), {inside} inside (median {float(np.median([m['outside_km'] for m in mis])):+.1f} km "
+                  f"from the edge)" + (f"; with the best size {sum(1 for m in mb if m['inside_best'])} of {len(mb)} "
+                                      f"inside" if mb else "") + ".", "",
+                  "Catalog size: the archive's nominal diameter (infrared surveys, as SBDB), a circle: the durations "
+                  "test the size. Best size: the ellipse fitted to the event's chords (axes fitted, not assumed), else "
+                  "the shape models: centred on PySyzygos's predicted shadow axis, so the durations test our position "
+                  "across the track at each site (a few km off shows as too short / too long chords on the two sides).",
+                  ""]
     yr = lambda r: int(str(r.get("best_utc", "0000"))[:4] or 0)
+    L += ["## Against the archive's fitted centre (secondary)", "",
+          "Occult's fit of the asteroid's centre to all chords of an event, in the fundamental plane through the "
+          "geocentre: depends on its fit and assumed size.", ""]
     L += table("All events and by quality of the fit", [("all", rows)] + [
         (observed.FIT_QUALITY.get(q, str(q)), [p for p in rows if p[0].get("fit_quality") == q]) for q in range(7)])
     L += table("By year", [(f"{y}-{y + 4}" if y < 2020 else str(y),
@@ -356,6 +542,10 @@ def summarize(log=print):
         f.write("\n".join(L))
     a = _stats([x["chk_across_km"] for _, x in rows])
     t = _stats([x["chk_along_s"] for _, x in rows])
+    s = _stats([c["dt_mid_s"] for _, x in rows for c in (x.get("chk_chords") or []) if "dt_mid_s" in c])
+    if s:
+        log(f"obs-check: {s['n']} chords at their sites: mid-time obs - pred median {s['median']:+.3f} s, 68 % within "
+            f"{s['p68']:.3f} s")
     log(f"obs-check: {len(rows)} events compared; across median {a['median']:+.2f} km, 68 % within {a['p68']:.2f} km; "
         f"along median {t['median']:+.3f} s, 68 % within {t['p68']:.3f} s -> {md_path}")
     return dict(n=len(rows), across=a, along=t)

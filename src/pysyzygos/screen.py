@@ -135,10 +135,10 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
     opt: reach_km, min_alt, max_sun_alt, min_drop, min_dur, cam_limit, aperture, frames, mag_adjust, extinction. Returns a list of event dicts (one per asteroid/star/time)."""
     ets = np.arange(et0, et1 + step_s, step_s)
     obs, up = site.at(ets)
-    sun = np.asarray(spice.spkpos("10", ets, "J2000", "LT+S", "399")[0])
+    sun = np.asarray(spice.spkpos("SUN", ets, "J2000", "LT+S", "EARTH")[0])
     sun_u = sun / np.linalg.norm(sun, axis=1, keepdims=True)
     dark = np.sum(sun_u * up, 1) < math.sin(math.radians(opt["max_sun_alt"]))
-    sun_bary = np.asarray(spice.spkpos("10", ets, "J2000", "NONE", "0")[0]) / AU_KM
+    sun_bary = np.asarray(spice.spkpos("SUN", ets, "J2000", "NONE", "0")[0]) / AU_KM
     sin_min = math.sin(math.radians(opt["min_alt"] - 3.0))                          # 3 deg looser than the final test
     pad = pad_for_pm(1500.0, ets)
     years = 2000.0 + ets.mean() / (365.25 * 86400.0) - GAIA_EPOCH_YEAR
@@ -210,7 +210,7 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             for q in np.where(miss <= r_max + opt["reach_km"])[0]:
                 o, upv = site.at(t[q])
                 star_alt = math.degrees(math.asin(float(sdir[q] @ upv[0])))
-                s_ = np.asarray(spice.spkpos("10", float(t[q]), "J2000", "LT+S", "399")[0])
+                s_ = np.asarray(spice.spkpos("SUN", float(t[q]), "J2000", "LT+S", "EARTH")[0])
                 sun_alt = math.degrees(math.asin(float(s_ @ upv[0] / np.linalg.norm(s_))))
                 if star_alt < opt["min_alt"] or sun_alt > opt["max_sun_alt"]:
                     continue

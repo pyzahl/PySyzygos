@@ -195,8 +195,12 @@ def record(ev):
         hd, hr = _hms(d[0] if d else ""), _hms(r[0] if r else "")
         if code_d == "D" and code_r == "R" and hd is not None and hr is not None and hr > hd:
             durs.append((hr - hd) * 3600.0)
+        cond = _split(el.findtext("Conditions"))
         site = dict(observer=who, place=place, lon=_dms(idf[6]) if len(idf) > 6 else None,
-                    lat=_dms(idf[7]) if len(idf) > 7 else None, alt_m=_f(idf[8]) if len(idf) > 8 else None)
+                    lat=_dms(idf[7]) if len(idf) > 7 else None, alt_m=_f(idf[8]) if len(idf) > 8 else None,
+                    datum=(idf[9] if len(idf) > 9 else "").strip() or "_",
+                    method=(idf[12] if len(idf) > 12 else "").strip(),
+                    time_adj_s=_f(cond[3]) if len(cond) > 3 else None)
         result = ("positive" if code_d in POSITIVE else "miss" if "M" in (code_d, code_r) else
                   "clouded" if "C" in (code_d, code_r) else code_d or "?")
         k = (who, site["lon"], site["lat"])                   # one entry per observer and place (cameras, satellite chords)
@@ -206,7 +210,9 @@ def record(ev):
             if h is not None and len(part) > 1 and part[1] not in ("", "C", "M"):
                 t = day0 + timedelta(hours=h)
                 contacts.append((part[1], t.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-4], None,
-                                 dict(site, code=part[1], acc_s=_f(part[2]) if len(part) > 2 else None)))
+                                 dict(site, code=part[1], acc_s=_f(part[2]) if len(part) > 2 else None,
+                                      pe_s=_f(part[3]) if len(part) > 3 else None,
+                                      include=(part[5] if len(part) > 5 else "").strip() or "_")))
     who = list(dict.fromkeys(x for x in names if x))         # an observer appears once per chord (cameras, satellite)
     rec.update(n_observers=len(who) or len(names), n_records=len(names), n_positive=n_pos, n_miss=n_miss,
                n_cloud=n_cloud, max_duration_s=round(max(durs), 2) if durs else None, observers="; ".join(who),

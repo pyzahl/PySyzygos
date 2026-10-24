@@ -240,7 +240,12 @@ uv run pysyzygos
 
 **Updating.** With git: `cd C:\PySyzygos`, `git pull`. With the ZIP: download it again and copy its contents over
 your folder (your own files, `sites.py`, `pysyzygos_config.py`, the catalog, picks, favorites and results, are not
-in the ZIP, so they stay). Then start as usual; uv updates the packages by itself.
+in the ZIP, so they stay). Then start as usual; uv updates the packages by itself. **In the GUI:** the System tab
+says whether a newer version is there (looked up when you open the tab; nothing pops up elsewhere), with the
+changelog of the new version, and for a git install an **Update** button: `git pull --ff-only` (never merges, never
+touches your changes; refused with a reason when the checkout has local changes to tracked files or has diverged),
+the packages if they changed (`uv sync` or `pip install -e .`), then Restart. Command line: `pysyzygos update
+[--check]`. A ZIP install gets the link to the newest release.
 
 **Good to know on Windows:** caches go to the Windows temp folder (`cache_path` in `pysyzygos_config.py` sets
 another one); the SPICE kernels are downloaded with `curl`, which is part of Windows 10 and 11; the KStars buttons
@@ -1315,13 +1320,25 @@ contacts. The filter bar and the SQL filter work as for your searches, with extr
 occultation. Built into `occult_data/observations.db` (same tables as `pysyzygos.db`) when the dataset is
 downloaded; `pysyzygos observed build|status|show <asteroid>`.
 
-**System → Check our predictions** (`pysyzygos obs-check run`) compares every event with an astrometric solution
-(16,605 events of 7,091 asteroids) with PySyzygos's prediction for it: today's JPL Horizons orbit and the star as
-the search takes it (Gaia DR3, proper motion, radial velocity, parallax, light deflection), the asteroid's position
-in the fundamental plane through the geocentre at the archive's reference time, turned to the axes of date as the
-archive gives them. Observed minus predicted, across the track (km) and along it (s), goes into the observed list
-and into a summary (**Summary**, `occult_data/obs_check.md`). One Horizons request per asteroid, two at a time:
-about 1-2 hours for all; Stop and run again to continue (`--since 2020`, `--asteroids 4337,9`, `--limit 100`).
+**System → Check our predictions** (`pysyzygos obs-check run`) checks PySyzygos against the measured data: for
+every observer of every event (16,605 events of 7,091 asteroids), the observer's own disappearance and reappearance
+times at the observer's coordinates (WGS84; height + EGM96 geoid; a visual observer's reported personal equation
+applied) against PySyzygos's prediction at exactly that site (today's JPL Horizons orbit, the star as the search
+takes it: Gaia DR3, proper motion, radial velocity, parallax, light deflection; the asteroid seen from the site, as
+the search's solver):
+- **mid-time** (D + R) / 2 observed minus our closest approach at that site: the timing, independent of the size;
+- **duration** with the catalog diameter (tests the size) and with the **best size** known for the event (the
+  ellipse fitted to its chords, else the shape models), centred on our predicted path: tests our position across
+  the track at each site;
+- every reported **miss**: our predicted distance from the shadow (inside the best-size ellipse = a conflict).
+
+Nothing of Occult's solution is used for these (chords Occult left out of its fit are included and marked). As a
+secondary reference, the archive's fitted centre of the asteroid is compared with our predicted position in the
+fundamental plane (axes of date). Per event in the observed list ("Obs − pred": the median of its chords' mid-times,
+each site on hover; SQL `dt_site`, `dx_across`, `dt_along`), summarised by method (video / visual), timing accuracy,
+year and star in **Summary** (`occult_data/obs_check.md`). One Horizons request per asteroid, two at a time: about
+one hour for all; Stop and run again to continue (`--since 2020`, `--asteroids 4337,9`, `--limit 100`). Removing
+or updating the dataset keeps the results.
 
 ## Searching anywhere on Earth
 

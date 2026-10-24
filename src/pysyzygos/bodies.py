@@ -106,7 +106,8 @@ GROUPS = _groups()
 # the body and window): file, size. Uranus: NAIF splits it per moon (up to 2 GB each): Horizons only.
 NAIF_KERNELS = {"jupiter": ("jup365.bsp", "1.1 GB"), "saturn": ("sat441.bsp", "631 MB"),
                 "neptune": ("nep097.bsp", "100 MB"), "pluto": ("plu060.bsp", "129 MB"), "mars": ("mar099.bsp", "1.1 GB")}
-DEFLECTORS = ("10", "5", "6")                       # light deflection: Sun, Jupiter and Saturn (astrometry.py)
+from pysyzygos.astrometry import DEFLECTORS        # light deflection: Sun, Jupiter and Saturn (by name)
+CENTER_NAMES = {10: "SUN", 5: "JUPITER BARYCENTER", 6: "SATURN BARYCENTER"}
 MOON_G = 0.5                                        # H-G slope for moons: a flatter phase curve than asteroids
 LOADED = set()                                      # targets whose kernel is loaded in this process (previews)
 STEP_MIN = 20                                       # Horizons sample step for the kernels
@@ -143,7 +144,7 @@ def deflectors(target):
     (for Jupiter or a Galilean moon the 'star minus target' deflection by Jupiter is undefined or dominated by the
     target being inside Jupiter's system)."""
     b = parse(target)
-    return tuple(d for d in DEFLECTORS if not b or d != str(b["center"]))
+    return tuple(d for d in DEFLECTORS if not b or d != CENTER_NAMES.get(int(b["center"])))
 
 
 def sigma3_km(target):
@@ -240,7 +241,7 @@ def size(spice, target):
     none for the planets (no drop filter: a planet's light swamps it; the run's star limit only)."""
     b = parse(target)
     try:
-        radii = np.asarray(spice.bodvrd(str(b["naif"]), "RADII", 3)[1], float)
+        radii = np.asarray(spice.bodvcd(int(b["naif"]), "RADII", 3)[1], float)
         r_eq, r_pol, r_mean, src = float(radii[0]), float(radii[2]), float(radii.mean()), "NAIF planet constants"
     except Exception:                                    # small moons: the radius from JPL Horizons (satellite table)
         r_eq = r_pol = r_mean = float(b.get("radius_km") or 0.0)
@@ -258,7 +259,7 @@ def size(spice, target):
 def magnitude(spice, target, et):
     """Apparent V of a major body at et (V10 + 5 log10(r delta) + beta * phase angle)."""
     b = parse(target)
-    tgt = np.asarray(spice.spkpos(b["alias"], et, "J2000", "LT", "399")[0])
+    tgt = np.asarray(spice.spkpos(b["alias"], et, "J2000", "LT", "EARTH")[0])
     sun = np.asarray(spice.spkpos(b["alias"], et, "J2000", "LT", "SUN")[0])
     au = 1.495978707e8
     d, r = np.linalg.norm(tgt) / au, np.linalg.norm(sun) / au
@@ -335,8 +336,9 @@ def phase_correct(sats, date, kernels="."):
     et = spice.str2et(date)
     alpha = {}
     for system in SYSTEMS:
-        e = np.asarray(spice.spkpos("399", et, "J2000", "LT", str(system))[0])        # body -> Earth
-        sun = np.asarray(spice.spkpos("10", et, "J2000", "LT", str(system))[0])      # body -> Sun
+        bary = spice.bodc2n(int(system))                                          # by name (asteroid numbers are names)
+        e = np.asarray(spice.spkpos("EARTH", et, "J2000", "LT", bary)[0])               # body -> Earth
+        sun = np.asarray(spice.spkpos("SUN", et, "J2000", "LT", bary)[0])               # body -> Sun
         alpha[system] = math.acos(float(np.dot(e, sun) / (np.linalg.norm(e) * np.linalg.norm(sun))))
     G = MOON_G
     for m in sats:

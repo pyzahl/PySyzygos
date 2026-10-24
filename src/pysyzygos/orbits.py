@@ -73,7 +73,7 @@ def propagate(spice, el, et_out, step_days=0.5):
         sel = np.where(el["epoch"] == ep)[0]
         rh, vh = elements_to_state(*(el[k][sel] for k in ("a", "e", "i", "om", "w", "ma")), ep)
         et0 = jd_to_et(ep)
-        sun = np.asarray(spice.spkezr("10", et0, "J2000", "NONE", "0")[0]) / AU_KM
+        sun = np.asarray(spice.spkezr("SUN", et0, "J2000", "NONE", "0")[0]) / AU_KM
         r, v = rh + sun[:3], vh + sun[3:] * DAY                                     # heliocentric -> barycentric
         # integration grid: from the epoch to every output time, fixed step (sign follows direction)
         t_end = et_out[-1] if abs(et_out[-1] - et0) >= abs(et_out[0] - et0) else et_out[0]
@@ -130,7 +130,7 @@ def hermite(grid, R, V, A, t):
 def astrometric(spice, r_bary, v_bary, et):
     """Astrometric geocentric vectors (km) at times et from barycentric asteroid states (N,T,3) AU / AU/day:
     light-time corrected (asteroid at t - tau), no aberration - the 'CN' convention of the solver."""
-    earth = np.asarray(spice.spkpos("399", et, "J2000", "NONE", "0")[0]) / AU_KM      # (T,3)
+    earth = np.asarray(spice.spkpos("EARTH", et, "J2000", "NONE", "0")[0]) / AU_KM      # (T,3)
     g = r_bary - earth[None]
     for _ in range(2):
         tau = np.linalg.norm(g, axis=-1, keepdims=True) * AU_KM / 299792.458 / DAY   # days

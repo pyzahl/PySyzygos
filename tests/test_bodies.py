@@ -15,7 +15,7 @@ assert all(B.parse(t) for g in B.GROUPS.values() for t in g), "every group membe
 assert set(B.GROUPS) == {"mars", "jupiter", "saturn", "uranus", "neptune", "pluto"}
 major, small = B.featured("jupiter")
 assert major[0] == "P:Jupiter" and "M:Ganymede" in major and all((B.parse(t)["radius_km"] or 0) < 150 for t in small)
-assert B.parse("P:Pluto")["kind"] == "dwarf" and B.parse("M:Titan")["center"] == 6 and B.deflectors("M:Titan") == ("10", "5")
+assert B.parse("P:Pluto")["kind"] == "dwarf" and B.parse("M:Titan")["center"] == 6 and B.deflectors("M:Titan") == ("SUN", "JUPITER BARYCENTER")
 # the satellite table: Horizons values, estimates flagged, unusable ones left out of the groups
 if B.parse("M:Himalia"):
     assert B.parse("M:Himalia")["naif"] == 506 and 70 < B.parse("M:Himalia")["radius_km"] < 100
@@ -26,11 +26,11 @@ assert sats[0]["radius_est"] and abs(sats[0]["radius_km"] * 2 - 1329 / 0.05 ** 0
 assert sats[1]["h_est"] and sats[1]["h"] > 0 and sats[2]["radius_km"] is None and sats[2]["h"] is None
 
 # light deflection: the target's own system is left out
-assert B.deflectors("30819") == ("10", "5", "6") and B.deflectors("M:Io") == ("10", "6") and B.deflectors("P:Jupiter") == ("10", "6")
+assert B.deflectors("30819") == ("SUN", "JUPITER BARYCENTER", "SATURN BARYCENTER") and B.deflectors("M:Io") == ("SUN", "SATURN BARYCENTER") and B.deflectors("P:Jupiter") == ("SUN", "SATURN BARYCENTER")
 assert B.sigma3_km("M:Io") > 0 and B.sigma3_km("30819") is None
 
 # size and brightness rules
-spice = types.SimpleNamespace(bodvrd=lambda body, item, n: (3, [71492.0, 71492.0, 66854.0] if body == "599" else [1829.4, 1819.4, 1815.7]))
+spice = types.SimpleNamespace(bodvcd=lambda body, item, n: (3, [71492.0, 71492.0, 66854.0] if body == 599 else [1829.4, 1819.4, 1815.7]))   # by code: bodvcd
 j, io = B.size(spice, "P:Jupiter"), B.size(spice, "M:Io")
 assert j["r_km"] == 71492.0 and j["r_min_km"] == 66854.0 and j["H"] is None, "planet: equatorial radius, no H (no drop filter)"
 assert abs(io["r_km"] - np.mean([1829.4, 1819.4, 1815.7])) < 1e-9 and io["H"] == B.parse("M:Io")["h"] and io["G"] == B.MOON_G

@@ -23,6 +23,8 @@ URL_GAIA_DR3_LISTING = "https://gaia.eu-1.cdn77-storage.com/"                   
 GAIA_DR3_LISTING_PREFIX = "Gaia/gdr3/gaia_source/"                               # its prefix parameter
 
 # --- ready-made local catalogs on Zenodo (gaia_local.py, setup.py)
+URL_GITHUB_LATEST_RELEASE = "https://api.github.com/repos/pyzahl/PySyzygos/releases/latest"   # selfupdate.py
+URL_CHANGELOG = "https://github.com/pyzahl/PySyzygos/blob/main/CHANGELOG.md"                 # System tab link
 URL_ZENODO_CATALOG_RECORD = "https://zenodo.org/api/records/23113337"           # concept record: newest version
 # mirrors of the ready-made catalog archives (starcat.fetch; the same file names, checked against the SHA-256 stored
 # in starcat.ARCHIVE_SHA256): folder addresses ending in /, tried with Zenodo, the fastest wins. Env

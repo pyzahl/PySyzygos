@@ -29,8 +29,12 @@ C_KM_S = 299792.458
 PC_KM = 3.0856775814913673e13
 RAD2MAS = np.degrees(1.0) * 3.6e6
 # GM, km^3/s^2 (DE440); planets as system barycentres (de440.bsp has them; mas-level deflection is insensitive to it)
-GM = {"10": 1.32712440041279419e11, "5": 1.267127641e8, "6": 3.79405848418e7}
-BODY_NAMES = {"10": "Sun", "5": "Jupiter", "6": "Saturn"}
+# Bodies by NAME, never by a numeric string: searches make asteroid numbers SPICE names (kernels.body_alias), so
+# "5", "6", "10", "399" can mean asteroids 5, 6, 10, 399 in a run that has them as targets (found 2026-10-23).
+SUN, JUPITER, SATURN = "SUN", "JUPITER BARYCENTER", "SATURN BARYCENTER"
+DEFLECTORS = (SUN, JUPITER, SATURN)
+GM = {SUN: 1.32712440041279419e11, JUPITER: 1.267127641e8, SATURN: 3.79405848418e7}
+BODY_NAMES = {SUN: "Sun", JUPITER: "Jupiter", SATURN: "Saturn"}
 
 # Gaia (E)DR3 proper-motion bias of bright stars: the frame of their proper motions spins against the ICRF by up to
 # 80 micro-arcsec/yr for G < 13. Cantat-Gaudin & Brandt 2021, A&A 649, A124 (arXiv:2103.07432), Table 1 and their
@@ -92,21 +96,21 @@ def parallax_dir(u_bary, plx_mas, earth_from_ssb_km):
 
 # Math: ST2.1-ST2.3 (slide ST2): parallax, deflection star minus asteroid summed over the bodies,
 # then the unit vector s used by the solver.
-def corrected_star_dir(spice, u_bary, plx_mas, et, target, parallax=True, deflection=True, bodies=("10", "5", "6")):
+def corrected_star_dir(spice, u_bary, plx_mas, et, target, parallax=True, deflection=True, bodies=DEFLECTORS):
     """(direction, info): the star's corrected J2000 direction at et (unit vector) and the sizes of the corrections,
     info = {'parallax_mas', 'deflection_mas', 'deflection_by': {body: mas}}. target: the asteroid's SPICE name/id."""
     p = unit(u_bary)
     info = {"parallax_mas": 0.0, "deflection_mas": 0.0, "deflection_by": {}}
     if parallax:
-        earth = np.asarray(spice.spkpos("399", et, "J2000", "NONE", "0")[0])
+        earth = np.asarray(spice.spkpos("EARTH", et, "J2000", "NONE", "0")[0])
         p2 = parallax_dir(p, plx_mas, earth)
         info["parallax_mas"] = angle_mas(p, p2)
         p = p2
     if deflection:
-        ast = np.asarray(spice.spkpos(str(target), et, "J2000", "CN", "399")[0])   # Earth -> asteroid (as the solver)
+        ast = np.asarray(spice.spkpos(str(target), et, "J2000", "CN", "EARTH")[0])   # Earth -> asteroid (as the solver)
         p0, shift = p, np.zeros(3)
         for b in bodies:
-            body = np.asarray(spice.spkpos(b, et, "J2000", "CN", "399")[0])        # Earth -> body
+            body = np.asarray(spice.spkpos(b, et, "J2000", "CN", "EARTH")[0])        # Earth -> body
             obs_from_body = -body
             d = deflect(p, obs_from_body, p, GM[b]) - deflect(p, obs_from_body, unit(ast - body), GM[b])
             info["deflection_by"][BODY_NAMES.get(b, b)] = float(np.linalg.norm(d) * RAD2MAS)

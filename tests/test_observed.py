@@ -125,4 +125,29 @@ try:
 except ImportError:
     print("(erfa not installed: axes of date not tested)")
 assert C.ev_key(dict(target_id="1", best_utc="2026-01-02T03:04:05.678", star="9")) == "1|2026-01-02T03:04:05|9"
+# the observers' chords at their sites (the measured data): main-star D and R paired per observer and site, misses
+ch = C.load_chords(dbp)
+pos, mis = ch[C.ev_key(a)]
+assert len(pos) == 1 and pos[0]["observer"] == "D Gault" and pos[0]["d_utc"] == "2021-05-19T17:57:59.61"     # G/B: satellite
+assert pos[0]["r_utc"] == "2021-05-19T17:58:01.89" and pos[0]["datum"] == "_" and abs(pos[0]["lat"] + 33.664417) < 1e-5
+assert pos[0]["d_acc"] == 0.08 and pos[0]["include"] == "__" and pos[0]["d_pe"] == 0.0
+assert [m["observer"] for m in mis] == ["P Nosworthy"]
+# the report: per-site results on hover, their median shown
+rec = dict(a, chk_site_dt_s=0.021, chk_across_km=1.2, chk_along_s=0.05,
+           chk_chords=[dict(observer="D Gault", place="Hawkesbury", dt_mid_s=0.021, dist_km=3.4, dur_obs_s=2.28,
+                            dur_pred_s=2.1, method="a", include="__")])
+e = R.build_event({k: db._cell(v) for k, v in rec.items()}, None, None, os.devnull, tmp)
+row = R.html_row_observed(e)
+assert "+0.02 s" in row and "1 site" in row and "D Gault, Hawkesbury: mid-time +0.02 s" in row, row
+# the best size: the chord through the fitted ellipse centred on the predicted axis
+dur, mid = C.ellipse_chord(np.array([0.0, 3.0]), np.array([10.0, 0.0]), 5.0, 5.0, 0.0)      # circle r 5, 3 km off
+assert abs(dur - 2 * 4.0 / 10.0) < 1e-12 and abs(mid) < 1e-12
+dur, mid = C.ellipse_chord(np.array([0.0, 0.0]), np.array([10.0, 0.0]), 8.0, 2.0, 90.0)     # major axis east-west
+assert abs(dur - 1.6) < 1e-12
+dur, _ = C.ellipse_chord(np.array([0.0, 0.0]), np.array([10.0, 0.0]), 8.0, 2.0, 0.0)        # major axis north-south
+assert abs(dur - 0.4) < 1e-12 and C.ellipse_chord(np.array([0.0, 9.0]), np.array([10.0, 0.0]), 8.0, 2.0, 0.0)[0] == 0.0
+dur, mid = C.ellipse_chord(np.array([-3.0, 1.0]), np.array([10.0, 0.0]), 5.0, 5.0, 0.0)     # axis 3 km behind: later
+assert abs(mid - 0.3) < 1e-12
+assert C.best_size(dict(fit_major_km=10, fit_minor_km=8, fit_pa_deg=30, fit_assumed_size=0, fit_quality=3))[:3] == (5.0, 4.0, 30.0)
+assert C.best_size(dict(fit_major_km=10, fit_minor_km=8, fit_assumed_size=1, fit_quality=1)) is None
 print("OBSERVED TESTS PASSED")

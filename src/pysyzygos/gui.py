@@ -116,6 +116,7 @@ def index():
                 ui.button("Cancel", on_click=qd.close).props("flat")
         qd.open()
     pg.quit_dialog = quit_dialog
+    pg.restart_app = restart_app
 
     with ui.dialog() as pg.about, ui.card().classes("max-w-xl"):
         with ui.row().classes("items-center gap-4 no-wrap"):

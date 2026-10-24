@@ -420,6 +420,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   Files" folder (server date unknown -> listed by check_updates). Favorites panel `f_ocd` (summary + star_text),
   sysinfo `occult_data`, cleanup DOWNLOADS. Reference only; not used by the predictions yet. Redistribution not
   agreed: never ship these files in data/. tests/test_occultdata.py.
+- `pysyzygos/selfupdate.py` (2026-10-23, `pysyzygos update [--check]`, System tab top line): `repo_dir()` = the
+  checkout the code runs from (.git); `status()` = git fetch, rev-list ahead/behind vs @{u}, dirty tracked files
+  (porcelain, untracked ignored), commits, remote version.py and `changelog_head` (entries above this version) via
+  git show; + GitHub latest release (URL_GITHUB_LATEST_RELEASE) for ZIP installs; `update()` = pull --ff-only only
+  when behind, clean and not ahead; deps (`uv sync` with uv + .venv + uv.lock, else pip install -e) when
+  pyproject.toml/uv.lock changed. GUI: checked once when the System tab is first opened (no other notices, user's
+  wish), Update -> run_process + restart dialog (pg.restart_app). tests/test_selfupdate.py (temp bare remote).
 - `pysyzygos/observed.py` (2026-10-23, `pysyzygos observed build|status|show`): Occult's Asteroid~Observations.xml
   (occultdata "observations"; `_finish` builds it after download) -> occult_data/observations.db (db.py tables,
   results list "observed", one run with summary kind "observed"; built as .new then os.replace; db.add_event
@@ -443,6 +450,15 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   sin RA / cos Dec), `compare` -> chk_across_km (+ left of motion), chk_along_km/_s, chk_mas. Results
   occult_data/obs_check.jsonl (resumed by key target|utc|star; SIGTERM = Ctrl-C), `apply_to_db`, `summarize` ->
   obs_check.md (by fit quality, year, chords, star; largest outliers). Pilot 48 events: medians ~0 (axes right).
+  Per-site check (the main one, user's wish: measured data, not Occult's fit): `load_chords` (contacts D/R of the
+  main star paired per observer+site; misses from obs_sites), `site_solve` (spkcpo from the site, minimize |xy|;
+  returns t_ca, d, v, p0, w), `chord_checks`: dt_mid_s = (D+R)/2 (minus personal equations) - t_ca; dur_pred_s
+  (archive nominal circle) and, with `best_size` (fitted ellipse if axes fitted and quality 2/3/4/6, else shape
+  dia), `ellipse_chord` -> dur_pred_best_s, dt_mid_best_s; misses dist/outside_km/inside_best. Record chk_v 2,
+  chk_chords, chk_misses, chk_site_dt_s (median, all chords incl. Occult-excluded), chk_size_best. Contacts data
+  carry datum ('_' WGS84, N NAD27, ...; '*' taken as WGS84), method ('f' visual), pe_s, include ('x' excluded),
+  time_adj_s (Occult's, not applied). Height: alt + EGM96 geoid (assumed MSL). occultdata.remove keeps
+  obs_check.* (results were lost once when the dataset was re-ticked). Phaethon video chords: mid-times within ~0.01-0.04 s.
 - Search anywhere on Earth (2026-10-23): config `search_scope = "earth"` (GUI Search toggle "Anywhere on Earth":
   targets from the list, results_list "earth", hits earth_log.csv, max_shadow_dist 0). search.py `EARTH`,
   `earth_point` (geocentric closest approach over the bracket, shadow touches the WGS84 outline: ellipse A x
@@ -572,9 +588,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `tests/`: stand-in based tests, run each with `python tests/<name>.py` (no SPICE, astropy or network needed).
 
 ## Conventions that matter
-- Asteroid position: `spkpos(id, et, 'J2000', 'CN', '399')`. Earth centre is 399, not 3. `CN` is astrometric (matches Gaia).
+- Asteroid position: `spkpos(id, et, 'J2000', 'CN', 'EARTH')` (399, not 3 = the Earth-Moon barycentre; by name, see below). `CN` is astrometric (matches Gaia).
   For a site (solver, `besselian_offsets`) the asteroid is taken with the light time FROM THE SITE:
-  `spkcpo(id, et, 'J2000', 'OBSERVER', 'CN', site_itrf, '399', 'ITRF93')`; path lines move the axis per ground point by
+  `spkcpo(id, et, 'J2000', 'OBSERVER', 'CN', site_itrf, 'EARTH', 'ITRF93')`; path lines move the axis per ground point by
   the asteroid's barycentric velocity x (|A| - |A - P|)/c (2026-10-16; geocentric light time for all sites was up to
   ~0.6 km off at the surface, found against Occult). Scans (corridor, pick, pre-screens) stay geocentric (km margins).
 - Star direction (0.10.0): `pysyzygos.astrometry.corrected_star_dir` in `handle_star`, once per candidate at et_guess:
@@ -590,6 +606,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - Geodetic <-> ITRF conversions use WGS84 from `pysyzygos/earth.py` (A_KM, F, C_KM), never `bodvrd('EARTH','RADII')`
   (pck00010 is ~0.4 m off): paths.shadow_path (surfpt/recgeo: height 0 on WGS84, Occult's default), screen.Site,
   search.observer_j2000 / plane offsets, globe. Changed 2026-10-11: paths moved 0.3 m median, <= 3.6 m.
+- Never name a real body by a numeric string in SPICE calls ("EARTH", "SUN", "JUPITER BARYCENTER", "SATURN
+  BARYCENTER", "MOON"; astrometry.DEFLECTORS; radii with bodvcd(code)): body_alias makes asteroid numbers names, so
+  "5", "6", "10", "399" meant asteroids 5, 6, 10, 399 once they were targets (fixed 2026-10-23, found by obs-check).
 - Target ids are strings of the asteroid number ('218001'); `fetch_target_orbit` makes it a SPICE name of the SPK's
   object with `kernels.body_alias` (kernel pool NAIF_BODY_NAME/CODE). Never `spice.boddef` for names: CSPICE N0067
   holds 853 name/code pairs, ~692 built in, so boddef fails after ~161 (SPICE(TOOMANYPAIRS); a 400-target search on

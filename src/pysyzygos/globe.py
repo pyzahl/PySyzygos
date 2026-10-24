@@ -642,8 +642,8 @@ def system_data(spice, et, target, star_dir, target_name="target", star_name="")
     the shift that moves the shadow."""
     from pysyzygos import astrometry as A
     s = np.asarray(star_dir, float) / np.linalg.norm(star_dir)
-    geo = lambda b: np.asarray(spice.spkpos(b, et, "J2000", "CN", "399")[0])
-    pos = {"Sun": ("10", geo("10")), "Jupiter": ("5", geo("5")), "Saturn": ("6", geo("6"))}
+    geo = lambda b: np.asarray(spice.spkpos(b, et, "J2000", "CN", "EARTH")[0])
+    pos = {"Sun": (A.SUN, geo(A.SUN)), "Jupiter": (A.JUPITER, geo(A.JUPITER)), "Saturn": (A.SATURN, geo(A.SATURN))}
     ast = geo(str(target))
     sun = pos["Sun"][1]
     e2 = sun - (sun @ s) * s
@@ -690,8 +690,8 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
     basis = plane_basis(np.asarray(star_dir, float))
     x_ax, y_ax, z_ax = basis
     R = spice.pxform("ITRF93", "J2000", et)
-    sun = np.asarray(spice.spkpos("10", et, "J2000", "LT+S", "399")[0])
-    ast = np.asarray(spice.spkpos(str(target), et, "J2000", "CN", "399")[0])
+    sun = np.asarray(spice.spkpos("SUN", et, "J2000", "LT+S", "EARTH")[0])
+    ast = np.asarray(spice.spkpos(str(target), et, "J2000", "CN", "EARTH")[0])
     dist = float(np.linalg.norm(ast))
     v = float(record.get("speed_kms") or 0) or 1e-9
     # shadow axis in the fundamental plane, 1 s steps near whole minutes would be costly: 20 s steps, minutes exact
@@ -700,11 +700,11 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
                     [m * 60.0 for m in range(int((et - span) // 60) + 1, int((et + span) // 60) + 1)]))
     axis = []
     for t in ts:
-        a = np.asarray(spice.spkpos(str(target), t, "J2000", "CN", "399")[0])
+        a = np.asarray(spice.spkpos(str(target), t, "J2000", "CN", "EARTH")[0])
         axis.append((t, float(a @ x_ax), float(a @ y_ax)))
     # asteroid motion: hourly dRA (s of time) and dDec (arcsec)
-    _, ra1, de1 = spice.recrad(spice.spkpos(str(target), et - 1800, "J2000", "CN", "399")[0])
-    _, ra2, de2 = spice.recrad(spice.spkpos(str(target), et + 1800, "J2000", "CN", "399")[0])
+    _, ra1, de1 = spice.recrad(spice.spkpos(str(target), et - 1800, "J2000", "CN", "EARTH")[0])
+    _, ra2, de2 = spice.recrad(spice.spkpos(str(target), et + 1800, "J2000", "CN", "EARTH")[0])
     dra_s = ((math.degrees(ra2 - ra1) + 180) % 360 - 180) * 240.0
     ddec = math.degrees(de2 - de1) * 3600
     elong = math.degrees(math.acos(float(np.clip(np.dot(star_dir, sun / np.linalg.norm(sun)), -1, 1))))
@@ -750,7 +750,7 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
         ra_s, dec_s, g = stars
         xi, eta = gnomonic(ra_s, dec_s, ra_d, dec_d)
         def sky(t):
-            _, a, b = spice.recrad(spice.spkpos(str(target), t, "J2000", "CN", "399")[0])
+            _, a, b = spice.recrad(spice.spkpos(str(target), t, "J2000", "CN", "EARTH")[0])
             tx, ty = gnomonic([math.degrees(a)], [math.degrees(b)], ra_d, dec_d)
             return float(tx[0]), float(ty[0])
 

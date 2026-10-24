@@ -60,8 +60,8 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
     tid = str(target_id)
 
     def axis_velocity(et):                              # shadow velocity on the plane, km/s
-        p0, _ = spice.spkpos(tid, et - 0.5, 'J2000', 'CN', '399')
-        p1, _ = spice.spkpos(tid, et + 0.5, 'J2000', 'CN', '399')
+        p0, _ = spice.spkpos(tid, et - 0.5, 'J2000', 'CN', 'EARTH')
+        p1, _ = spice.spkpos(tid, et + 0.5, 'J2000', 'CN', 'EARTH')
         return (M @ (p1 - p0))[:2]
 
     v_best = axis_velocity(et_best)
@@ -75,7 +75,7 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
         # et_best is the closest approach at the observer's site, which can lie near one end of the track: centre
         # the span on the axis's closest approach to the Earth's centre instead (whole steps, so et_best stays on
         # the grid); 1.3 Earth radii either side of it cover the whole crossing
-        ast_best, _ = spice.spkpos(tid, et_best, 'J2000', 'CN', '399')
+        ast_best, _ = spice.spkpos(tid, et_best, 'J2000', 'CN', 'EARTH')
         xy = (M @ ast_best)[:2]
         k0 = int(round(-(xy @ v_best) / speed ** 2 / step))
         half_span = 1.3 * a / speed
@@ -95,7 +95,7 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
         radii['center_height'] = (a + height_km, b + height_km, c + height_km)   # the height-h surface to < 1 cm up to 5 km
 
     for et in ets:
-        ast0, _ = spice.spkpos(tid, et, 'J2000', 'CN', '399')          # same convention as the solver
+        ast0, _ = spice.spkpos(tid, et, 'J2000', 'CN', 'EARTH')          # same convention as the solver
         v_axis = axis_velocity(et)
         n = np.array([-v_axis[1], v_axis[0]]) / np.linalg.norm(v_axis)
         n3 = n[0] * x_ax + n[1] * y_ax                                  # J2000 unit vector across the track
@@ -152,15 +152,15 @@ def height_shift_km(target_id, star_dir, et, lon_deg, lat_deg, h_km):
     if sin_alt < np.sin(np.radians(1.0)):
         return None
     tid = str(target_id)
-    p0, _ = spice.spkpos(tid, et - 0.5, 'J2000', 'CN', '399')
-    p1, _ = spice.spkpos(tid, et + 0.5, 'J2000', 'CN', '399')
+    p0, _ = spice.spkpos(tid, et - 0.5, 'J2000', 'CN', 'EARTH')
+    p1, _ = spice.spkpos(tid, et + 0.5, 'J2000', 'CN', 'EARTH')
     v = np.array([(p1 - p0) @ x_ax, (p1 - p0) @ y_ax])
     n = np.array([-v[1], v[0]]) / np.linalg.norm(v)
     n3 = R @ (n[0] * x_ax + n[1] * y_ax)                                # across the track, as in shadow_path
     try:
         pts = []
         for t in (et - 30.0, et + 30.0):
-            ast, _ = spice.spkpos(tid, t, 'J2000', 'CN', '399')
+            ast, _ = spice.spkpos(tid, t, 'J2000', 'CN', 'EARTH')
             Rt = spice.pxform('J2000', 'ITRF93', t)
             axis_pt = ast - (ast @ z_ax) * z_ax
             pts.append(np.asarray(spice.surfpt(Rt @ (axis_pt + 2.0 * a * z_ax), Rt @ (-z_ax), a, a, c)))

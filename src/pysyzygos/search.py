@@ -133,7 +133,7 @@ def observer_j2000(et, obs_geo):
     return spice.pxform('ITRF93', 'J2000', et) @ itrf
 
 def moon_info(et, star_dir, obs_geo):
-    moon_geo, _ = spice.spkpos('MOON', et, 'J2000', 'LT+S', '399')
+    moon_geo, _ = spice.spkpos('MOON', et, 'J2000', 'LT+S', 'EARTH')
     moon_topo = moon_geo - observer_j2000(et, obs_geo)
     sep = np.degrees(spice.vsep(moon_topo, star_dir))
 
@@ -141,7 +141,7 @@ def moon_info(et, star_dir, obs_geo):
     alpha = spice.vsep(moon_from_sun, moon_geo)              # phase angle at the Moon
     illum = 100.0 * (1 + np.cos(alpha)) / 2
 
-    sun_geo, _ = spice.spkpos('SUN', et, 'J2000', 'LT+S', '399')
+    sun_geo, _ = spice.spkpos('SUN', et, 'J2000', 'LT+S', 'EARTH')
     R = spice.pxform('J2000', 'ECLIPJ2000', et)
     mv, sv = R @ moon_geo, R @ sun_geo
     age = np.degrees(np.arctan2(mv[1], mv[0]) - np.arctan2(sv[1], sv[0])) % 360.0
@@ -561,7 +561,7 @@ def get_asteroid_ra_dec(target_id, utc_time, observer="EARTH", ref_frame="J2000"
 AU_KM = 149597870.7
 
 def apparent_mag_HG(et, target, H, G=0.15):
-    ast_from_earth, _ = spice.spkpos(target, et, 'J2000', 'LT', '399')
+    ast_from_earth, _ = spice.spkpos(target, et, 'J2000', 'LT', 'EARTH')
     ast_from_sun, _   = spice.spkpos(target, et, 'J2000', 'LT', 'SUN')
     delta = np.linalg.norm(ast_from_earth) / AU_KM
     r     = np.linalg.norm(ast_from_sun) / AU_KM
@@ -594,7 +594,7 @@ def besselian_offsets(et, star_vector, observer_geo, asteroid_target):
     from pysyzygos import earth                           # WGS84 (GPS) geodetic coordinates
     obs_itrf = spice.georec(observer_geo['lon'], observer_geo['lat'],
                             observer_geo['alt'], earth.A_KM, earth.F)
-    state, _ = spice.spkcpo(str(asteroid_target), et, 'J2000', 'OBSERVER', 'CN', obs_itrf, '399', 'ITRF93')
+    state, _ = spice.spkcpo(str(asteroid_target), et, 'J2000', 'OBSERVER', 'CN', obs_itrf, 'EARTH', 'ITRF93')
 
     d = M @ np.asarray(state[:3])
     return d[0], d[1]
@@ -611,13 +611,13 @@ def event_context(et, star_dir, target, r_km, m_star, m_ast):
     Earth radius + the body's radius of the Earth's centre, i.e. any part of the shadow touching the Earth)."""
     from scipy.optimize import brentq
     def geo(t):
-        return np.asarray(spice.spkpos(target, t, 'J2000', 'CN', '399')[0])
+        return np.asarray(spice.spkpos(target, t, 'J2000', 'CN', 'EARTH')[0])
     a = geo(et)
     dist = float(np.linalg.norm(a))
     rd = [spice.recrad(geo(t))[1:] for t in (et - 60.0, et + 60.0)]
     dra = (rd[1][0] - rd[0][0] + math.pi) % (2 * math.pi) - math.pi
     dec = (rd[0][1] + rd[1][1]) / 2
-    sun = np.asarray(spice.spkpos('SUN', et, 'J2000', 'LT+S', '399')[0])
+    sun = np.asarray(spice.spkpos('SUN', et, 'J2000', 'LT+S', 'EARTH')[0])
     out = dict(dist_au=dist / AU_KM,
                motion_ra_ash=math.degrees(dra * math.cos(dec)) * 3600 * 30.0,      # per 120 s -> per hour
                motion_dec_ash=math.degrees(rd[1][1] - rd[0][1]) * 3600 * 30.0,
@@ -690,7 +690,7 @@ def _up_j2000(et, obs_geo):
     return spice.pxform('ITRF93', 'J2000', et) @ up_itrf
 
 def sun_alt_deg(et, obs_geo):
-    sun, _ = spice.spkpos('SUN', et, 'J2000', 'LT+S', '399')
+    sun, _ = spice.spkpos('SUN', et, 'J2000', 'LT+S', 'EARTH')
     return np.degrees(np.arcsin(_up_j2000(et, obs_geo) @ (sun / np.linalg.norm(sun))))
 
 def alt_deg(et, direction, obs_geo):
@@ -715,7 +715,7 @@ def observable(et, star_dir, obs_geo, min_star_alt=config.MIN_STAR_ALT, max_sun_
 
 def window_is_observable(et0, span, obs_geo, target_id, min_star_alt=config.MIN_STAR_ALT, max_sun_alt=config.MAX_SUN_ALT, alt_margin=config.ALT_MARGIN):
     for e in (et0 - span/2, et0, et0 + span/2):
-        ast, _ = spice.spkpos(target_id, e, 'J2000', 'CN', '399')
+        ast, _ = spice.spkpos(target_id, e, 'J2000', 'CN', 'EARTH')
         if (sun_alt_deg(e, obs_geo) < max_sun_alt and
                 alt_deg(e, ast, obs_geo) > min_star_alt - alt_margin):
             return True
@@ -822,7 +822,7 @@ def star_test (loc = EarthLocation(lat=40.7128*u.deg, lon=-74.0060*u.deg, height
 
 def screen_stars(ra_deg, dec_deg, target, et0, span, margin_km, step=60.0):
     ets = np.arange(et0 - span/2, et0 + span/2 + step, step)
-    ast, _ = spice.spkpos(target, ets, 'J2000', 'CN', '399')      # astrometric, matches Gaia
+    ast, _ = spice.spkpos(target, ets, 'J2000', 'CN', 'EARTH')      # astrometric, matches Gaia
     dist = np.linalg.norm(ast, axis=1)
     u_ast = ast / dist[:, None]
     ra, dec = np.radians(ra_deg), np.radians(dec_deg)
@@ -979,8 +979,8 @@ def write_preview(record, target_id, stem):
         b, disks, name = bodies.parse(target_id), [], bodies.name(target_id)
         for t in [t for t in bodies.GROUPS.get(b["group"], [target_id]) if t in bodies.LOADED]:
             try:                                         # bodies of this run (their kernels are loaded)
-                v = np.asarray(spice.spkpos(bodies.parse(t)["alias"], et, 'J2000', 'CN', '399')[0])
-                r_km = float(np.asarray(spice.bodvrd(str(bodies.parse(t)["naif"]), "RADII", 3)[1]).max())
+                v = np.asarray(spice.spkpos(bodies.parse(t)["alias"], et, 'J2000', 'CN', 'EARTH')[0])
+                r_km = float(np.asarray(spice.bodvcd(int(bodies.parse(t)["naif"]), "RADII", 3)[1]).max())
             except Exception:
                 continue
             _, a_, d_ = spice.recrad(v)
@@ -1008,7 +1008,7 @@ def write_preview(record, target_id, stem):
     stars = LOCAL.cone(record["star_ra"], record["star_dec"], field / 60 * 0.75, config.preview_mag_limit)
     ra, de = corridor.propagate_linear(stars, 2000.0 + et / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
     def radec(t):
-        _, a, d = spice.recrad(spice.spkpos(target_id, t, 'J2000', 'CN', '399')[0])
+        _, a, d = spice.recrad(spice.spkpos(target_id, t, 'J2000', 'CN', 'EARTH')[0])
         return np.degrees(a), np.degrees(d)
     # track span: about a quarter of the field, between 30 min and 12 h each side
     (a0, d0), (a1, d1) = radec(et - 600.0), radec(et + 600.0)
@@ -1017,7 +1017,7 @@ def write_preview(record, target_id, stem):
     track = [(m, *radec(et + 60.0 * m)) for m in np.linspace(-span, span, 13)]
     # the searched strip (corridor.plan_corridor): Earth radius + body radius + reach, at the event distance
     corr_km = corridor.EARTH_R_KM + float(record.get("r_max_km") or record.get("r_km") or 0.0) + float(config.max_shadow_dist)
-    delta = float(np.linalg.norm(spice.spkpos(target_id, et, 'J2000', 'CN', '399')[0]))
+    delta = float(np.linalg.norm(spice.spkpos(target_id, et, 'J2000', 'CN', 'EARTH')[0]))
     zoom = None
     if getattr(config, "preview_zoom", True) and disks is None:   # magnifier on the target star (asteroids)
         try:
@@ -1037,7 +1037,7 @@ def write_preview(record, target_id, stem):
             lon_, lat_, ele_ = site_lle(record)
             site = spice.georec(math.radians(lon_), math.radians(lat_), ele_ / 1000.0, earth.A_KM, earth.F)
             def radec_site(t):
-                v = spice.spkcpo(target_id, t, 'J2000', 'OBSERVER', 'CN', site, '399', 'ITRF93')[0][:3]
+                v = spice.spkcpo(target_id, t, 'J2000', 'OBSERVER', 'CN', site, 'EARTH', 'ITRF93')[0][:3]
                 _, a, d = spice.recrad(v)
                 return np.degrees(a), np.degrees(d)
             ztrack = [(float(t_), *radec_site(et + t_)) for t_ in np.arange(-half, half + step_s, step_s)]
@@ -1137,7 +1137,7 @@ def earth_point(target_id, star_dir, et_guess, bracket_s, r_km):
     from pysyzygos.paths import plane_basis
     x_ax, y_ax, z_ax = plane_basis(star_dir)
     def xy(dt):
-        v = np.asarray(spice.spkpos(str(target_id), et_guess + dt, 'J2000', 'CN', '399')[0])
+        v = np.asarray(spice.spkpos(str(target_id), et_guess + dt, 'J2000', 'CN', 'EARTH')[0])
         return np.array([v @ x_ax, v @ y_ax])
     r = minimize_scalar(lambda dt: float(np.hypot(*xy(dt))), bounds=(-bracket_s / 2, bracket_s / 2), method='bounded',
                         options={'xatol': 1e-3, 'maxiter': 1000})
@@ -1288,7 +1288,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                 print(f" --- proper-motion estimates not checked: {ex}")
                 pm_alts = []
         if s_mas:
-            d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', '399')[0]))
+            d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', 'EARTH')[0]))
             s_km = s_mas * d_km * np.pi / 648000000.0
             sigma3 = 3.0 * float(np.hypot(ast_sigma1, s_km))
             if not record.get("star_err_smaa_mas"):                # the star's error ellipse (circle) for the favorites

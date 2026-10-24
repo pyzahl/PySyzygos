@@ -76,9 +76,9 @@ def asteroid_path(target_id, et0, et1, step_s=600.0):
     import spiceypy as spice
     ets = np.arange(et0, et1 + step_s, step_s)
     tid = str(target_id)
-    ast = np.asarray(spice.spkpos(tid, ets, "J2000", "CN", "399")[0])
+    ast = np.asarray(spice.spkpos(tid, ets, "J2000", "CN", "EARTH")[0])
     sun_idx = np.unique(np.append(np.arange(0, len(ets), max(1, int(round(6 * 3600 / step_s)))), len(ets) - 1))
-    sun = np.asarray(spice.spkpos(tid, ets[sun_idx], "J2000", "LT", "10")[0])
+    sun = np.asarray(spice.spkpos(tid, ets[sun_idx], "J2000", "LT", "SUN")[0])
     delta = np.linalg.norm(ast, axis=1)
     return dict(ets=ets, u=ast / delta[:, None], delta_km=delta, sun_au=sun / AU_KM, earth_au=ast / AU_KM,
                 sun_idx=sun_idx, step_s=step_s)

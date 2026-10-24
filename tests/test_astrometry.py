@@ -14,9 +14,9 @@ class FakeSpice:
 
     def spkpos(self, target, et, frame, corr, observer):
         assert frame == "J2000"
-        if target == "399" and observer == "0":
+        if target == "EARTH" and observer == "0":
             return self.earth, 0.0
-        assert observer == "399", observer
+        assert observer == "EARTH", observer
         return self.geo[str(target)], 0.0
 
 
@@ -30,11 +30,11 @@ FAR = 1e30                                                # a body/asteroid so f
 sun = np.array([-AU, 0.0, 0.0])
 
 # 1) star only (asteroid at infinity along the star: its deflection equals the star's -> use deflect() directly)
-d90 = A.deflect(star_at(90), -sun, star_at(90), A.GM["10"])
+d90 = A.deflect(star_at(90), -sun, star_at(90), A.GM[A.SUN])
 assert abs(np.linalg.norm(d90) * A.RAD2MAS - 4.07) < 0.01, np.linalg.norm(d90) * A.RAD2MAS
 assert np.dot(d90, unit_sun := A.unit(sun)) < 0, "deflection pushes the star away from the Sun"
 limb = math.degrees(math.asin(696000.0 / AU))
-dl = np.linalg.norm(A.deflect(star_at(limb), -sun, star_at(limb), A.GM["10"])) * A.RAD2MAS / 1000
+dl = np.linalg.norm(A.deflect(star_at(limb), -sun, star_at(limb), A.GM[A.SUN])) * A.RAD2MAS / 1000
 assert abs(dl - 1.75) < 0.01, dl
 
 # 1b) a source at a finite distance against a literal transcription of IAU SOFA iauLd (p1 = p + w p x (e x q),
@@ -47,10 +47,10 @@ for elong, r_au in ((46.3, 1.0), (60, 2.5), (90, 2.5), (150, 2.5), (120, 1.2)):
     u = star_at(elong)
     b = 2 * float(e_hat @ u); D = (-b + math.sqrt(b * b - 4 * (1 - r_au ** 2))) / 2
     q = A.unit(u * D * AU - sun)
-    got, ref = A.deflect(u, -sun, q, A.GM["10"]), sofa_ld(A.GM["10"], u, q, e_hat, AU)
+    got, ref = A.deflect(u, -sun, q, A.GM[A.SUN]), sofa_ld(A.GM[A.SUN], u, q, e_hat, AU)
     assert np.linalg.norm(got - ref) * A.RAD2MAS < 1e-9, (elong, got, ref)
-assert np.allclose(A.deflect(star_at(70), -sun, star_at(70), A.GM["10"]),
-                   sofa_ld(A.GM["10"], star_at(70), star_at(70), e_hat, AU), atol=1e-20)    # star: q = p
+assert np.allclose(A.deflect(star_at(70), -sun, star_at(70), A.GM[A.SUN]),
+                   sofa_ld(A.GM[A.SUN], star_at(70), star_at(70), e_hat, AU), atol=1e-20)    # star: q = p
 
 # 2) star minus asteroid, main-belt asteroid at r = 2.5 AU on the line of sight (table in ABOUT.md; values with the
 #    finite-source formula, 2026-10-15)
@@ -58,7 +58,7 @@ for elong, want in ((90, 1.41), (60, 2.22), (150, 0.43)):
     u = star_at(elong)
     e_vec = np.array([1.0, 0.0, 0.0])                     # Sun -> Earth, AU
     b = 2 * float(e_vec @ u); D = (-b + math.sqrt(b * b - 4 * (1 - 2.5 ** 2))) / 2
-    fs = FakeSpice({"10": sun, "5": [FAR, 0, 0], "6": [FAR, 0, 0], "AST": u * D * AU})
+    fs = FakeSpice({A.SUN: sun, A.JUPITER: [FAR, 0, 0], A.SATURN: [FAR, 0, 0], "AST": u * D * AU})
     p, info = A.corrected_star_dir(fs, u, 0.0, 0.0, "AST", parallax=False)
     assert abs(info["deflection_mas"] - want) < 0.01, (elong, info)
     assert abs(A.angle_mas(u, p) - want) < 0.01
@@ -67,14 +67,14 @@ for elong, want in ((90, 1.41), (60, 2.22), (150, 0.43)):
 jup_dir = A.unit([0.3, 0.9, 0.1])
 perp = A.unit(np.cross(jup_dir, [0, 0, 1]))
 u = A.unit(math.cos(math.radians(60 / 3600)) * jup_dir + math.sin(math.radians(60 / 3600)) * perp)
-fs = FakeSpice({"10": [FAR, 0, 0], "5": jup_dir * 4.2 * AU, "6": [0, 0, FAR], "AST": u * 1.5 * AU})
+fs = FakeSpice({A.SUN: [FAR, 0, 0], A.JUPITER: jup_dir * 4.2 * AU, A.SATURN: [0, 0, FAR], "AST": u * 1.5 * AU})
 p, info = A.corrected_star_dir(fs, u, 0.0, 0.0, "AST", parallax=False)
 assert abs(info["deflection_by"]["Jupiter"] - 6.36) < 0.05, info
 assert np.dot(p - u, jup_dir) < 0, "pushed away from Jupiter"
 
 # 4) stellar parallax: 1.198 mas at elongation 65.4 deg -> 1.198 x sin(65.4) = 1.09 mas towards the Sun
 u = star_at(65.4)
-fs = FakeSpice({"10": sun, "5": [FAR, 0, 0], "6": [0, 0, FAR], "AST": u * 2.4 * AU},
+fs = FakeSpice({A.SUN: sun, A.JUPITER: [FAR, 0, 0], A.SATURN: [0, 0, FAR], "AST": u * 2.4 * AU},
                earth_ssb=[AU, 0.0, 0.0])                  # SSB at the Sun: Earth 1 AU from it
 p, info = A.corrected_star_dir(fs, u, 1.198, 0.0, "AST", deflection=False)
 assert abs(info["parallax_mas"] - 1.198 * math.sin(math.radians(65.4))) < 0.002, info

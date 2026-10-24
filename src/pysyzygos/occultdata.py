@@ -219,8 +219,8 @@ def remove(key, base=None):
     """Delete a dataset's files (and its derived look-up file). Returns True if something was deleted."""
     d, gone = folder(base), False
     extra = {"observations": ("observations.json", "observations.db", "observations_log.csv",
-                              "observations_log.runs.jsonl", "observations.db-wal", "observations.db-shm",
-                              "obs_check.jsonl", "obs_check.md"),
+                              "observations_log.runs.jsonl", "observations.db-wal", "observations.db-shm"),
+             # (obs_check.jsonl / .md stay: the check's results, an hour of work; a new download applies them again)
              "gaia_doubles": ("gaia_doubles.idx.npy",)}.get(key, ())
     for f in DATASETS[key]["files"] + extra:
         p = os.path.join(d, f)

@@ -95,7 +95,8 @@ HITS = [
     ("fit_quality", "fit_quality", "num", "", "observed: 0 none, 1 astrometry only, 2 size limits, 3 reliable size, 4 better than shape models"),
     ("cbet", "sat_cbet", "text", "", "observed: CBET number of a satellite found by this occultation ('' none)"),
     ("dx_across", "chk_across_km", "num", "km", "observed minus predicted, across the track"),
-    ("dt_along", "chk_along_s", "num", "s", "observed minus predicted, along the track, in seconds"),
+    ("dt_along", "chk_along_s", "num", "s", "observed minus predicted, along the track, in seconds (archive's fit)"),
+    ("dt_site", "chk_site_dt_s", "num", "s", "observed minus predicted chord mid-time at the observers' sites (median)"),
     ("scope", "scope", "text", "", "'earth' for a search anywhere on Earth, '' at a site"),
 ]
 

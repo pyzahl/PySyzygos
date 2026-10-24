@@ -17,6 +17,25 @@ def panel(pg):
     with ui.tab_panel(pg.t_sys):
         from pysyzygos import offline
         ui.label(f"Data folder: {home.describe()}").classes("text-sm text-slate-600")
+        # updates: looked up when this tab is first opened (no messages elsewhere); a git checkout can be updated here
+        from pysyzygos import urls as U
+        from pysyzygos.version import __version__
+        with ui.row().classes("items-center gap-3"):
+            ui.label(f"PySyzygos {__version__}").classes("font-semibold")
+            pg.upd_info = ui.label("").classes("text-sm")
+            ui.link("Changelog", U.URL_CHANGELOG, new_tab=True).classes("text-sm")
+            pg.upd_rel = ui.link("Release", "", new_tab=True).classes("text-sm")
+            pg.upd_rel.set_visibility(False)
+            pg.upd_btn = ui.button("Update", on_click=lambda: pg.upd_run()).props("outline dense color=primary").tooltip(
+                "git pull (fast-forward only: never merges, never touches your changes), the dependencies if they "
+                "changed, then a restart. Your data folder (sites, results, catalogs) is not touched")
+            pg.upd_btn.set_visibility(False)
+            ui.button("Check", on_click=lambda: pg.upd_check()).props("flat dense").tooltip(
+                "Look for a newer version (git fetch, or the newest GitHub release for a ZIP install)")
+        pg.upd_new = ui.expansion("What is new").classes("w-full text-sm")
+        pg.upd_new.set_visibility(False)
+        with pg.upd_new:
+            pg.upd_md = ui.markdown("").classes("text-sm")
         with ui.row().classes("gap-2 items-center"):
             ui.button("Setup status", on_click=lambda: pg.sys_status()).props("outline dense").tooltip(
                 "pysyzygos setup --status (in the log below): kernels, Earth orientation, catalogs, supplement, "
@@ -267,6 +286,55 @@ def handlers(pg):
                             f"events)" + (f"; predictions checked {st['checked']}" if st.get("checked") else ""))
     pg.occ_refresh = occ_refresh
 
+    async def upd_check():
+        """Look for a newer version (selfupdate.status): a note, the changelog of the new version, Update if possible."""
+        from pysyzygos import selfupdate
+        pg.upd_checked = True
+        pg.upd_info.text = "checking for updates ..."
+        s = await run.io_bound(selfupdate.status)
+        rel = s.get("release") or {}
+        pg.upd_rel.set_visibility(bool(rel.get("url")) and (s.get("kind") == "zip" or s.get("release_newer")))
+        if rel.get("url"):
+            pg.upd_rel.props(f"href={rel['url']}")
+            pg.upd_rel.text = f"Release {rel.get('tag', '')}"
+        behind = s.get("behind") or 0
+        if s.get("kind") == "git" and behind:
+            v = s.get("remote_version") or "?"
+            pg.upd_info.text = (f"new version {v} available ({behind} change(s))" if s.get("possible") else
+                                f"new version {v} available ({behind} change(s)); update by hand: {s.get('reason')}")
+            pg.upd_info.classes(replace="text-sm text-amber-700")
+        elif s.get("kind") == "zip":
+            pg.upd_info.text = (f"release {rel.get('tag')} available: download it" if s.get("release_newer") else
+                                "up to date" if rel else "no update information (offline?)")
+            pg.upd_info.classes(replace="text-sm" + (" text-amber-700" if s.get("release_newer") else ""))
+        else:
+            pg.upd_info.text = s.get("reason") or "up to date"
+            pg.upd_info.classes(replace="text-sm text-slate-600")
+        pg.upd_btn.set_visibility(bool(s.get("possible")))
+        text = s.get("changelog") or ""
+        commits = s.get("commits") or []
+        pg.upd_md.content = (text + ("\n\n**Changes:**\n" + "\n".join(f"- {c[1] if len(c) > 1 else c[0]}" for c in commits)
+                                     if commits else ""))
+        pg.upd_new.set_visibility(bool(text or commits))
+    pg.upd_check = upd_check
+    pg.upd_checked = False
+
+    async def upd_run():
+        async def done(rc):
+            if rc != 0:
+                ui.notify("Update not done: see the log", type="warning")
+                await upd_check()
+                return
+            with ui.dialog() as dlg, ui.card().classes("max-w-md"):
+                ui.label("PySyzygos is updated").classes("font-semibold")
+                ui.label("Restart now to use the new version (this page reconnects by itself)?").classes("text-sm")
+                with ui.row():
+                    ui.button("Restart", on_click=lambda: (dlg.close(), pg.restart_app())).props("color=primary")
+                    ui.button("Later", on_click=dlg.close).props("flat")
+            dlg.open()
+        await run_process(PYSYZYGOS + ["update"], pg.log, on_done=done)
+    pg.upd_run = upd_run
+
     async def obs_check_run():
         from pysyzygos import observed
         if observed.status() is None:
@@ -503,6 +571,11 @@ def handlers(pg):
 def connect(pg):
     """Wire the tab up and fill it (run after all tabs' handlers)."""
     pg.off_chk.on_value_change(pg.sys_toggle)
+
+    async def first_open(e):                                    # the update check: once, when the tab is opened
+        if e.value in (pg.t_sys, "System") and not pg.upd_checked:
+            await pg.upd_check()
+    pg.tabs.on_value_change(first_open)
     pg.sys_refresh()
     pg.cat_refresh()
     pg.planets_refresh()

@@ -82,15 +82,15 @@ def unit_at(deg, side=1.0, z=0.0):
     v = np.array([math.cos(a), side * math.sin(a), z])
     return v / np.linalg.norm(v)
 for sun_deg, x_t in ((46.0, 0.95), (170.0, 1.6)):                    # Phaethon-like, and a main-belt one at opposition
-    pos = {"10": 1.0 * AU * unit_at(sun_deg), "5": 4.4 * AU * unit_at(3, -1, 0.02), "6": 9.5 * AU * unit_at(60, -1, 0.1),
+    pos = {A.SUN: 1.0 * AU * unit_at(sun_deg), A.JUPITER: 4.4 * AU * unit_at(3, -1, 0.02), A.SATURN: 9.5 * AU * unit_at(60, -1, 0.1),
            "T": x_t * AU * star}
 
     class Spice:
         def spkpos(self, b, et, frame, ab, obs):
-            assert frame == "J2000" and obs == "399"
+            assert frame == "J2000" and obs == "EARTH"
             return (pos[str(b)], 0.0)
     sy = G.system_data(Spice(), 0.0, "T", star, "Test", "Gaia DR3 1")
-    tot = lambda q_of: sum(A.deflect(star, -pos[b], q_of(b), A.GM[b]) for b in ("10", "5", "6"))
+    tot = lambda q_of: sum(A.deflect(star, -pos[b], q_of(b), A.GM[b]) for b in A.DEFLECTORS)
     d_star = tot(lambda b: star)
     d_ast = tot(lambda b: A.unit(x_t * AU * star - pos[b]))
     assert abs(sy["star_mas"] - np.linalg.norm(d_star) * G.RAD2MAS) < 1e-9

@@ -526,9 +526,9 @@ def compare(out, listing_text, header_text=""):
             star_alt = math.degrees(math.asin(max(-1.0, min(1.0, float(up @ s_itrf) / np.linalg.norm(s_itrf)))))
         w_our = float(np.linalg.norm(_ecef(*ep) - _ecef(*em))) if ep and em else float("nan")
         # the fundamental plane: Occult's point minus the shadow axis as that point sees it (light time from the point)
-        rel = np.asarray(spice.spkcpo(tid, et, "J2000", "OBSERVER", "CN", Q, "399", "ITRF93")[0][:3])
-        a0 = np.asarray(spice.spkpos(tid, et - 0.5, "J2000", "CN", "399")[0])
-        a1 = np.asarray(spice.spkpos(tid, et + 0.5, "J2000", "CN", "399")[0])
+        rel = np.asarray(spice.spkcpo(tid, et, "J2000", "OBSERVER", "CN", Q, "EARTH", "ITRF93")[0][:3])
+        a0 = np.asarray(spice.spkpos(tid, et - 0.5, "J2000", "CN", "EARTH")[0])
+        a1 = np.asarray(spice.spkpos(tid, et + 0.5, "J2000", "CN", "EARTH")[0])
         rot = spice.pxform("ITRF93", "J2000", et) @ np.cross([0.0, 0.0, 1.0], Q)
         points.append(dict(utc=(et - et0) % 86400.0, lat=float(r["lat"]), star_alt=star_alt, across=float(d @ n), along=float(d @ u),
                            dt=float(d @ u) / speed, dist=float(np.linalg.norm(d)), w_occ=w_occ, w_our=w_our,
@@ -572,7 +572,7 @@ def export(out, step=1.45):
         east = np.cross([0.0, 0.0, 1.0], up); east /= np.linalg.norm(east)
         north = np.cross(up, east)
         s = R @ star_dir
-        sun = R @ np.asarray(spice.spkpos("SUN", et, "J2000", "LT+S", "399")[0])
+        sun = R @ np.asarray(spice.spkpos("SUN", et, "J2000", "LT+S", "EARTH")[0])
         sun = sun / np.linalg.norm(sun)
         alt = math.degrees(math.asin(float(s @ up)))
         az = math.degrees(math.atan2(float(s @ east), float(s @ north))) % 360.0
@@ -632,7 +632,7 @@ def steps(out, folder_key=None):
     x_ax, y_ax, z_ax = paths.plane_basis(star_used)
 
     def axis_xy(et):
-        a = np.asarray(spice.spkpos(tid, et, "J2000", "CN", "399")[0])
+        a = np.asarray(spice.spkpos(tid, et, "J2000", "CN", "EARTH")[0])
         return np.array([a @ x_ax, a @ y_ax])
 
     # the three instants: closest approach to the Earth's centre, touch-down and leaving of the centre line
@@ -685,13 +685,13 @@ def steps(out, folder_key=None):
     p1 = vec(corridor.propagate_exact(row, t_c, pm_bias=False, rv=False), tag)
     p2 = vec(corridor.propagate_exact(row, t_c, pm_bias=True, rv=False), tag)
     p3 = vec(corridor.propagate_exact(row, t_c, pm_bias=True, rv=True), tag)
-    earth_ssb = np.asarray(spice.spkpos("399", et_c, "J2000", "NONE", "0")[0])
+    earth_ssb = np.asarray(spice.spkpos("EARTH", et_c, "J2000", "NONE", "0")[0])
     plx = float(r0.parallax) if r0.parallax == r0.parallax else 0.0
     p4 = A.parallax_dir(p3, plx, earth_ssb) if plx > 0 else p3
-    ast_c = np.asarray(spice.spkpos(tid, et_c, "J2000", "CN", "399")[0])
+    ast_c = np.asarray(spice.spkpos(tid, et_c, "J2000", "CN", "EARTH")[0])
     defl_star, defl_ast = {}, {}
-    for b in ("10", "5", "6"):
-        body = np.asarray(spice.spkpos(b, et_c, "J2000", "CN", "399")[0])
+    for b in A.DEFLECTORS:
+        body = np.asarray(spice.spkpos(b, et_c, "J2000", "CN", "EARTH")[0])
         defl_star[A.BODY_NAMES[b]] = A.deflect(p4, -body, p4, A.GM[b])
         defl_ast[A.BODY_NAMES[b]] = A.deflect(p4, -body, A.unit(ast_c - body), A.GM[b])
     p5 = A.unit(p4 + sum(defl_star.values()))
@@ -799,12 +799,12 @@ def steps(out, folder_key=None):
           "|---|---|---|---|---|---|---|"]
     rows = []
     for name, et in instants:
-        a, lt = spice.spkpos(tid, et, "J2000", "CN", "399")
+        a, lt = spice.spkpos(tid, et, "J2000", "CN", "EARTH")
         a = np.asarray(a)
         bary = np.asarray(spice.spkpos(tid, et - lt, "J2000", "NONE", "0")[0])
-        e_ = np.asarray(spice.spkpos("399", et, "J2000", "NONE", "0")[0])
-        sun = np.asarray(spice.spkpos("10", et, "J2000", "CN", "399")[0])
-        dsun = _shift_mas(A.unit(a), A.unit(A.unit(a) + A.deflect(A.unit(a), -sun, A.unit(a - sun), A.GM["10"])))
+        e_ = np.asarray(spice.spkpos("EARTH", et, "J2000", "NONE", "0")[0])
+        sun = np.asarray(spice.spkpos("SUN", et, "J2000", "CN", "EARTH")[0])
+        dsun = _shift_mas(A.unit(a), A.unit(A.unit(a) + A.deflect(A.unit(a), -sun, A.unit(a - sun), A.GM[A.SUN])))
         ra_, de_ = _radec(a)
         L.append(f"| {name} | {_hms(ra_)} {_dms_s(de_)} | {np.linalg.norm(a) / 1.495978707e8:.9f} | {lt:.6f} | "
                  f"({bary[0]:.3f}, {bary[1]:.3f}, {bary[2]:.3f}) | {np.linalg.norm(bary - e_ - a) * 1000:.3f} | "
@@ -818,7 +818,7 @@ def steps(out, folder_key=None):
     geo_rows = []
     for name, et, _ in rows:
         st = np.asarray(spice.spkezr(tid, et, "J2000", "NONE", "0")[0])
-        e_ = np.asarray(spice.spkpos("399", et, "J2000", "NONE", "0")[0])
+        e_ = np.asarray(spice.spkpos("EARTH", et, "J2000", "NONE", "0")[0])
         d_ = st[:3] - e_
         L.append(f"| {name} | ({st[0]:.3f}, {st[1]:.3f}, {st[2]:.3f}) | ({st[3]:.6f}, {st[4]:.6f}, {st[5]:.6f}) | "
                  f"({e_[0]:.3f}, {e_[1]:.3f}, {e_[2]:.3f}) | ({d_[0]:.3f}, {d_[1]:.3f}, {d_[2]:.3f}) |")

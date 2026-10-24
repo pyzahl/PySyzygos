@@ -66,7 +66,7 @@ def frames(spice, t0, t1, step_s=600.0):
     """Earth orientation and Sun direction on a grid covering t0..t1: dict(ets, rot (T,3,3) J2000->ITRF93,
     sun_u (T,3) geocentric unit vectors)."""
     ets = np.arange(t0 - 2 * step_s, t1 + 3 * step_s, step_s)
-    sun = np.asarray(spice.spkpos("10", ets, "J2000", "LT+S", "399")[0])
+    sun = np.asarray(spice.spkpos("SUN", ets, "J2000", "LT+S", "EARTH")[0])
     rot = np.array([spice.pxform("J2000", "ITRF93", float(t)) for t in ets])
     return dict(ets=ets, rot=rot, sun_u=sun / np.linalg.norm(sun, axis=1, keepdims=True), step=step_s)
 
@@ -331,7 +331,7 @@ def site_mask(spice, ev, lat, lon, ele_m, reach_km, min_alt, max_sun_alt, block=
     grid = np.arange(t_lo - 180.0, t_hi + 240.0, 60.0)                             # site position every minute
     pos, up = site.at(grid)
     sgrid = np.arange(t_lo - 1200.0, t_hi + 1800.0, 600.0)
-    sun = np.asarray(spice.spkpos("10", sgrid, "J2000", "LT+S", "399")[0])
+    sun = np.asarray(spice.spkpos("SUN", sgrid, "J2000", "LT+S", "EARTH")[0])
     sun /= np.linalg.norm(sun, axis=1, keepdims=True)
     for b0 in range(0, len(ev), block):
         e = ev[b0:b0 + block]
