@@ -32,6 +32,7 @@ earth_log.csv
 earth_log.runs.jsonl
 earth_report.html
 observed_report.html
+obs_checks/
 maps/
 pick_events.csv
 pick_candidates.csv

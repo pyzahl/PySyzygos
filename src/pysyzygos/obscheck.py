@@ -18,7 +18,7 @@ only; SPICE in the main thread), deleted after use. ~7,000 asteroids: a few hour
 Note: JPL's orbit solutions include occultation astrometry for some asteroids, so the recent events partly test
 consistency rather than prediction.
 """
-import argparse, base64, json, math, os, queue, sys, tempfile, threading, time
+import argparse, base64, json, math, os, queue, subprocess, sys, tempfile, threading, time
 from datetime import datetime, timezone
 
 import numpy as np
@@ -382,6 +382,93 @@ def run(since=None, asteroids=None, limit=None, workers=2, fresh=False, log=prin
     return summarize(log=log)
 
 
+# ----------------------------------------------------------------------------------------------- one event -> favorites
+def _slug(text):
+    return "".join(c if c.isalnum() else "_" for c in str(text)).strip("_")[:40] or "site"
+
+
+def check_event(key, log=print, folder=None):
+    """The observed event `key` (report data-ev 'target|YYYY-MM-DDTHH:MM:SS') checked at every observer's site by an
+    actual search there (the target, the event's star, +-1 h, the observer's coordinates and height, no limits),
+    each result added to the favorites: site = the observer's place and name, status 'observed' ('clouded'), the
+    note = what was observed there and what PySyzygos predicts (timing, distance, durations). Map, preview and globe
+    come with each favorite. Returns the number of favorites added."""
+    import calendar, glob, shutil, time as _t
+    from pysyzygos import config, favorites, geoid, home
+    rec, cts = observed.find(key)
+    if rec is None:
+        raise SystemExit(f"{key}: not in the observations database")
+    _, obs = observed.details(rec, cts)
+    sites = [o for o in obs if o.get("lat") is not None and o.get("lon") is not None
+             and o.get("result") in ("positive", "miss", "clouded")]
+    if not sites:
+        raise SystemExit(f"{key}: no observer with coordinates")
+    tid, star = str(rec["target_id"]), str(rec.get("star") or "")
+    t = calendar.timegm(_t.strptime(rec["best_utc"][:19], "%Y-%m-%dT%H:%M:%S"))
+    t0 = _t.strftime("%Y-%m-%dT%H:%M:%S", _t.gmtime(t - 3600))
+    base = os.path.join(home.HOME, "obs_checks", _slug(key))
+    log(f"obs-check event: {rec.get('target_name')} {rec['best_utc'][:19]} UT, {len(sites)} observer site(s)")
+    n_added = 0
+    # an observer with several sites (several telescopes, often a few km apart): site A, B, ... in the archive's order
+    per, seen = {}, {}
+    for o in sites:
+        per[o["observer"]] = per.get(o["observer"], 0) + 1
+    for i, o in enumerate(sites, 1):
+        letter = ""
+        if per[o["observer"]] > 1:
+            seen[o["observer"]] = seen.get(o["observer"], 0) + 1
+            letter = chr(ord("A") + seen[o["observer"]] - 1) if seen[o["observer"]] <= 26 else str(seen[o["observer"]])
+        label = f"{o['place'] or '?'} ({o['observer'] or '?'}" + (f", site {letter})" if letter else ")")
+        work = os.path.join(base, f"{i:02d}")
+        shutil.rmtree(work, ignore_errors=True)
+        os.makedirs(work)
+        g = geoid.height(o["lat"], o["lon"]) if (o.get("datum") or "WGS84") in ("WGS84", "unspecified") else 0.0
+        h = float(o.get("alt_m") or 0.0)
+        ov = dict(ct=t0, days=2.0 / 24.0, targets=[tid], targets_source="list", LAT=o["lat"], LON=o["lon"], ELE=h + g,
+                  ELE_MSL=h, GEOID_M=g, MIN_STAR_ALT=-90.0, MAX_SUN_ALT=90.0, max_shadow_dist=20000.0,
+                  MAG_MIN=min(float(rec.get("mag") or 15.0) + 0.5, 21.0), min_mag_drop=0.0, pick_min_dur_s=0.0,
+                  write_maps=True, write_previews=True, write_globes=True, map_dir=work,
+                  results_db=os.path.join(work, "check.db"), hits_output_cvs_file=os.path.join(work, "hits.csv"),
+                  results_new_series=True, gaia_online_check=False, site_name=label,
+                  site=dict(name=label, lat=o["lat"], lon=o["lon"], ele=h, ele_ref="msl"))
+        log(f"  {i}/{len(sites)} {label}: search at {o['lat']:.5f}, {o['lon']:.5f}, {h:.0f} m ...")
+        p = subprocess.run([sys.executable, "-u", "-m", "pysyzygos", "run", "search", json.dumps(ov)],
+                           env=dict(os.environ, PYSYZYGOS_HOME=home.HOME), capture_output=True, text=True)
+        con = db.connect(os.path.join(work, "check.db"))
+        recs = db.events(con, lst="main")
+        run_ = (db.runs(con, lst="main") or [{}])[-1]
+        con.close()
+        hit = next((r for r in recs if str(r.get("star")) == star), None)
+        if p.returncode != 0 or hit is None:
+            log(f"    no event found on star {star} (search exit {p.returncode}): " + (p.stdout or p.stderr)[-300:])
+            continue
+        # what was observed there and what we predict
+        status = "clouded" if o["result"] == "clouded" else "observed"
+        lines = [f"Occult archive: {o['result']} ({o['method']}) by {o['observer']}, {o['place']}"
+                 + (f", site {letter}" if letter else "") + f" ({o['lat']:.5f}, {o['lon']:.5f}, {h:.0f} m)"
+                 + (f": {o['events']}" if o.get("events") else "")]
+        lines.append(f"PySyzygos at this site: closest approach {hit['best_utc'][11:22]} UT, "
+                     f"{float(hit['min_distance']):.2f} km from the center line, max duration "
+                     f"{float(hit.get('max_duration_s') or 0):.2f} s")
+        if o.get("dt_mid") is not None:
+            lines.append(f"Observed minus predicted: mid-time {o['dt_mid']:+.3f} s; duration {o['dur_obs']:.2f} s "
+                         f"(predicted {o.get('dur_cat') or 0:.2f} s with the catalog size"
+                         + (f", {o['dur_best']:.2f} s with the fitted size" if o.get("dur_best") else "") + ")")
+        elif o.get("dur_obs"):
+            lines.append(f"Observed duration {o['dur_obs']:.2f} s")
+        run_ = dict(run_, site=dict(run_.get("site") or {}, name=label, desc=o.get("observer") or ""))
+        hit = {k: db._cell(v) for k, v in hit.items()}            # as the results CSV gives records to favorites
+        ok, msg = favorites.add(hit, run_, map_dir=work, folder=folder or favorites.DIR,
+                                key_suffix="_" + _slug(o["observer"] or f"site{i}") + (f"_{letter}" if letter else ""),
+                                status=status, note="\n".join(lines))
+        log(f"    {msg}")
+        n_added += bool(ok)
+    favorites.write_page(folder or favorites.DIR)
+    shutil.rmtree(base, ignore_errors=True)                       # the favorites keep their copies of the files
+    log(f"obs-check event: {n_added} favorite(s) added")
+    return n_added
+
+
 def apply_to_db(results, log=print):
     """Write the chk_* fields into the observations database (and its CSV export); returns the count."""
     _, dbp, csvp = observed.paths()
@@ -567,10 +654,14 @@ def main(argv=None):
                                                             "503 to more)")
     r.add_argument("--fresh", action="store_true", help="discard earlier results")
     sub.add_parser("report", help="the summary (obs_check.md) from the results so far")
+    e = sub.add_parser("event", help="one observed event: a search at every observer's site, each added to the favorites")
+    e.add_argument("key", help="target|YYYY-MM-DDTHH:MM:SS (as the observed list's rows)")
     a = ap.parse_args(argv)
     if a.cmd == "run":
         run(a.since, set(a.asteroids.split(",")) if a.asteroids else None, a.limit, max(1, a.workers), a.fresh,
             log=lambda *x, **k: print(*x, flush=True))
+    elif a.cmd == "event":
+        return 0 if check_event(a.key, log=lambda *x, **k: print(*x, flush=True)) else 1
     else:
         summarize()
     return 0

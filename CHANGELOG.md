@@ -7,13 +7,18 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Start and end on hover**: hovering over an event time (Results, Favorites) shows the estimated start and end
+  (HH:MM:SS.sss): the closest approach -+ half the duration, of the site's own chord when it is inside the shadow,
+  else of the center line.
 - **Observed occultations as a results list**: with the Occult add-on's `observations` dataset, all 17,218
   events of the IOTA / Occult archive (D. Herald) become a database in PySyzygos's own format
   (`occult_data/observations.db`, built when downloaded; `pysyzygos observed`). **Results → Show: Observed events**
   lists them with star, longest chord, chords / observers, fit, fitted size, satellites with the **CBET** that
   announced them, and every observer's site on hover; filter bar and SQL filter work on them (new columns
   `chords`, `observers`, `fit_quality`, `cbet`, `dx_across`, `dt_along`). A click on a row shows the whole record
-  with every observer's site, times and our prediction there (`pysyzygos observed show <n> --date <d>` as text).
+  with every observer's site, times and our prediction there (`pysyzygos observed show <n> --date <d>` as text),
+  and **Check at the sites → favorites**: a search at every observer's site, each added as a favorite (site = place
+  and observer, status observed, note = observed vs predicted) with map, preview and globe.
 - **Our predictions checked against the measured data of every observed event**: **System → Check our
   predictions** (`pysyzygos obs-check`): every observer's measured disappearance and reappearance at the observer's
   coordinates against PySyzygos's prediction at exactly that site (today's JPL orbit, Gaia DR3 star with the
@@ -40,6 +45,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   newest release's link. `pysyzygos update [--check]`.
 
 ### Fixed
+- **Previews missing for short search windows late in the day**: the orbit file ended at midnight after the window
+  (dates round down), so a slow asteroid's preview track (+-12 h) ran past it and no preview was written. The orbit
+  now spans at least a day after the window, and track points beyond it are left out.
 - **Asteroid numbers that are also SPICE body codes**: a search makes each target's number a SPICE name, so with
   asteroid 5, 6, 10 or 399 among the targets, "5" (our name for Jupiter's barycentre in the light deflection), "6"
   (Saturn), "10" (the Sun) or "399" (the Earth) meant that asteroid for the rest of the run: the light deflection

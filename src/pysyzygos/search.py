@@ -1014,7 +1014,12 @@ def write_preview(record, target_id, stem):
     (a0, d0), (a1, d1) = radec(et - 600.0), radec(et + 600.0)
     rate = np.hypot((a1 - a0) * np.cos(np.radians(d0)), d1 - d0) * 60 / 20.0            # arcmin per minute
     span = int(np.clip(field / 4 / max(rate, 1e-9), 30 if zoom_field is None else 2, 720))
-    track = [(m, *radec(et + 60.0 * m)) for m in np.linspace(-span, span, 13)]
+    track = []                                       # points beyond the orbit file's span are left out
+    for m in np.linspace(-span, span, 13):
+        try:
+            track.append((m, *radec(et + 60.0 * m)))
+        except spice.utils.exceptions.SpiceyError:
+            continue
     # the searched strip (corridor.plan_corridor): Earth radius + body radius + reach, at the event distance
     corr_km = corridor.EARTH_R_KM + float(record.get("r_max_km") or record.get("r_km") or 0.0) + float(config.max_shadow_dist)
     delta = float(np.linalg.norm(spice.spkpos(target_id, et, 'J2000', 'CN', 'EARTH')[0]))
@@ -1559,7 +1564,8 @@ if __name__ == "__main__":
 
     t0 = pd.Timestamp(config.ct)
     epochs = {'start': (t0 - pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
-              'stop':  (t0 + pd.Timedelta(days=config.days + 1)).strftime('%Y-%m-%d')}
+              'stop':  (t0 + pd.Timedelta(days=config.days + 2)).strftime('%Y-%m-%d')}   # >= 24 h after the window
+                                                                       # (dates round down; previews draw +-12 h)
     periods = (pd.date_range(start=config.ct, periods=int(config.days*86400/config.spn), freq=f"{config.spn}s")
                  .strftime("%Y-%m-%d %H:%M:%S").tolist())
 

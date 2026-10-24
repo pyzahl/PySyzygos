@@ -35,4 +35,11 @@ assert X.only_shown(pairs, None) == pairs and X.only_shown(pairs, []) == []  # p
 a = R.filter_attrs(dict(base, az=123.4, site=dict(name="Hill")))
 assert 'data-faz="123.4"' in a and 'data-fsite="Hill"' in a and 'data-f="hzc"' in R.filter_bar()
 assert "hzAlt" in R.FILTER_JS and R.horizon_js([], {}).startswith("<script>window.PYO_HZ=")
+# event-time hover: start / end estimate (the site's chord inside the shadow, else the center-line duration)
+when = datetime(2026, 11, 1, 1, 2, 3, 456000, tzinfo=timezone.utc)
+t = R.start_end_text(dict(when=when, dur=2.0, rad=5.0, miss=3.0))          # chord 2 * 4/5 = 1.6 s: +-0.8 s
+assert "start \u2248 01:02:02.656, end \u2248 01:02:04.256" in t and "your site" in t, t
+t = R.start_end_text(dict(when=when, dur=2.0, rad=5.0, miss=8.0))
+assert "01:02:02.456" in t and "01:02:04.456" in t and "outside the shadow" in t, t
+assert R.start_end_text(dict(when=when, dur=None, rad=5.0, miss=1.0)) == ""
 print("REPORT FILTER TESTS PASSED")

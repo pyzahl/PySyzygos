@@ -1071,6 +1071,22 @@ def html_row_observed(e):
         "</tr>")
 
 
+def start_end_text(e):
+    """'; start ~ HH:MM:SS.sss, end ~ HH:MM:SS.sss (...)' for the event-time hover: the closest approach -+ half the
+    duration, at the site's own chord when it is inside the shadow (2 sqrt(r^2 - d^2) / v, v = 2 r / the center-line
+    duration), else -+ half the center-line duration. '' without a duration."""
+    dur, rad, miss = e.get("dur"), e.get("rad"), e.get("miss")
+    if not dur:
+        return ""
+    if rad and miss is not None and miss < rad:
+        half, how = dur / 2.0 * math.sqrt(1.0 - (miss / rad) ** 2), "the chord at your site"
+    else:
+        half, how = dur / 2.0, "the center-line duration: the site is outside the shadow"
+    f = lambda t: t.strftime("%H:%M:%S.") + f"{t.microsecond // 1000:03d}"
+    return (f"\nstart \u2248 {f(e['when'] - timedelta(seconds=half))}, end \u2248 {f(e['when'] + timedelta(seconds=half))} "
+            f"(\u00b1 {half:.2f} s: {how})")
+
+
 def html_row(e):
     size = f"D≈{2 * e['rad']:.1f} km" if e["rad"] is not None else ""
     tip_ast = esc(f"{e.get('full') or e['label']}" + (f" · {size}" + (f", {size_source_text(e['size_src'])}" if e['size_src'] else "") if size else ""))
@@ -1113,7 +1129,7 @@ def html_row(e):
            if size_estimated(e) else '')
         + owc_line(e)
         + '</td>' + mid +
-        f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (closest approach to the observer)"'
+        f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (closest approach to the observer){esc(start_end_text(e))}"'
         + (f' class="evtime" data-utc="{(e["when"] + timedelta(milliseconds=500)).strftime("%Y-%m-%dT%H:%M:%SZ")}" '
            f'data-tz="{esc((e.get("site") or {}).get("tz") or "")}"' if f else "")
         + f'>{esc(fmt_time(e["when"]))}</td>'

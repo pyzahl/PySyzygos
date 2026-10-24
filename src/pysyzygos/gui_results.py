@@ -290,7 +290,7 @@ def handlers(pg):
     pg.sql_suggest, pg.sql_insert, pg.sql_saved_refresh, pg.sql_show = sql_suggest, sql_insert, sql_saved_refresh, sql_show
 
 
-def show_observed(key):
+def show_observed(pg, key):
     """The whole record of an observed event (observed.details) in a dialog: sections, observers and our check."""
     from pysyzygos import observed
     rec, cts = observed.find(key)
@@ -299,10 +299,27 @@ def show_observed(key):
         return
     sec, obs = observed.details(rec, cts)
     with ui.dialog() as dlg, ui.card().classes("w-[96vw] max-w-[1500px]"):
+        n_sites = sum(1 for o in obs if o.get("lat") is not None and o.get("result") in ("positive", "miss", "clouded"))
+
+        async def check():
+            dlg.close()
+            ui.notify(f"Checking at {n_sites} observer site(s): one search each (see the log) ...")
+
+            async def done(rc):
+                pg.load_favs()
+                ui.notify("Added to the favorites (one per observer site)" if rc == 0 else
+                          "Check not completed: see the log", type="positive" if rc == 0 else "warning")
+            await run_process(PYSYZYGOS + ["obs-check", "event", key], pg.log, on_done=done)
         with ui.row().classes("w-full items-center justify-between"):
             ui.label(f"{rec.get('target_name', '')}, {str(rec.get('best_utc', ''))[:19].replace('T', ' ')} UT").classes(
                 "text-lg font-semibold")
-            ui.button(icon="close", on_click=dlg.close).props("flat dense round")
+            with ui.row().classes("items-center gap-2"):
+                ui.button(f"Check at the {n_sites} site(s) \u2192 favorites", on_click=check).props(
+                    "outline dense color=primary").tooltip(
+                    "A search at every observer's site (their coordinates and height; the event's star, +-1 h, no "
+                    "limits), each added to the favorites with map, preview and globe: site = the place and the "
+                    "observer, status 'observed', note = what they saw and what PySyzygos predicts there")
+                ui.button(icon="close", on_click=dlg.close).props("flat dense round")
         with ui.scroll_area().classes("w-full h-[78vh]"):
             with ui.element("div").classes("w-full grid gap-x-8 gap-y-2").style(
                     "grid-template-columns: repeat(auto-fill, minmax(420px, 1fr))"):
@@ -336,7 +353,7 @@ def show_observed(key):
 
 def connect(pg):
     """Wire the tab up and fill it (run after all tabs' handlers)."""
-    ui.on("obs_select", lambda e: show_observed(e.args if isinstance(e.args, str) else (e.args or [""])[0]))
+    ui.on("obs_select", lambda e: show_observed(pg, e.args if isinstance(e.args, str) else (e.args or [""])[0]))
     pg.sql_in.on_value_change(pg.sql_suggest)
     pg.sql_fields.on("rowClick", lambda e: pg.sql_insert(e.args[1]["name"]))
     pg.sql_saved_refresh()

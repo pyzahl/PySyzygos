@@ -440,6 +440,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   observer's D/R (codes D/R/G/B/d/r). Format doc: occult_data/FileFormat AsteroidObservations.htm. 17,218 events in
   5 s. Rebuild re-applies obs_check results. db._cell writes lists/dicts as JSON. db.HITS columns chords,
   observers, fit_quality, cbet, dx_across, dt_along, scope. Report: layout "observed" (`html_row_observed`,
+  `obscheck.check_event(key)` (CLI `obs-check event`, dialog button): per observer site (details rows, positive/
+  miss/clouded) a search subprocess (overrides LAT/LON/ELE(+geoid)/ELE_MSL/GEOID_M, site_name/site = 'Place
+  (Observer)', no limits, maps/preview/globe into HOME/obs_checks/<key>/NN, removed after), the hit on the event's
+  star -> favorites.add(record as CSV strings via db._cell, key_suffix '_<observer>', status observed/clouded, note);
+  favorites.add got key_suffix/status/note (files looked up by the base key).
   `sites_text`; rows class obsrow + OBS_JS: click -> parent.emitEvent('obs_select', data-ev) -> gui_results
   `show_observed` dialog from observed.find(key) + `details(rec, contacts)` (sections + one row per observer/site with
   our chk_chords; CLI `show <n> --date`)), header_info kind observed; archive rows skip dedupe (O(n^2), and it merged 10 real events), KML

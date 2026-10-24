@@ -19,6 +19,12 @@ run = dict(site=dict(name="S", lat=1.0, lon=2.0), run_utc="2026-10-03T12:00:00",
 ok, msg = F.add(rec, run, maps, fav)
 assert ok and "17834" in msg, msg
 assert not F.add(rec, run, maps, fav)[0], "duplicate must be refused"
+# several sites of one event (obs-check event): own keys by suffix, status and note given, the files of the base key
+ok, msg = F.add(rec, run, maps, fav, key_suffix="_A_Observer", status="observed", note="Occult archive: positive")
+e_ = next(e for e in F.load(fav) if e["key"].endswith("_A_Observer"))
+assert ok and e_["status"] == "observed" and e_["note"] == "Occult archive: positive" and e_["files"], e_
+assert e_["key"] == F.key_of(rec["target_id"], rec["best_utc"]) + "_A_Observer"
+F.remove(e_["key"], fav)
 e = F.load(fav)[0]
 assert e["key"] == "17834_20261003T0253" and e["status"] == "planned" and e["site"]["name"] == "S"
 assert "extra" not in e["run"] and e["files"] == {"kml": "17834_20261003T0253/17834_20261003T0253.kml",

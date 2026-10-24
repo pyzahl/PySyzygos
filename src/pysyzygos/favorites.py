@@ -138,14 +138,16 @@ def edited(folder=DIR):
             (e.get("status") or STATUSES[0]) != STATUSES[0]]
 
 
-def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None):
+def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None, key_suffix="", status="planned", note=""):
     """Add an event (record: a hits_log row as a dict; run: the run summary of its search, or None; sbdb: the
     asteroid's size-cache entry from sbdb, kept with the favorite). Copies its KML and preview from map_dir.
+    key_suffix: appended to the key (several sites of one event, e.g. the observers of an archive event: '_<name>').
     Returns (ok, message)."""
     try:
-        key = key_of(record["target_id"], record["best_utc"])
+        base = key_of(record["target_id"], record["best_utc"])
     except KeyError as ex:
         return False, f"not an event record (no {ex})"
+    key = base + key_suffix
     items = load(folder)
     if any(e["key"] == key for e in items):
         return False, f"{key} is already a favorite"
@@ -153,7 +155,7 @@ def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None):
     os.makedirs(own, exist_ok=True)
     files = {}
     for ext, pat in (("kml", "*.kml"), ("svg", "*.svg"), ("globe", "*_globe.svg")):
-        found = sorted(glob.glob(os.path.join(glob.escape(map_dir), f"{glob.escape(key)}{pat}")))
+        found = sorted(glob.glob(os.path.join(glob.escape(map_dir), f"{glob.escape(base)}{pat}")))
         if ext == "svg":
             found = [f for f in found if not f.endswith("_globe.svg")]    # the preview, not the globe plot
         if found:
@@ -162,7 +164,7 @@ def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None):
             files[ext] = os.path.relpath(dst, folder).replace(os.sep, "/")
     run = run or {}
     entry = dict(key=key, added=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), version=__version__,
-                 status="planned", note="",
+                 status=status if status in STATUSES else STATUSES[0], note=note,
                  record=record, site=run.get("site"), files=files,
                  phys=phys_of(sbdb), phys_src=(sbdb or {}).get("source", ""),
                  run={k: run.get(k) for k in ("run_utc", "window_start", "window_days", "limits", "earth_pck",
