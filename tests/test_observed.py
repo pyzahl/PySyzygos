@@ -139,6 +139,19 @@ rec = dict(a, chk_site_dt_s=0.021, chk_across_km=1.2, chk_along_s=0.05,
 e = R.build_event({k: db._cell(v) for k, v in rec.items()}, None, None, os.devnull, tmp)
 row = R.html_row_observed(e)
 assert "+0.02 s" in row and "1 site" in row and "D Gault, Hawkesbury: mid-time +0.02 s" in row, row
+# the whole record (GUI dialog on a row click, `observed show --date`): sections and one row per observer and site
+rec_a, cts = observed.find("4337|2021-05-19T17:58:06", dbp)
+sec, obs = observed.details(rec_a, cts)
+titles = [t for t, _ in sec]
+assert titles[:3] == ["Event", "Star", "Fit to the chords (Occult)"] and "Satellite" in titles, titles
+star = dict(sec[1][1])
+assert star["Gaia id"].startswith("4064355353554962304") and star["G, BP, RP"] == "13.59, 14.97, 12.45"
+assert dict(sec[titles.index("Satellite")][1])["Announced in"] == "CBET 4981"
+by = {(o["observer"], o["result"]): o for o in obs}
+assert len(obs) == 2 and by[("D Gault", "positive")]["method"] == "video" and by[("D Gault", "positive")]["datum"] == "WGS84"
+assert "D 17:57:59.61" in by[("D Gault", "positive")]["events"] and "G 17:58:04.73" in by[("D Gault", "positive")]["events"]
+assert ("P Nosworthy", "miss") in by and observed.find("4337|1999-01-01T00:00:00", dbp) == (None, [])
+
 # the best size: the chord through the fitted ellipse centred on the predicted axis
 dur, mid = C.ellipse_chord(np.array([0.0, 3.0]), np.array([10.0, 0.0]), 5.0, 5.0, 0.0)      # circle r 5, 3 km off
 assert abs(dur - 2 * 4.0 / 10.0) < 1e-12 and abs(mid) < 1e-12

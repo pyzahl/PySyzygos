@@ -579,6 +579,17 @@ function pyoToast(msg,stay){var t=document.getElementById('pyotoast');if(!t){t=d
  t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(function(){t.hidden=true;},stay?9000:4000);}
 </script>"""
 
+# observed events (layout 'observed'): a click on a row asks the GUI for the whole record (gui_results: obs_select)
+OBS_JS = """<style>tr.obsrow{cursor:pointer} tr.obsrow.cur td{background:color-mix(in srgb,var(--accent) 12%,transparent)}</style>
+<script>(function(){
+function tell(n,a){try{if(parent&&parent!==window&&parent.emitEvent){parent.emitEvent(n,a);return true;}}catch(e){}return false;}
+document.querySelectorAll('tr.obsrow').forEach(function(tr){tr.addEventListener('click',function(ev){
+ if(ev.target.closest('input,button,a'))return;
+ document.querySelectorAll('tr.obsrow.cur').forEach(function(x){x.classList.remove('cur');});
+ tr.classList.add('cur');
+ if(!tell('obs_select',tr.dataset.ev)&&window.pyoToast)pyoToast('The full record opens in the GUI (Results tab); here: pysyzygos observed show <asteroid> --date <date>');});});
+})();</script>"""
+
 FAV_JS = """<script>
 (function(){var bs=document.querySelectorAll('.favbtn');if(!bs.length||location.protocol==='file:')return;
 var ON='In the favorites: click to remove it again',OFF='Add to the favorites (with its map and preview)';
@@ -1042,7 +1053,7 @@ def html_row_observed(e):
     star_tip = esc(" \u00b7 ".join(x for x in (f"Gaia DR3 {e['star']}" if e.get("star") else "", r.get("star_catalog") or "",
                                               r.get("star_flag") or "", r.get("star_double") or "") if x))
     return (
-        f'<tr{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{esc(r.get("prediction") or "")}">'
+        f'<tr class="obsrow"{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{esc(r.get("prediction") or "")}">'
         + (f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>'
            if str(e["tid"]).isdigit() else esc(e["label"])) + binary_mark(e["tid"]) + '</td>'
         f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (the archive\'s reference time)">'
@@ -1429,7 +1440,7 @@ def to_html(events, meta):
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
-</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
+</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{OBS_JS if meta.get("layout") == "observed" else ""}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
 

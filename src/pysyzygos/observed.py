@@ -275,6 +275,142 @@ def build(xml_file=None, db_file=None, csv_file=None, log=print):
     return n
 
 
+METHODS = {"a": "video", "b": "DSLR video", "c": "photometer", "d": "sequential images", "e": "drift scan",
+           "f": "visual", "g": "other"}
+DATUMS = {"_": "WGS84", "": "WGS84", "N": "NAD1927", "E": "ED1950", "T": "Tokyo", "G": "GB1936", "*": "unspecified"}
+
+
+def find(key, db_file=None):
+    """(record, contacts [(label, utc, data)]) of the event with this key ('target|YYYY-MM-DDTHH:MM:SS', the report's
+    data-ev), or (None, [])."""
+    tid, utc = (key.split("|") + [""])[:2]
+    con = db.connect(db_file or paths()[1])
+    try:
+        row = con.execute("SELECT id, record FROM events WHERE target_id=? AND best_utc LIKE ? ORDER BY id LIMIT 1",
+                          (tid, utc[:19] + "%")).fetchone()
+        if row is None:
+            return None, []
+        cts = [(r["label"], r["utc"], json.loads(r["data"])) for r in
+               con.execute("SELECT label, utc, data FROM contacts WHERE event_id=? ORDER BY utc", (row["id"],))]
+        return json.loads(row["record"]), cts
+    finally:
+        con.close()
+
+
+def _v(x, fmt="{}", none="\u2014"):
+    if x is None or x == "" or (isinstance(x, float) and not math.isfinite(x)):
+        return none
+    try:
+        return fmt.format(x)
+    except (ValueError, TypeError):
+        return str(x)
+
+
+def _sexa(deg, hours=True):
+    """'02h32m08.786s' (hours=True, RA in degrees) or '+44°56'40.07"' (Dec)."""
+    v = deg / 15.0 if hours else abs(deg)
+    h = int(v); m = int((v - h) * 60); s = ((v - h) * 60 - m) * 60
+    return (f"{h:02d}h{m:02d}m{s:06.3f}s" if hours else
+            f"{'-' if deg < 0 else '+'}{h:02d}\u00b0{m:02d}'{s:05.2f}\"")
+
+
+def details(rec, contacts=()):
+    """The whole record as ([(section, [(label, value)])], [observer rows (dict)]) for the GUI dialog and `show`.
+    Observer rows: one per observer and site: their D/R (and satellite, 2nd-star) times with accuracy and personal
+    equation, result, duration, and PySyzygos's check of that chord (obs_check) when there is one."""
+    r = rec
+    f = lambda k, fmt="{}": _v(r.get(k), fmt)
+    sec = []
+    sec.append(("Event", [
+        ("Asteroid", r.get("target_name", "")), ("Reference time (UT)", f"{r.get('best_utc', '')}"
+                                                 + (f" \u00b1 {r['ref_time_unc_s']:.3f} s" if r.get("ref_time_unc_s") else "")),
+        ("Geocentric conjunction (UT)", f("conj_utc")),
+        ("Conjunction X, Y (km)", f"{_v(r.get('conj_x_km'), '{:.1f}')}, {_v(r.get('conj_y_km'), '{:.1f}')}"),
+        ("Distance", f("dist_au", "{:.4f} au")),
+        ("Diameter (catalog)", (f"{2 * r['r_km']:.1f} km" + (f" \u00b1 {2 * r['r_unc_km']:.1f}" if r.get("r_unc_km") else ""))
+         if r.get("r_km") else "\u2014"),
+        ("Asteroid magnitude", f("m_ast", "{:.2f}")), ("Prediction used", f("prediction")),
+        ("Observers", f"{_v(r.get('n_observers'))} ({_v(r.get('n_positive'))} positive chords, {_v(r.get('n_miss'))} "
+                      f"misses, {_v(r.get('n_cloud'))} clouded)"),
+        ("Longest chord", f("max_duration_s", "{:.2f} s")), ("MPC publication", f("mpc")),
+        ("Added / last edited", f"{_v(r.get('added'))} / {_v(r.get('last_edited'))}")]))
+    ra, de = r.get("star_ra"), r.get("star_dec")
+    sec.append(("Star", [
+        ("Gaia id", f"{_v(r.get('star'))} (Gaia version {_v(r.get('star_gaia_version'))})"),
+        ("Catalog name", f("star_catalog")),
+        ("RA, Dec (J2000, at the event)", f"{_sexa(ra)} {_sexa(de, False)}  ({ra:.8f}\u00b0, {de:.8f}\u00b0)"
+         if ra is not None and de is not None else "\u2014"),
+        ("Uncertainty RA, Dec", f"{_v(r.get('star_ra_err_mas'))}, {_v(r.get('star_dec_err_mas'))} mas"),
+        ("G, BP, RP", f"{_v(r.get('mag'), '{:.2f}')}, {_v(r.get('star_bp'), '{:.2f}')}, {_v(r.get('star_rp'), '{:.2f}')}"),
+        ("Angular diameter", f("star_diam_mas", "{:.2f} mas")), ("RUWE", f("star_ruwe", "{:.2f}")),
+        ("Flags", r.get("star_flag") or "none"), ("Double-star solution", f("star_double"))]))
+    sec.append(("Fit to the chords (Occult)", [
+        ("Quality", f"{f('fit_quality_text')} ({f('fit_quality')}); fit code {f('fit_code')}"),
+        ("Ellipse", (f"{r['fit_major_km']:.1f} \u00d7 {r['fit_minor_km']:.1f} km, PA {_v(r.get('fit_pa_deg'), '{:.0f}')}\u00b0"
+                     + (" (axes assumed)" if r.get("fit_assumed_size") else " (fitted)")) if r.get("fit_major_km") else "\u2014"),
+        ("Centre uncertainty", f"{_v(r.get('fit_x_sdev_km'))}, {_v(r.get('fit_y_sdev_km'))} km"),
+        ("Shape-model fits", f"{_v(r.get('shape_fits'))}" + (f", good fits {r['shape_dia_km']:.1f} km" if r.get("shape_dia_km") else "")),
+        ("Observed centre X, Y (geocentric, of date)", f"{_v(r.get('geo_x_km'), '{:.1f}')}, {_v(r.get('geo_y_km'), '{:.1f}')} km"),
+        ("Astrometry offset RA\u00b7cosDec, Dec", f"{_v(r.get('obs_dra_arcsec'), '{:.4f}')}\", {_v(r.get('obs_ddec_arcsec'), '{:.4f}')}\""),
+        ("Chords used", f("n_chords")), ("Flagged for review", "yes" if r.get("fit_review") else "no")]))
+    if r.get("n_sat"):
+        sec.append(("Satellite", [
+            ("Name", r.get("sat_name") or "(unnamed)"), ("Fit", f("sat_fit")),
+            ("Separation, PA", f"{_v(r.get('sat_sep_mas'), '{:.2f}')} mas, {_v(r.get('sat_pa_deg'), '{:.1f}')}\u00b0"),
+            ("Diameter", f("sat_dia_km", "{:.1f} km")), ("Announced in", f"CBET {r['sat_cbet']}" if r.get("sat_cbet") else "\u2014")]))
+    if r.get("chk_v") or r.get("chk_across_km") is not None or r.get("chk_note"):
+        sec.append(("PySyzygos check (obs-check)", [
+            ("Chord mid-times obs \u2212 pred (median)", f("chk_site_dt_s", "{:+.3f} s")
+             + (f" over {r['chk_chord_n']} chords" if r.get("chk_chord_n") else "")),
+            ("Best size used", f("chk_size_best")),
+            ("Archive's centre obs \u2212 pred", f"{_v(r.get('chk_across_km'), '{:+.2f}')} km across, "
+                                              f"{_v(r.get('chk_along_s'), '{:+.3f}')} s along ({_v(r.get('chk_mas'), '{:.1f}')} mas)"),
+            ("Note", f("chk_note"))]))
+    # observers: one row per observer and site
+    rows, chk = {}, {}
+    for c in r.get("chk_chords") or []:
+        chk[(c.get("observer"), round(c.get("lat") or 0, 4), round(c.get("lon") or 0, 4))] = c
+    for label, utc, d in contacts:
+        k = (d.get("observer"), d.get("lon"), d.get("lat"))
+        row = rows.setdefault(k, dict(observer=d.get("observer", ""), place=d.get("place", ""), lat=d.get("lat"),
+                                      lon=d.get("lon"), alt_m=d.get("alt_m"), datum=DATUMS.get(d.get("datum", "_"), d.get("datum")),
+                                      method=METHODS.get(d.get("method", ""), d.get("method") or "?"), result="positive",
+                                      events=[], time_adj_s=d.get("time_adj_s")))
+        row.setdefault("t", {})[label] = utc
+        row["events"].append(f"{label} {utc[11:]}" + (f" \u00b1{d['acc_s']:g}" if d.get("acc_s") else "")
+                             + (f" PE {d['pe_s']:g}" if d.get("pe_s") else "")
+                             + (" (excluded)" if (d.get("include") or "_") in ("x",) else ""))
+    for s in r.get("obs_sites") or []:
+        k = (s.get("observer"), s.get("lon"), s.get("lat"))
+        if k not in rows:
+            rows[k] = dict(observer=s.get("observer", ""), place=s.get("place", ""), lat=s.get("lat"), lon=s.get("lon"),
+                           alt_m=s.get("alt_m"), datum=DATUMS.get(s.get("datum", "_"), s.get("datum")),
+                           method=METHODS.get(s.get("method", ""), s.get("method") or "?"), result=s.get("result", ""),
+                           events=[], time_adj_s=s.get("time_adj_s"))
+    misses = {m.get("observer"): m for m in r.get("chk_misses") or []}
+    out = []
+    for k, row in rows.items():
+        c = chk.get((row["observer"], round(row["lat"] or 0, 4), round(row["lon"] or 0, 4)))
+        if c:
+            row.update(dur_obs=c.get("dur_obs_s"), dt_mid=c.get("dt_mid_s"), dist_km=c.get("dist_km"),
+                       dur_cat=c.get("dur_pred_s"), dur_best=c.get("dur_pred_best_s"))
+        elif row["result"] == "miss" and row["observer"] in misses:
+            row.update(dist_km=misses[row["observer"]].get("dist_km"))
+        row["events"] = "; ".join(row["events"])
+        t = row.pop("t", {})                                  # durations from the observer's own times
+        def dur(a, b):
+            try:
+                v = (datetime.fromisoformat(t[b]) - datetime.fromisoformat(t[a])).total_seconds()
+                return v if 0 < v < 3600 else None
+            except (KeyError, ValueError):
+                return None
+        if row.get("dur_obs") is None:
+            row["dur_obs"] = dur("D", "R")
+        row["dur_obs2"] = dur("d", "r")                       # the second star of a double
+        out.append(row)
+    return sec, out
+
+
 def status(base=None):
     """dict(events, events_until, built, file_date) of the database, or None if not built."""
     _, d, _ = paths(base)
@@ -296,8 +432,9 @@ def main(argv=None):
     b = sub.add_parser("build", help="build the database from the archive's XML (the 'observations' dataset)")
     b.add_argument("--xml"); b.add_argument("--db"); b.add_argument("--csv")
     sub.add_parser("status")
-    s = sub.add_parser("show", help="the observed events of one asteroid")
+    s = sub.add_parser("show", help="the observed events of one asteroid (with --date: all details of that event)")
     s.add_argument("asteroid")
+    s.add_argument("--date", help="YYYY-MM-DD[THH:MM]: the full record of that event")
     a = ap.parse_args(argv)
     if a.cmd == "build":
         build(a.xml, a.db, a.csv)
@@ -306,6 +443,28 @@ def main(argv=None):
         print("not built (pysyzygos observed build)" if st is None else
               f"{st['events']} observed events until {st['events_until']} (archive file of {st['file_date']}, "
               f"built {st['built']} UTC)" + (f"; predictions checked {st['checked']}" if st.get("checked") else ""))
+    elif a.date:
+        _, d, _ = paths()
+        con = db.connect(d)
+        row = con.execute("SELECT best_utc FROM events WHERE target_id=? AND best_utc LIKE ? ORDER BY best_utc LIMIT 1",
+                          (a.asteroid, a.date + "%")).fetchone()
+        con.close()
+        if row is None:
+            sys.exit(f"no observed event of {a.asteroid} on {a.date}")
+        rec, cts = find(f"{a.asteroid}|{row[0][:19]}")
+        sec, obs = details(rec, cts)
+        for title, items in sec:
+            print(f"\n{title}")
+            for k, v in items:
+                print(f"  {k:<42} {v}")
+        print("\nObservers")
+        for o in obs:
+            print(f"  {o['result']:<9} {o['observer'][:24]:<24} {o['place'][:30]:<30} {_v(o['lat'], '{:.5f}')} "
+                  f"{_v(o['lon'], '{:.5f}')} {_v(o['alt_m'], '{:.0f}')} m {o['datum']}, {o['method']}: {o['events']}"
+                  + (f"  | ours: mid {o['dt_mid']:+.3f} s, {o['dist_km']:.2f} km from the center line, duration "
+                     f"{o['dur_obs']:.2f} s (catalog {_v(o.get('dur_cat'), '{:.2f}')}, best {_v(o.get('dur_best'), '{:.2f}')})"
+                     if o.get("dt_mid") is not None else (f"  | ours: {o['dist_km']:.2f} km from the center line"
+                                                          if o.get("dist_km") is not None else "")))
     else:
         _, d, _ = paths()
         con = db.connect(d)

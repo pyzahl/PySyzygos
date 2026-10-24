@@ -488,7 +488,11 @@ def summarize(log=print):
             ("visual", [p for p in ch if p[2].get("method") == VISUAL]),
             ("stated accuracy <= 0.05 s", [p for p in ch if (p[2].get("acc_s") or 9) <= 0.05]),
             ("excluded by Occult from its fit", [p for p in ch if "x" in (p[2].get("include") or "")]),
-            ("datum not WGS84 / unspecified", [p for p in ch if p[2].get("datum") not in ("_", "")])])
+            ("datum not WGS84 / unspecified", [p for p in ch if p[2].get("datum") not in ("_", "")]),
+            ("star with a double-star solution (Gaia: the pair's light centre)", [p for p in ch if p[0].get("star_double")]),
+            ("video, star single (no double solution, RUWE < 1.4)", [p for p in ch if p[2].get("method") != VISUAL
+                                                                     and not p[0].get("star_double")
+                                                                     and not p[0].get("star_flag")])])
         L += ctable("Chord mid-times by year (not visual)", [
             (f"{y}-{y + 4}" if y < 2020 else str(y), [p for p in ch if p[2].get("method") != VISUAL and
                                                        (y <= cy(p[0]) <= y + 4 if y < 2020 else cy(p[0]) == y)])

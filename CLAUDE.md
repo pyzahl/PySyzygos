@@ -440,7 +440,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   observer's D/R (codes D/R/G/B/d/r). Format doc: occult_data/FileFormat AsteroidObservations.htm. 17,218 events in
   5 s. Rebuild re-applies obs_check results. db._cell writes lists/dicts as JSON. db.HITS columns chords,
   observers, fit_quality, cbet, dx_across, dt_along, scope. Report: layout "observed" (`html_row_observed`,
-  `sites_text`), header_info kind observed; archive rows skip dedupe (O(n^2), and it merged 10 real events), KML
+  `sites_text`; rows class obsrow + OBS_JS: click -> parent.emitEvent('obs_select', data-ev) -> gui_results
+  `show_observed` dialog from observed.find(key) + `details(rec, contacts)` (sections + one row per observer/site with
+  our chk_chords; CLI `show <n> --date`)), header_info kind observed; archive rows skip dedupe (O(n^2), and it merged 10 real events), KML
   lookups and alt_az (17k rows: 2 min -> 1.7 s); exports.results_rows likewise. tests/test_observed.py.
 - `pysyzygos/obscheck.py` (2026-10-23, `pysyzygos obs-check run|report`, System tab "Check our predictions" /
   "Summary"): per observed event with MainBody on a Gaia DR3 star of the local catalog: Horizons SPK per asteroid

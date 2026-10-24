@@ -1317,8 +1317,11 @@ below, **observed minus predicted**. Hovering over the chords lists every observ
 longitude, height, positive or miss); each observer's disappearance and reappearance are kept as the event's
 contacts. The filter bar and the SQL filter work as for your searches, with extra columns: `chords`, `observers`,
 `fit_quality`, `cbet`, `dx_across` (km), `dt_along` (s), e.g. `cbet <> ''` lists the 41 satellites found by
-occultation. Built into `occult_data/observations.db` (same tables as `pysyzygos.db`) when the dataset is
-downloaded; `pysyzygos observed build|status|show <asteroid>`.
+occultation. **Click a row** for the whole record: event, star, Occult's fit, satellite, our check, and every
+observer (site, height, datum, method, reported times with accuracy and personal equation, result, and our
+prediction at that site). Built into `occult_data/observations.db` (same tables as `pysyzygos.db`) when the dataset
+is downloaded; `pysyzygos observed build|status|show <asteroid> [--date YYYY-MM-DD]` (with `--date`: the whole
+record as text).
 
 **System → Check our predictions** (`pysyzygos obs-check run`) checks PySyzygos against the measured data: for
 every observer of every event (16,605 events of 7,091 asteroids), the observer's own disappearance and reappearance

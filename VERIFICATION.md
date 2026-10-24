@@ -661,6 +661,44 @@ anyway (other orbits; OWC times to 0.1 s).
   (section 3), rerun with the fix: means +47.54 m across, -7.691 ms along (before +47.51 m, -7.693 ms), the fits
   unchanged. The two ways to compute the path agree to millimeters: the path's plane is only the construction, the
   result is the same as solving at each site. Kept as a rerunnable check.
+- **Against every observed occultation of the IOTA / Occult archive** (2026-10-23, 1.4.0+; `pysyzygos obs-check`,
+  archive of 2026-10-22, D. Herald): the measured data, not Occult's solution. For each of 27,308 positive chords
+  (16,588 events, 7,087 asteroids, 1961-2026), the observer's own disappearance and reappearance at the observer's
+  coordinates (WGS84, height above sea level + EGM96 geoid) against PySyzygos's closest approach at exactly that site
+  (today's JPL Horizons orbit; Gaia DR3 star with proper motion, frame-spin bias, radial velocity, parallax, light
+  deflection; the asteroid seen from the site, as the search's solver). Chord mid-time (D + R) / 2, observed minus
+  predicted:
+
+  | Chords | Number | Median | Scatter (robust) | 68 % within | 95 % within |
+  |---|---|---|---|---|---|
+  | all | 27,308 | +0.001 s | 0.67 s | 0.81 s | 3.97 s |
+  | video etc., single star (no double solution, RUWE < 1.4) | 21,328 | -0.003 s | 0.60 s | 0.71 s | 3.22 s |
+  | stated accuracy <= 0.05 s | 9,091 | -0.004 s | 0.54 s | 0.64 s | 2.64 s |
+  | visual | 1,603 | +0.086 s | 1.69 s | 1.96 s | 11.0 s |
+  | video, 2015-2025, by year | 1,607-3,688 per year | -0.036 to +0.022 s | 0.52-0.62 s | 0.61-0.73 s | |
+
+  - **No timing bias**: the medians are within a few ms of zero over 25,000 video chords, for all years since 2005
+    within +-0.05 s: light time, Earth orientation, the star's corrections and the site geometry carry no systematic
+    error at that level. The scatter of 0.5-0.6 s per event is the asteroids' own orbit error at each event (the
+    event medians scatter by 0.54 s; all chords of one event share it).
+  - **Site to site within one event** (2015+, video, >= 3 chords, accuracy <= 0.02 s; the orbit error removed by
+    subtracting each event's median): 99 ms scatter with a round asteroid centred on our path, **53 ms** with the
+    ellipse fitted to the chords (the shape's tilt moves chord midpoints along the track); the rest is limb shape and
+    timing. For (3200) Phaethon's video events single chords agree to 0.01-0.04 s.
+  - **Durations** (observed / predicted, median): 1.01 with the catalog diameter (the archive's nominal value, as
+    the infrared surveys), 1.00 with a robust scatter of 0.08 with the best size (the fitted ellipse on our predicted
+    path, 8,660 chords): our position across the track at each site agrees within the asteroids' size resolution.
+  - **Misses**: of 11,351 reported misses, PySyzygos puts 10,183 outside the shadow with the catalog diameter; with
+    the best size 310 of 4,411 fall inside (orbit error across the track, irregular shapes).
+  - Older data scatter more (1975-1999: seconds; star positions and timing of the time), visual chords by about 2 s
+    (personal equation). A few archive records cannot be right (an observed centre 23,000 km from the Earth's centre;
+    an asteroid 16 deg from the star at the given time: a wrong number); JPL's current orbit of (50000) Quaoar is
+    2.8" from its 2023 event (JPL Horizons itself gives the same).
+  - The check found a real bug: asteroid numbers that are also SPICE body codes (5, 6, 10, 399) replaced Jupiter,
+    Saturn, the Sun or the Earth in later computations of a run (fixed: bodies by name).
+  - Secondary, against the archive's fitted centre in the fundamental plane (axes of date): across -0.03 km median,
+    along +0.019 s median (16,588 events; the scatter is that of single-chord fits).
+
 - **Planets and moons** (0.14.0):
   - Ephemeris: the kernel built from Horizons vectors (SPK type 13, 20 min steps) reproduces Horizons to ~1 m;
     NAIF's `jup365.bsp` and Horizons agree to millimeters at sample times.

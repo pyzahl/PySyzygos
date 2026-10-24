@@ -12,7 +12,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   (`occult_data/observations.db`, built when downloaded; `pysyzygos observed`). **Results → Show: Observed events**
   lists them with star, longest chord, chords / observers, fit, fitted size, satellites with the **CBET** that
   announced them, and every observer's site on hover; filter bar and SQL filter work on them (new columns
-  `chords`, `observers`, `fit_quality`, `cbet`, `dx_across`, `dt_along`).
+  `chords`, `observers`, `fit_quality`, `cbet`, `dx_across`, `dt_along`). A click on a row shows the whole record
+  with every observer's site, times and our prediction there (`pysyzygos observed show <n> --date <d>` as text).
 - **Our predictions checked against the measured data of every observed event**: **System → Check our
   predictions** (`pysyzygos obs-check`): every observer's measured disappearance and reappearance at the observer's
   coordinates against PySyzygos's prediction at exactly that site (today's JPL orbit, Gaia DR3 star with the
