@@ -55,9 +55,13 @@ In the **Site** tab:
   site**. Your site is saved and selected at the top right (**Site for all runs**), where every run takes it from.
   The example site can go: select it at the top right and click **Remove site**.
 
-Later changes to a site (another camera, a correction of the position): select it at the top right, change the
-form, and click **Save sites.py**. You can keep several sites, e.g. home and a dark-sky spot, and switch between
-them at the top right.
+Later changes to a site (another camera, a correction of the position, a new photo): select it at the top right,
+change the form, and click **Save changes** (the save button turns amber with that label as soon as the form differs
+from what is saved). Switching to another site with unsaved changes asks first: save them, discard them, or cancel
+(stay). A run saves the selected site's changes by itself. You can keep several sites, e.g. home and a dark-sky spot,
+and switch between them at the top right. **Add site** makes a new site from the form's position, equipment and
+limits; a horizon, photo or description it takes only if you changed them in the form, so nothing of the site shown
+before carries over.
 
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
@@ -67,8 +71,10 @@ marked. Either load OccultWatcher's `UserHorizon.txt`, or make the horizon from 
 1. Take the photo level at the telescope on a day with a reasonably clear blue sky (a 360° camera or a phone's
    photo sphere), and note the time.
 2. **Load a 360° photo**: the horizon line is found in it automatically (a few clouds are fine).
-3. Type the time you took it in **Sun at** (your local time, e.g. `4:45 pm`) and click **Align by the Sun**: the
-   photo is turned so that the Sun in it sits where the Sun really was. Azimuth ticks every 5° and 10° help to check.
+3. **Sun at** is filled from the photo's own time when it has one (most cameras store it), and with the Sun in the
+   photo it is aligned by itself: turned so that the Sun in it sits where the Sun really was. Otherwise type the time
+   you took it (your local time, e.g. `4:45 pm`) and click **Align by the Sun**. Azimuth ticks every 5° and 10° help
+   to check.
 4. **Horizon from the photo** turns the line into horizon points; **Save sites.py** keeps everything.
    **UserHorizon.txt** downloads the horizon for OccultWatcher too.
 

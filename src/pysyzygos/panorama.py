@@ -103,18 +103,89 @@ def slug(name):
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(name)).strip("_") or "site"
 
 
+def photo_time(src):
+    """When the photo was taken, from its EXIF data (read before the photo is shrunk: the saved copy has none):
+    dict(utc, local, how) with utc an ISO time ('...Z') when known, local the camera's local time
+    'YYYY-MM-DD HH:MM:SS' when only that is known; how: 'GPS time (UTC)', 'camera time with its time-zone offset' or
+    'camera time (its time zone unknown: taken as the site's)'. None without a time."""
+    import datetime as dt
+    from PIL import Image
+    try:
+        im = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+        exif = im.getexif()
+    except Exception:
+        return None
+    gps = exif.get_ifd(0x8825) if exif else {}
+    try:                                                          # GPSDateStamp (29) 'YYYY:MM:DD', GPSTimeStamp (7)
+        y, m, d = (int(x) for x in str(gps[29]).split(":"))
+        h, mi, s = (float(x) for x in gps[7])
+        t = dt.datetime(y, m, d, tzinfo=dt.timezone.utc) + dt.timedelta(hours=h, minutes=mi, seconds=s)
+        return dict(utc=t.strftime("%Y-%m-%dT%H:%M:%S") + "Z", local=None, how="GPS time (UTC)")
+    except (KeyError, ValueError, TypeError):
+        pass
+    sub_ifd = exif.get_ifd(0x8769) if exif else {}
+    raw = sub_ifd.get(36867) or sub_ifd.get(36868) or (exif.get(306) if exif else None)   # DateTimeOriginal, ..., DateTime
+    if not raw:
+        return None
+    try:
+        t = dt.datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+    frac = str(sub_ifd.get(37521) or "").strip()                 # SubSecTimeOriginal
+    if frac.isdigit():
+        t += dt.timedelta(seconds=float("0." + frac))
+    off = str(sub_ifd.get(36881) or "").strip()                  # OffsetTimeOriginal '+02:00'
+    m = re.fullmatch(r"([+-])(\d\d):(\d\d)", off)
+    if m:
+        tz = dt.timezone((1 if m[1] == "+" else -1) * dt.timedelta(hours=int(m[2]), minutes=int(m[3])))
+        u = t.replace(tzinfo=tz).astimezone(dt.timezone.utc)
+        return dict(utc=u.strftime("%Y-%m-%dT%H:%M:%S") + "Z", local=None, how="camera time with its time-zone offset")
+    return dict(utc=None, local=t.strftime("%Y-%m-%d %H:%M:%S"), how="camera time (its time zone unknown: taken as the site's)")
+
+
+def photo_location(src):
+    """Where the photo was taken, from its EXIF GPS data: dict(lat, lon, alt_m (or None)), or None (no or an empty
+    GPS fix: GoPro exports have empty fields)."""
+    from PIL import Image
+    try:
+        im = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+        g = im.getexif().get_ifd(0x8825)
+    except Exception:
+        return None
+    def deg(v, ref):
+        d, m, s = (float(x) for x in v)
+        x = d + m / 60.0 + s / 3600.0
+        return -x if str(ref).strip().upper() in ("S", "W") else x
+    try:
+        lat, lon = deg(g[2], g.get(1, "N")), deg(g[4], g.get(3, "E"))
+    except (KeyError, ValueError, TypeError, ZeroDivisionError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 360) or (abs(lat) < 1e-9 and abs(lon) < 1e-9):
+        return None
+    alt = None
+    try:
+        ref = g.get(5, 0) or 0
+        ref = ref[0] if isinstance(ref, (bytes, bytearray)) and ref else ref     # GPSAltitudeRef: a byte
+        alt = float(g[6]) * (-1.0 if int(ref) == 1 else 1.0)
+    except (KeyError, ValueError, TypeError, ZeroDivisionError):
+        pass
+    return dict(lat=round(lat, 6), lon=round(lon - 360.0 if lon > 180 else lon, 6), alt_m=alt)
+
+
 def save(src, site_name, folder=FOLDER, source=""):
-    """Thumbnail + profile of photo src (path or bytes) as folder/<site>.jpg / .json. Returns the .jpg path (relative
-    to the data folder, as stored in sites.py) and the meta dict."""
+    """Thumbnail + profile of photo src (path or bytes) as folder/<site>_<YYYYmmdd-HHMMSS>.jpg / .json: a new file
+    each time, so a photo loaded into the form never replaces the one a saved site uses (the site changes only when
+    saved). Returns the .jpg path (relative to the data folder, as stored in sites.py) and the meta dict."""
+    taken, where = photo_time(src), photo_location(src)          # (the saved thumbnail has no EXIF)
     im = _image(src)
     check_size(im)
     prof = profile(im)
     how = ground(im)[1] if prof is not None else ""
     os.makedirs(folder, exist_ok=True)
-    base = os.path.join(folder, slug(site_name))
+    base = os.path.join(folder, f"{slug(site_name)}_{time.strftime('%Y%m%d-%H%M%S')}")
     meta = dict(version=__version__, source=os.path.basename(source or ""), size=list(im.size), step_deg=STEP_DEG,
                 created=time.strftime("%Y-%m-%d %H:%M"),
-                profile=None if prof is None else [round(float(x), 2) for x in prof], profile_from=how)
+                profile=None if prof is None else [round(float(x), 2) for x in prof], profile_from=how, taken=taken, where=where)
     for path, data in ((base + ".jpg", thumbnail(im)), (base + ".json", json.dumps(meta).encode())):
         with open(path + ".tmp", "wb") as f:
             f.write(data)

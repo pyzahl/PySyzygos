@@ -7,6 +7,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **The 360° photo's time from its EXIF data**: GPS time (UTC), the camera time with its time zone, or the camera
+  time alone (taken as the site's local time); filled into "Sun at" and, with the Sun visible in the photo, the
+  photo is aligned by the Sun at once on loading. Kept with the photo, shown again with the site. A GPS position in
+  the photo is offered for the site (dialog with both positions and the distance) when it differs by over 100 m.
 - **Start and end on hover**: hovering over an event time (Results, Favorites) shows the estimated start and end
   (HH:MM:SS.sss): the closest approach -+ half the duration, of the site's own chord when it is inside the shadow,
   else of the center line.
@@ -45,6 +49,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   newest release's link. `pysyzygos update [--check]`.
 
 ### Fixed
+- **Site tab: no more mixed-up sites.** Switching to another site with unsaved changes asks first (save /
+  discard / cancel; before, the changes were dropped without a word); the save button turns amber ("Save changes")
+  while there are any. **Add site** no longer copies the shown site's description, horizon and photo (only what was
+  changed in the form). A photo loaded into the form gets its own file, so it never replaces the photo a saved site
+  uses. Lookups that finish after a site switch (height, place, photo processing, Sun) are dropped instead of
+  landing in the other site's form.
 - **Previews missing for short search windows late in the day**: the orbit file ended at midnight after the window
   (dates round down), so a slow asteroid's preview track (+-12 h) ran past it and no preview was written. The orbit
   now spans at least a day after the window, and track points beyond it are left out.

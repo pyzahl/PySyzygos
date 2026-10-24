@@ -359,10 +359,21 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   Aligning by the Sun (2026-10-22): `sun_altaz(lat, lon, utc)` (NOAA solar formulas + refraction; vs astropy <=
   0.01 deg, test uses Greenwich references), `sun_in_photo(jpg)` (largest saturated white blob above -10 deg ->
   (deg from left edge, alt)), svg(sun=) yellow ring + "Sun az", azimuth ticks every 5/10 deg with numbers. GUI Site
-  tab: "Sun at (site's local time)" (hz_sun: geo.timezone of the form's position, cached pg.HZ_TZ; 16:45:04,
+  tab: "Sun at (site's local time)" (filled from the photo's EXIF: `photo_time` at upload, before the thumbnail
+  drops it: GPS time > DateTimeOriginal+OffsetTimeOriginal > DateTimeOriginal as local; meta 'taken';
+  `photo_location` -> meta 'where' -> `photo_where` dialog offers it for the site (> 100 m off; GoPro exports have
+  an empty GPS fix, GPSAltitudeRef is a byte); upload with
+  the Sun in the photo aligns at once; show_site refills it) (hz_sun: geo.timezone of the form's position, cached pg.HZ_TZ; 16:45:04,
   4:45:04 pm or 2026-10-22 16:45) + "Align by the Sun" (hz_sun_align: hz_az = sun az - disk position). First use:
   Camp photo, Sun at 4:45:04 pm EDT 242.8 deg -> left edge 183.0 deg, disk 1 deg low. A GoPro file name's 13-digit
   number is the file's save time, not the capture time.
+- Site tab safety (2026-10-24, after a real mix-up: Add site copied a site's photo/description, a save put another
+  place's position into a site): `switch_site` (header selector -> dialog Save <old> / Discard / Cancel when
+  saved_site != effective(collect)); `show_unsaved` (label + save_btn amber "Save changes"); `pg.SITE_GEN` counter
+  (+1 in show_site) and `site_stale(gen, what)` guard every await that writes the form (elevation, places, IP,
+  photo save, timezone, Sun, horizon file); `new_site_from_form` (Add site: HZ_KEYS, description, MPC code only if
+  changed); panorama.save names files <site>_<YYYYmmdd-HHMMSS>.jpg (never overwrites a saved site's photo).
+  Verified in headless Chrome on a throwaway data folder (edit -> amber; switch -> dialog; cancel/discard/save).
 - GUI job slots (2026-10-19): `Job.proc` = the main job (search, pick, pre-screen, setup, report, catalog: one at a
   time, blocking each other), `Job.fav` = the Favorites tab's path-verification tasks (run, export, compare, steps,
   keep), independent of the main job; `run_process(..., slot="fav")`, `stop_process(log, slot)`. The Favorites tab

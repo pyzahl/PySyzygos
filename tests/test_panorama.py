@@ -1,6 +1,6 @@
 """panorama.py: a made-up equirectangular photo with a known horizon (transparent sky) and a known azimuth at its left
 edge: profile, UserHorizon points, the azimuth fit, thumbnail/meta files, the SVG. Needs Pillow."""
-import os, sys, tempfile
+import os, re, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import numpy as np
 from PIL import Image
@@ -40,7 +40,10 @@ d0 = tempfile.mkdtemp()
 buf = __import__("io").BytesIO()
 im.save(buf, "PNG")
 jpg, meta = P.save(buf.getvalue(), "My site/1", folder=os.path.join(d0, "horizons"), source="/x/pano.png")
-assert os.path.basename(jpg) == "My_site_1.jpg" and Image.open(jpg).size == (1440, 720)
+assert re.fullmatch(r"My_site_1_\d{8}-\d{6}\.jpg", os.path.basename(jpg)) and Image.open(jpg).size == (1440, 720)
+__import__("time").sleep(1.1)                                    # a second photo: a new file, the first one stays
+jpg2 = P.save(buf.getvalue(), "My site/1", folder=os.path.join(d0, "horizons"))[0]
+assert jpg2 != jpg and os.path.isfile(jpg) and os.path.isfile(jpg2)
 assert P.load_meta(jpg)["profile"][:3] == meta["profile"][:3] and meta["source"] == "pano.png"
 s = P.svg(jpg, AZ_LEFT, pts, 15, star=(270, 30), label="star 30°")
 assert s.count("<image") == 2 and "data:image/jpeg;base64," in s and "star 30°" in s and s.count("<polyline") == 2
@@ -91,4 +94,29 @@ assert abs(xs_ - 1000 / W2 * 360) < 0.3 and abs(as_ - (90 - 300 / H2 * 180)) < 0
 _I.fromarray(photo, "RGB").save(jp)
 assert P.sun_in_photo(jp) is None                                         # no disk: None
 assert "Sun 250.0" in P.svg(jp, 0.0, sun=(250.0, 15.0)) and ">10</text>" in P.svg(jp, 0.0)   # marker, 10-deg ticks
+# the capture time from EXIF (read before the photo is shrunk): GPS time, camera time with offset, camera time only
+import io as _io
+from PIL import Image as _Im
+def _jpg(fill):
+    im = _Im.new("RGB", (64, 32), (90, 140, 220)); ex = im.getexif(); fill(ex)
+    b = _io.BytesIO(); im.save(b, "JPEG", exif=ex); return b.getvalue()
+def _gps(ex):
+    g = ex.get_ifd(0x8825); g[29] = "2026:10:22"; g[7] = (20.0, 45.0, 4.0)
+    ex.get_ifd(0x8769)[36867] = "2026:10:22 16:45:00"
+def _off(ex):
+    e = ex.get_ifd(0x8769); e[36867] = "2026:10:22 16:45:04"; e[36881] = "-04:00"; e[37521] = "5"
+def _loc(ex):
+    ex.get_ifd(0x8769)[36867] = "2026:10:22 16:45:04"
+assert P.photo_time(_jpg(_gps)) == dict(utc="2026-10-22T20:45:04Z", local=None, how="GPS time (UTC)")
+t = P.photo_time(_jpg(_off))
+assert t["utc"] == "2026-10-22T20:45:04Z" and "offset" in t["how"], t
+t = P.photo_time(_jpg(_loc))
+assert t["utc"] is None and t["local"] == "2026-10-22 16:45:04" and "unknown" in t["how"], t
+assert P.photo_time(_jpg(lambda ex: None)) is None
+# the GPS position from EXIF (offered for the site): degrees/minutes/seconds with N/S/E/W; an empty fix: None
+def _pos(ex):
+    g = ex.get_ifd(0x8825); g[1] = "N"; g[2] = (40.0, 52.0, 11.75); g[3] = "W"; g[4] = (72.0, 51.0, 43.09); g[5] = 0; g[6] = 29.5
+w = P.photo_location(_jpg(_pos))
+assert abs(w["lat"] - 40.869931) < 1e-6 and abs(w["lon"] + 72.861969) < 1e-6 and w["alt_m"] == 29.5, w
+assert P.photo_location(_jpg(_loc)) is None
 print("PANORAMA TESTS PASSED")

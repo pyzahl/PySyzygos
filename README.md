@@ -463,7 +463,8 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    type "174" or your camera's name, to fill the sensor width and height; MM / MC, M / C are a camera's mono and
    color versions). **Add as new site** (next to the list) adds
    what the map and form show as a new site to the site selector, named as in **New site name**, and saves it;
-   **Save sites.py** instead stores the form into the site selected at the top right; **Remove site** deletes the
+   **Save sites.py** instead stores the form into the site selected at the top right (amber, "Save changes", while
+   the form has unsaved changes; switching sites then asks: save, discard or cancel); **Remove site** deletes the
    selected site from `sites.py` (after asking): aperture,
    focal length, sensor size, detection frames, reach (how far you can travel), minimum star altitude, Sun limit.
    The site and the Gaia catalog used by all runs are chosen at the top right.
@@ -1165,7 +1166,11 @@ pysyzygos --port 8090 --no-browser
   (a few clouds are fine; check the drawn line). To find the azimuth, type the time the photo was taken in **Sun at**
   (the site's local time): the Sun's position then is drawn on the photo, and **Align by the Sun** turns the photo so
   that the Sun's disk in it sits there (it also says how far the disk's height differs: a check that the photo is
-  level). Azimuth ticks every 5° and 10° help to read directions. **Horizon from the photo** turns the line into
+  level). The time is read from the photo when it has one (EXIF: GPS time in UTC, or the camera time with its time
+  zone, or the camera time alone, then taken as the site's local time: check the camera's clock and zone); with the
+  Sun visible in the photo the alignment then happens by itself on loading. A GPS position in the photo (phones,
+  many cameras; not GoPro exports) is offered for the site when it is more than 100 m from the site's. Azimuth ticks every 5° and 10° help to
+  read directions. **Horizon from the photo** turns the line into
   horizon points, and
   **UserHorizon.txt** downloads them for OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
 * **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, then **Run pick**; the pick is

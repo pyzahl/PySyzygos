@@ -8,7 +8,7 @@ import math, os, re
 
 from pysyzygos import cameras, geo, starcat
 from pysyzygos.home import HOME as ROOT
-from nicegui import run, ui
+from nicegui import background_tasks, run, ui
 from pysyzygos.sitesfile import load_sites, save_sites
 from pysyzygos.gui_common import SITE_KEYS, fov, load_ui_state, mag_limit, save_ui_state
 
@@ -19,10 +19,12 @@ def panel(pg):
         with ui.row().classes("w-full items-end gap-4"):
             pg.site_title = ui.label().classes("text-lg font-semibold")
             pg.new_name = ui.input("New site name").classes("w-48")
-            ui.button("Add site", on_click=lambda: pg.add_site()).props("outline")
+            ui.button("Add site", on_click=lambda: pg.add_site()).props("outline").tooltip(
+                "The position, equipment and limits in the form as a new site named above; its description, horizon "
+                "and photo only if you changed them here (nothing else of the site shown carries over)")
             pg.is_default = ui.checkbox("Default for command-line runs").tooltip(
                 "default_site in sites.py: used by `pysyzygos search` / `pysyzygos pick` run without the GUI")
-            ui.button("Save sites.py", on_click=lambda: pg.save()).props("color=primary")
+            pg.save_btn = ui.button("Save sites.py", on_click=lambda: pg.save()).props("color=primary")
             ui.button("Remove site", on_click=lambda: pg.remove_site()).props("outline color=negative").tooltip(
                 "Remove the site selected at the top right from sites.py (asks first; saved at once)")
             pg.unsaved = ui.label().classes("text-sm text-amber-700")
@@ -133,8 +135,21 @@ def panel(pg):
 
 def handlers(pg):
     """The site tab's functions and state, as attributes of pg."""
+    pg.SITE_GEN = [0]                     # counts site switches: an answer that arrives after a switch is dropped
+
+    def stale(gen, what=""):
+        """True (and a notice) if the site shown changed since gen: a lookup started for another site must not land
+        in this one's form."""
+        if gen == pg.SITE_GEN[0]:
+            return False
+        if what:
+            ui.notify(f"{what}: not applied, the site was changed meanwhile", type="warning")
+        return True
+    pg.site_stale = stale
+
     def show_site(name):
         s = pg.sites[name]
+        pg.SITE_GEN[0] += 1
         pg.state["name"] = name
         pg.lat.value, pg.lon.value, pg.ele.value, pg.desc.value = s["lat"], s["lon"], s["ele"], s.get("name", name)
         pg.ele_ref.value = s.get("ele_ref", "msl")
@@ -153,6 +168,12 @@ def handlers(pg):
         pg.hz_az.value = float(s.get("horizon_image_az", 0.0))
         pg.HZ["sun"] = None                                          # the Sun marker belongs to the site shown before
         pg.hz_sun_info.text = ""
+        pg.hz_sun_in.value = ""
+        if pg.HZ["image"]:                                           # the photo's capture time, if it had one
+            from pysyzygos import panorama
+            taken = panorama.load_meta(pg.HZ["image"]).get("taken") or {}
+            if taken.get("local") or taken.get("utc"):
+                background_tasks.create(pg.hz_photo_time(pg.HZ["image"]))
         pg.hz_set([tuple(p) for p in s.get("horizon") or []] or None, s.get("horizon_name", ""))
         pg.site_title.text = f"Site: {name}"
         try:
@@ -189,8 +210,11 @@ def handlers(pg):
             ui.notify("Set the site's position first", type="warning")
             return
         key = (round(la, 3), round(lo, 3))
+        gen = pg.SITE_GEN[0]
         if key not in pg.HZ_TZ:
             pg.HZ_TZ[key] = await run.io_bound(geo.timezone, la, lo)
+        if stale(gen):
+            return
         tzname = pg.HZ_TZ.get(key)
         tz = ZoneInfo(tzname) if tzname else dt.datetime.now().astimezone().tzinfo
         m = re.fullmatch(r"(?:(\d{4}-\d\d-\d\d)[ T])?(\d{1,2}):(\d\d)(?::(\d\d(?:\.\d*)?))?\s*([aApP][mM])?", txt)
@@ -219,7 +243,10 @@ def handlers(pg):
         if not pg.HZ.get("sun"):
             ui.notify("Type the photo's time first (Sun at ...)", type="warning")
             return
+        gen = pg.SITE_GEN[0]
         found = await run.io_bound(panorama.sun_in_photo, pg.HZ["image"])
+        if stale(gen, "Align by the Sun"):
+            return
         if not found:
             ui.notify("No Sun found in the photo (no clear saturated disk above the horizon)", type="warning")
             return
@@ -230,6 +257,34 @@ def handlers(pg):
                   f"the photo, its azimuth then {az:.1f}°); its height in the photo {alt_photo:.1f}° against "
                   f"{alt:.1f}°: save the site to keep it", type="positive", multi_line=True, timeout=10000)
     pg.hz_sun_align = hz_sun_align
+
+    async def hz_photo_time(img):
+        """The photo's capture time (panorama.photo_time, stored with it) into 'Sun at', in the site's local time.
+        Returns the source of the time ('GPS time (UTC)', ...) or None."""
+        import datetime as dt
+        from zoneinfo import ZoneInfo
+        from pysyzygos import panorama
+        taken = panorama.load_meta(img).get("taken") if img else None
+        if not taken:
+            return None
+        if taken.get("utc"):
+            try:
+                la, lo = float(pg.lat.value), float(pg.lon.value)
+            except (TypeError, ValueError):
+                return None
+            key = (round(la, 3), round(lo, 3))
+            gen = pg.SITE_GEN[0]
+            if key not in pg.HZ_TZ:
+                pg.HZ_TZ[key] = await run.io_bound(geo.timezone, la, lo)
+            if stale(gen):
+                return None
+            tz = ZoneInfo(pg.HZ_TZ[key]) if pg.HZ_TZ.get(key) else dt.datetime.now().astimezone().tzinfo
+            t = dt.datetime.fromisoformat(taken["utc"].replace("Z", "+00:00")).astimezone(tz)
+            pg.hz_sun_in.value = t.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            pg.hz_sun_in.value = taken["local"]
+        return taken.get("how")
+    pg.hz_photo_time = hz_photo_time
 
     def hz_draw():
         from pysyzygos import horizon, panorama
@@ -264,23 +319,77 @@ def handlers(pg):
 
     async def pano_upload(e):
         from pysyzygos import panorama
+        gen, site = pg.SITE_GEN[0], pg.state["name"]
         data = await e.file.read()
         e.sender.reset()
         try:
-            img, meta = await run.io_bound(panorama.save, data, pg.state["name"], source=e.file.name)
+            img, meta = await run.io_bound(panorama.save, data, site, source=e.file.name)
         except Exception as ex:
             ui.notify(f"Not loaded: {ex}", type="warning", timeout=8000)
+            return
+        if stale(gen, f"Photo for site {site}"):
             return
         pg.HZ["image"] = img
         if meta.get("profile") and pg.HZ["pts"]:
             pg.pano_fit()
         pg.hz_draw()
+        await photo_where(meta.get("where"))                         # the photo's GPS position: offer it for the site
+        how_t = await hz_photo_time(img)                             # the capture time from the photo (EXIF)
+        if how_t and not stale(gen):
+            from pysyzygos import panorama
+            ui.notify(f"Photo taken {pg.hz_sun_in.value} (site's local time; {how_t})", type="info", timeout=8000)
+            if await run.io_bound(panorama.sun_in_photo, img) and not stale(gen):   # the Sun in it: align at once
+                await pg.hz_sun_align()
+            else:
+                await pg.hz_sun()
         how = {"transparent sky": " (horizon line from its transparent sky)",
                "sky detection": " (horizon line found automatically: check it, e.g. with 'Horizon from the photo')"}
         ui.notify(f"Photo set for site {pg.state['name']}" + (how.get(meta.get("profile_from"), "") if meta.get("profile")
                   else " (no sky found: set the azimuth at its left edge by hand)") + ": save the site to keep it",
                   type="positive", timeout=8000)
     pg.pano_upload = pano_upload
+
+    async def photo_where(where):
+        """The photo has a GPS position more than 100 m from the form's: offer it for the site (the height then looked
+        up, as for a click on the map; the photo's GPS height shown for comparison)."""
+        import math
+        if not where:
+            return
+        try:
+            la, lo = float(pg.lat.value), float(pg.lon.value)
+            d = 6371.0 * math.hypot(math.radians(where["lat"] - la),
+                                    math.radians(where["lon"] - lo) * math.cos(math.radians(la)))
+        except (TypeError, ValueError):
+            d = None
+        if d is not None and d < 0.1:
+            ui.notify(f"The photo's GPS position agrees with the site's ({d * 1000:.0f} m)", type="info")
+            return
+
+        async def use():
+            dlg.close()
+            gen = pg.SITE_GEN[0]
+            pg.set_position(where["lat"], where["lon"])
+            pg.m.set_center((where["lat"], where["lon"]))
+            el = await run.io_bound(geo.elevation, where["lat"], where["lon"])
+            if stale(gen, "Height lookup"):
+                return
+            if el is not None:
+                pg.ele.value = round(el)
+                pg.ele_ref.value = "msl"
+            ui.notify("Site position from the photo: save the site to keep it", type="positive")
+        with ui.dialog() as dlg, ui.card().classes("max-w-lg"):
+            ui.label("The photo has a GPS position").classes("font-semibold")
+            ui.label(f"Photo: {where['lat']:.6f}, {where['lon']:.6f}"
+                     + (f", {where['alt_m']:.0f} m (GPS height)" if where.get("alt_m") is not None else "")
+                     + (f"\nSite: {la:.6f}, {lo:.6f}: {d:.2f} km apart" if d is not None else "")
+                     ).classes("text-sm whitespace-pre-line")
+            ui.label("Use the photo's position for this site? (The height is then looked up for it; a phone's GPS is "
+                     "good to a few meters, the map's position may be better.)").classes("text-sm")
+            with ui.row():
+                ui.button("Use it", on_click=use).props("color=primary")
+                ui.button("Keep the site's", on_click=dlg.close).props("flat")
+        dlg.open()
+    pg.photo_where = photo_where
 
     def pano_fit():
         from pysyzygos import panorama
@@ -308,8 +417,11 @@ def handlers(pg):
 
     async def hz_upload(e):
         from pysyzygos import horizon
+        gen = pg.SITE_GEN[0]
         text = (await e.file.read()).decode("utf-8-sig", errors="replace")
         e.sender.reset()                                             # the same file can be loaded again
+        if stale(gen, "Horizon file"):
+            return
         try:
             stations = horizon.parse(text)
         except horizon.HorizonError as ex:
@@ -409,9 +521,16 @@ def handlers(pg):
         pg.mag_apply()
     pg.mag_reset = mag_reset
 
+    def show_unsaved(changed):
+        """The unsaved state: a note and the Save button in amber ('Save changes')."""
+        pg.unsaved.text = f"unsaved changes to {pg.state['name']}" if changed else ""
+        pg.save_btn.text = "Save changes" if changed else "Save sites.py"
+        pg.save_btn.props(f"color={'warning' if changed else 'primary'}")
+    pg.show_unsaved = show_unsaved
+
     def update_derived(*_):
         s = pg.collect()
-        pg.unsaved.text = "" if pg.saved_site(pg.state["name"]) == pg.effective(s, pg.state["name"]) else "unsaved changes"
+        show_unsaved(pg.saved_site(pg.state["name"]) != pg.effective(s, pg.state["name"]))
         w, h = fov(s)
         pg.mag_apply(s)
         pg.derived.text = (f"Stars searched to G {mag_limit(s):.1f} · camera field {w:.1f}′ × {h:.1f}′ "
@@ -427,8 +546,11 @@ def handlers(pg):
 
     async def on_click(e):
         ll = e.args.get("latlng", {})
+        gen = pg.SITE_GEN[0]
         pg.set_position(ll["lat"], ll["lng"])
         el = await run.io_bound(geo.elevation, ll["lat"], ll["lng"])
+        if stale(gen, "Height lookup"):
+            return
         if el is not None:
             pg.ele.value = round(el)
             pg.ele_ref.value = "msl"                                 # Open-Meteo: above sea level
@@ -462,7 +584,10 @@ def handlers(pg):
         pg.m.set_center((float(la), float(lo)))
         got = ", ".join(k for k in ("lat", "lon", "ele") if c[k] is not None)
         if c["ele"] is None and c["lat"] is not None and c["lon"] is not None:
+            gen = pg.SITE_GEN[0]
             el = await run.io_bound(geo.elevation, float(la), float(lo))
+            if stale(gen, "Height lookup"):
+                return
             if el is not None:
                 pg.ele.value = round(el)
                 got += " (elevation looked up)"
@@ -483,7 +608,10 @@ def handlers(pg):
             pg.new_name.value = auto
         pg.state["auto_name"] = auto
         if not x["ele_ok"]:                                       # old low-precision entry: look the height up
+            gen = pg.SITE_GEN[0]
             el = await run.io_bound(geo.elevation, x["lat"], x["lon"])
+            if stale(gen, "Height lookup"):
+                return
             if el is not None:
                 pg.ele.value = round(el)
         ui.notify(f"MPC {x['code']} {x['name']}: shown on the map and in the form. 'Add as new site' adds it to the "
@@ -503,7 +631,10 @@ def handlers(pg):
 
     async def find_place():
         pg.hits.clear()
+        gen = pg.SITE_GEN[0]
         res = await run.io_bound(geo.places, pg.q.value or "")
+        if stale(gen, "Place search"):
+            return
         with pg.hits:
             if not res:
                 ui.label("No place found (or offline)").classes("text-sm text-slate-500")
@@ -514,7 +645,10 @@ def handlers(pg):
     pg.find_place = find_place
 
     async def ip_loc():
+        gen = pg.SITE_GEN[0]
         r = await run.io_bound(geo.ip_location)
+        if stale(gen, "IP location"):
+            return
         if r is None:
             ui.notify("IP lookup failed", type="warning")
             return
@@ -523,22 +657,75 @@ def handlers(pg):
         ui.notify(f"Approximate (from your IP address): {r[3]}")
     pg.ip_loc = ip_loc
 
+    HZ_KEYS = ("horizon", "horizon_name", "horizon_margin", "horizon_filter", "horizon_image", "horizon_image_az")
+
+    def new_site_from_form(name):
+        """The form as a new site: position, equipment and limits; the description, MPC code, horizon and photo only
+        if they were changed in the form (still those of the site shown: left out, the description becomes the name),
+        so nothing of the shown site carries over to the new one."""
+        import json
+        s = pg.collect()
+        try:
+            old = load_sites()[0].get(pg.state["name"]) or {}
+        except Exception:
+            old = {}
+        same = lambda k: json.dumps(s.get(k), default=list) == json.dumps(old.get(k), default=list)
+        if all(same(k) for k in HZ_KEYS):                         # the shown site's horizon and photo: not taken
+            for k in HZ_KEYS:
+                s.pop(k, None)
+        elif same("horizon_image"):                               # a new horizon, but the old site's photo
+            s.pop("horizon_image", None)
+            s.pop("horizon_image_az", None)
+        if s.get("name") == old.get("name"):
+            s["name"] = name
+        if s.get("mpc_code") and same("mpc_code"):
+            s.pop("mpc_code")
+        return s
+    pg.new_site_from_form = new_site_from_form
+
     def add_site():
-        """The position and settings in the form as a new site (name from 'New site name'), selected and saved."""
+        """The position and settings in the form as a new site (name from 'New site name'), selected and saved;
+        nothing of the site shown before carries over that was not changed in the form (new_site_from_form)."""
         name = (pg.new_name.value or "").strip()
         if not name or name in pg.sites:
             ui.notify("Enter a new, unused site name (field 'New site name' at the top)", type="warning")
             return
-        pg.sites[name] = pg.collect()                                   # keeps the description from the form
+        pg.sites[name] = new_site_from_form(name)
         pg.sel.options = list(pg.sites)
         pg.sel.update()
-        pg.sel.value = name                                          # shows it (show_site) and makes it the run site
+        pg.state["name"] = name                                      # the form is this new site: no save question
+        pg.sel.value = name                                          # makes it the run site
+        pg.show_site(name)
         pg.new_name.value, pg.state["auto_name"] = "", None
         save_sites(pg.sites, pg.state.get("default", pg.default_site))
-        pg.unsaved.text = ""
+        show_unsaved(False)
         ui.notify(f"Site {name} added and saved in sites.py; it is now selected for all runs (top right)",
                   type="positive")
     pg.add_site = add_site
+
+    async def switch_site(new):
+        """The header's site selector changed: with unsaved changes to the site shown, ask first (Save / Discard /
+        Cancel); then show the new site. Nothing of the old form carries over."""
+        old = pg.state["name"]
+        if new == old or new not in pg.sites:
+            return
+        if old in pg.sites and pg.saved_site(old) != pg.effective(pg.collect(), old):
+            with ui.dialog().props("persistent") as dlg, ui.card().classes("max-w-md"):
+                ui.label(f"Unsaved changes to site {old}").classes("font-semibold")
+                ui.label(f"Save them before showing {new}?").classes("text-sm")
+                with ui.row():
+                    ui.button(f"Save {old}", on_click=lambda: dlg.submit("save")).props("color=primary")
+                    ui.button("Discard", on_click=lambda: dlg.submit("discard")).props("outline color=negative")
+                    ui.button("Cancel", on_click=lambda: dlg.submit("cancel")).props("flat")
+            choice = await dlg
+            if choice not in ("save", "discard"):                    # cancel: stay on the old site
+                pg.sel.value = old
+                return
+            if choice == "save":
+                pg.save()
+        pg.show_site(new)
+        save_ui_state(site=new, catalog=pg.cat_sel.value)
+    pg.switch_site = switch_site
 
     def effective(s, name):
         """A site with every optional key filled in with its default, for comparing form and file."""
@@ -590,7 +777,7 @@ def handlers(pg):
         pg.sel.options = list(pg.sites)
         pg.sel.update()
         pg.sel.value = default                                       # shows it (show_site)
-        pg.unsaved.text = ""
+        show_unsaved(False)
         ui.notify(f"Site {name} removed from sites.py{note}", type="positive")
     pg.remove_site = remove_site
 
@@ -600,7 +787,7 @@ def handlers(pg):
             pg.state["default"] = pg.state["name"]
         save_sites(pg.sites, pg.state.get("default", pg.default_site))
         ui.notify(f"sites.py saved (default site: {pg.state.get('default', pg.default_site)})", type="positive")
-        pg.unsaved.text = ""
+        show_unsaved(False)
     pg.save = save
 
 

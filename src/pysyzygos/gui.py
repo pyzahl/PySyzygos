@@ -277,8 +277,7 @@ def index():
 
     gui_site.connect(pg)
 
-    pg.sel.on_value_change(lambda e: (pg.show_site(e.value), save_ui_state(site=e.value, catalog=pg.cat_sel.value))
-                           if e.value in pg.sites else None)
+    pg.sel.on_value_change(lambda e: pg.switch_site(e.value) if e.value in pg.sites else None)   # asks first if unsaved
 
     pg.cat_sel.on_value_change(pg.catalog_limit)
     pg.cat_sel.on_value_change(lambda e: save_ui_state(catalog=e.value, site=pg.state["name"]) if e.value else None)
