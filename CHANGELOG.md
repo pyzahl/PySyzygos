@@ -7,6 +7,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Asteroid groups in the pick**: checkboxes in the Pick tab (and `pick --groups`) to include or exclude Main belt,
+  Jupiter Trojans, Mars-crossers, NEO, TNO and Everything else, by JPL's orbit class. Without the main belt a pick
+  screens ~15,000 instead of ~465,000 asteroids (H < 17): a 7-day pick at G 13.5 took 14 s. Every pick event carries
+  its class, PHA flag and number of known satellites (from JPL); a saved pick names its groups. A semi-major-axis
+  range (a from / to, AU; `--a-min`, `--a-max`) narrows it further, e.g. the Hildas at 3.7-4.2 AU (4,072
+  asteroids, a 7-day pick in 12 s), or excluded (`--a-exclude`); a table of the usual bands in the Pick tab fills
+  the range on a click, and a live count says how many asteroids the settings screen.
 - **The 360° photo's time from its EXIF data**: GPS time (UTC), the camera time with its time zone, or the camera
   time alone (taken as the site's local time); filled into "Sun at" and, with the Sun visible in the photo, the
   photo is aligned by the Sun at once on loading. Kept with the photo, shown again with the site. A GPS position in

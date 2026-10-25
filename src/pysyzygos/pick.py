@@ -27,7 +27,9 @@ from pysyzygos import sbdb                                     # shared per-aste
 
 SBDB_URL = U.URL_JPL_SBDB_QUERY_API
 SBDB_FIELDS = ["spkid", "full_name", "H", "G", "diameter", "diameter_sigma", "extent", "albedo", "a", "e", "i", "om",
-               "w", "ma", "epoch", "condition_code", "neo", "class"]
+               "w", "ma", "epoch", "condition_code", "neo", "class", "pha", "sats"]
+
+from pysyzygos.picks import GROUPS, GROUP_NAMES, group_of, parse_groups   # asteroid groups (light module)
 
 
 # ---------------------------------------------------------------- SBDB
@@ -117,9 +119,11 @@ def build_rows(fields, data, hmax):
             Dp = lambda p: 1329.0 / math.sqrt(p) * 10 ** (-H / 5)
             D, Dmax, est = Dp(0.14), Dp(0.05), True
         G = to_float(d["G"])
+        cls = str(d.get("class") or "").strip()
         rows.append(dict(number=spk - 20000000 if spk >= 20000000 else spk - 2000000, spkid=spk,
                          name=(d["full_name"] or "").strip(), H=H, G=0.15 if math.isnan(G) else G, D_km=D, D_max_km=Dmax,
                          D_est=est, cc=to_float(d["condition_code"], 9.0), neo=d.get("neo") == "Y",
+                         cls=cls, group=group_of(cls), pha=d.get("pha") == "Y", sats=int(to_float(d.get("sats"), 0.0)),
                          **{k: to_float(d[k]) for k in ("a", "e", "i", "om", "w", "ma", "epoch")}))
     return rows
 
@@ -189,6 +193,11 @@ def write_targets(path, best, a):
                 f"{a.aperture:g} cm aperture, {a.frames} frames, MagAdjust {a.mag_adjust:+g}, extinction {a.extinction:g}, "
                 f"min duration {a.min_dur:g} s, min drop {a.min_drop:g}\n")
         f.write(f"# asteroids screened: {getattr(a, 'screened', '') or 'all'}\n")
+        if a.a_min is not None or a.a_max is not None:
+            f.write(f"# semi-major axis: {'excluded ' if a.a_exclude else ''}{'' if a.a_min is None else a.a_min} to "
+                    f"{'' if a.a_max is None else a.a_max} AU\n")
+        if getattr(a, "group_set", None) and a.group_set != set(GROUP_NAMES):
+            f.write(f"# asteroid groups: {', '.join(GROUP_NAMES[g] for g in GROUP_NAMES if g in a.group_set)}\n")
         f.write(f"# order: best event first (sorted by {a.sort}); comment = that event\n\n")
         f.write("targets = [\n")
         for e in best:
@@ -199,7 +208,9 @@ def write_targets(path, best, a):
             f.write(f"    {str(e['number'])!r}: {e['name']!r},\n")
         f.write("}\n")
         meta = dict(site=a.site, start=a.start, days=a.days, picked=f"{now:%Y-%m-%dT%H:%M:%S}", version=__version__, lat=a.lat, lon=a.lon,
-                    reach_km=a.reach, cam_limit=a.cam_limit, hmax=None if a.all else a.hmax, top=a.top, sort=a.sort)
+                    reach_km=a.reach, cam_limit=a.cam_limit, hmax=None if a.all else a.hmax, top=a.top, sort=a.sort,
+                    groups=sorted(getattr(a, "group_set", None) or GROUP_NAMES), a_min=a.a_min, a_max=a.a_max,
+                    a_exclude=bool(a.a_exclude))
         f.write(f"\npick_meta = {meta!r}\n")
 
 
@@ -227,6 +238,12 @@ def main(argv=None):
     ap.add_argument("--days", type=float, default=c("days", 30), help="window length (default: config days)")
     ap.add_argument("--hmax", type=float, default=c("hmax", 17.0), help="asteroids with H below this (default 17)")
     ap.add_argument("--all", action="store_true", help="exhaustive: all numbered asteroids, any H (~900k, slower)")
+    ap.add_argument("--groups", default="all",
+                    help="asteroid groups to screen, comma separated: " + ", ".join(f"{k} ({n})" for k, n in GROUP_NAMES.items())
+                         + "; default all")
+    ap.add_argument("--a-min", type=float, help="only asteroids with a semi-major axis of at least this, AU")
+    ap.add_argument("--a-max", type=float, help="only asteroids with a semi-major axis of at most this, AU")
+    ap.add_argument("--a-exclude", action="store_true", help="screen the asteroids OUTSIDE the --a-min/--a-max range")
     ap.add_argument("--lat", type=float, default=c("lat"))
     ap.add_argument("--lon", type=float, default=c("lon"), help="east-positive degrees")
     ap.add_argument("--ele", type=float, default=c("ele", 0.0), help="site height, m")
@@ -266,6 +283,10 @@ def main(argv=None):
         a.sbdb_cache = os.path.join(c("cache") or tempfile.gettempdir(), "PySyzygos_sbdb_cache.json")
 
     hmax = None if a.all else a.hmax
+    try:
+        a.group_set = parse_groups(a.groups)
+    except ValueError as ex:
+        ap.error(str(ex))
     T = {"start": time.time()}                          # phase timings (printed at the end)
     fields, data, fetched = fetch_sbdb(hmax, a.sbdb_cache)
     rows = build_rows(fields, data, hmax)
@@ -318,6 +339,26 @@ def main(argv=None):
         rows = [r for r in rows if int(r["number"]) in keep]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"
+    if a.a_min is not None or a.a_max is not None:       # a semi-major-axis range (AU)
+        n_before = len(rows)
+        lo, hi = (a.a_min if a.a_min is not None else 0.0), (a.a_max if a.a_max is not None else float("inf"))
+        rows = [r for r in rows if (lo <= r["a"] <= hi) != bool(a.a_exclude)]
+        rng = (f"a {a.a_min:g}-{a.a_max:g} AU" if a.a_min is not None and a.a_max is not None else
+               f"a >= {a.a_min:g} AU" if a.a_min is not None else f"a <= {a.a_max:g} AU")
+        rng = f"not {rng}" if a.a_exclude else rng
+        print(f"{rng}: {len(rows)} of {n_before} asteroids", file=sys.stderr)
+        a.screened = (f"{a.screened} -> " if getattr(a, "screened", "") else "") + f"{len(rows)} of {n_before} with {rng}"
+    if a.group_set != set(GROUP_NAMES):                 # only the chosen asteroid groups (JPL orbit class)
+        n_before = len(rows)
+        count = {}
+        for r in rows:
+            count[r["group"]] = count.get(r["group"], 0) + 1
+        rows = [r for r in rows if r["group"] in a.group_set]
+        print(f"asteroid groups {', '.join(GROUP_NAMES[g] for g in GROUP_NAMES if g in a.group_set)}: {len(rows)} of "
+              f"{n_before} asteroids (" + ", ".join(f"{GROUP_NAMES[g]} {count.get(g, 0)}" for g in GROUP_NAMES) + ")",
+              file=sys.stderr)
+        a.screened = (f"{getattr(a, 'screened', '') or n_before} -> " if getattr(a, "screened", "") else "") + \
+            f"{len(rows)} of {n_before} in groups " + ", ".join(GROUP_NAMES[g] for g in GROUP_NAMES if g in a.group_set)
     T["select"] = time.time()
     N["screened"] = len(rows)
     a.site = c("site") if (a.lat, a.lon) == (c("lat"), c("lon")) else None
@@ -335,10 +376,15 @@ def main(argv=None):
         print_timing(T, a.prescreen, N)
         return 0
     E["utc"] = [spice.et2utc(x, "ISOC", 0) for x in E.et]
+    info = {int(r["number"]): r for r in rows}           # the orbit class and its flags with every event
+    E["class"] = [info.get(int(n), {}).get("cls", "") for n in E.number]
+    E["pha"] = [bool(info.get(int(n), {}).get("pha")) for n in E.number]
+    E["sats"] = [int(info.get(int(n), {}).get("sats") or 0) for n in E.number]
+    E["a_au"] = [round(float(info.get(int(n), {}).get("a") or float("nan")), 4) for n in E.number]
     E = E.sort_values(SORT_KEYS[a.sort], ascending=SORT_ASC[a.sort]).reset_index(drop=True)
     cols = ["number", "name", "H", "utc", "star", "star_mag", "drop", "dur_s", "dur_max_s", "mag_margin",
             "miss_km", "inside", "star_alt", "sun_alt", "m_ast", "D_km", "D_est", "speed_kms", "cc", "star_ra",
-            "star_dec", "et", "star_kind", "star_ruwe"]                # supplement star (gaia_local): at the end
+            "star_dec", "et", "star_kind", "star_ruwe", "class", "pha", "sats", "a_au"]   # newer columns at the end
     for col in ("star_kind", "star_ruwe"):
         if col not in E:
             E[col] = 0 if col == "star_kind" else float("nan")

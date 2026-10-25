@@ -472,7 +472,19 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    larger H is never found by the pick, but the search finds it if you enter its number) and the **Star G limit**
    (from the site's telescope, capped at the catalog; change it for one run), and run the pick: it screens all asteroids (H below 17 by default)
    for actual events at your site and saves the best targets for this site and window. Without a pre-screen this is
-   the slow step (several minutes); a saved pick is reused by every later search of the same site and window. **CSV**
+   the slow step (several minutes); a saved pick is reused by every later search of the same site and window.
+   **Asteroid groups** (JPL's orbit classes; ticked = screened): Main belt (MBA, IMB with the Hungarias, OMB with
+   the Hildas), Jupiter Trojans, Mars-crossers, NEO (Apollo, Amor, Aten, Atira), TNO, Everything else (Centaurs and
+   the rest). Unticking the main belt leaves ~25,000 of ~900,000 numbered asteroids (~15,000 below H 17): the
+   high-value targets in seconds, also with faint stars (Star G limit up to the catalog's, e.g. G 18 for campaign
+   events). Most NEOs are smaller than H 17: raise **H below** for them. **a from / to (AU)** limits the
+   semi-major axis as well (empty: no limit), inside the range or, with **exclude this range**, outside it. The
+   table of typical bands above the boxes (Hungarias 1.78-2.0, inner / middle / outer main belt 2.0-2.5-2.82-3.3,
+   Cybeles 3.3-3.7, Hildas 3.7-4.2, Jupiter Trojans 5.0-5.4 AU) fills the range on a click. A line below shows at
+   once how many asteroids the settings screen ("These settings screen 4,073 of 464,740 asteroids with H < 17";
+   counted in the pick's stored asteroid list, before a pre-screen and the site and star test). The class, PHA flag and satellite count go
+   with every event (pick CSV); the saved pick names its groups. Command line: `pysyzygos pick --groups
+   trojan,tno,neo [--a-min 3.7 --a-max 4.2 [--a-exclude]]`. **CSV**
    downloads the selected pick's events as a table (the Results tab has the same button for the search results, named
    `hits_<site>__<start>_<days>d.csv`).
 

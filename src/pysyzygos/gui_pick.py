@@ -8,9 +8,10 @@ import csv, os
 
 from pysyzygos import exports
 from pysyzygos.home import HOME as ROOT
-from nicegui import run, ui
+from nicegui import background_tasks, run, ui
 from pysyzygos.gui_common import (
-    PRE_FIXED, PYSYZYGOS, SUPPLEMENT, _day_et, prescreen_regions, resizable_box, run_process, stop_process, today_utc)
+    PRE_FIXED, PYSYZYGOS, SUPPLEMENT, _day_et, load_ui_state, prescreen_regions, resizable_box, run_process, save_ui_state,
+    stop_process, today_utc)
 
 
 def panel(pg):
@@ -42,6 +43,45 @@ def panel(pg):
                 "all: every asteroid, for any place and time (slower, no pre-screen needed). "
                 "Or one pre-screen by name (listed if it fits)")
         pg.p_mag_note = ui.label().classes("text-xs text-slate-500")
+        # asteroid groups by JPL's orbit class: ticked = screened (picks.GROUPS); remembered (gui_state pick_groups);
+        # a semi-major-axis range, inside or (exclude) outside; the bands table fills the range
+        from pysyzygos.picks import GROUP_NAMES
+        st = load_ui_state()
+        saved = set(st.get("pick_groups") or GROUP_NAMES)
+        with ui.column().classes("w-full gap-1 border rounded p-3"):
+            ui.label("Which asteroids to screen").classes("font-semibold text-sm")
+            ui.label("By JPL's orbit class (ticked = screened): Main belt = MBA, IMB (with the Hungarias) and OMB (with "
+                     "the Hildas); NEO = Apollo, Amor, Aten, Atira; Everything else = Centaurs and the rest. Unticking "
+                     "the main belt leaves ~25,000 of ~900,000 numbered asteroids (~15,000 below H 17): the high-value "
+                     "targets in seconds, also with faint stars (raise the Star G limit up to the catalog's). Most NEOs "
+                     "are smaller than H 17: raise 'H below' for them. The semi-major axis a narrows the choice "
+                     "further, inside the range or (exclude) outside it; empty fields: no limit. Click a band below to "
+                     "use its range.").classes("text-xs text-slate-600")
+            au = lambda x: f"{x:.2f}".rstrip("0").rstrip(".") + (".0" if x == int(x) else "")    # 2.0, 1.78
+            bands = [("Hungarias", 1.78, 2.0), ("Inner main belt", 2.0, 2.5), ("Middle main belt", 2.5, 2.82),
+                     ("Outer main belt", 2.82, 3.3), ("Cybeles", 3.3, 3.7), ("Hildas", 3.7, 4.2),
+                     ("Jupiter Trojans", 5.0, 5.4)]
+            pg.p_bands = ui.table(columns=[dict(name="band", label="Band", field="band", align="left"),
+                                           dict(name="a", label="a (AU)", field="a", align="left")],
+                                  rows=[dict(band=b, a=f"{au(lo)} - {au(hi)}", lo=lo, hi=hi) for b, lo, hi in bands],
+                                  row_key="band").props("dense flat").classes("text-xs w-96")
+            pg.p_bands.on("rowClick", lambda e: pg.band_pick(e.args[1]))
+            ui.label("A guide: families are better defined with e and i too.").classes("text-xs text-slate-500")
+            with ui.row().classes("items-center gap-3"):
+                ui.label("Asteroid groups:").classes("text-sm text-slate-600")
+                pg.p_groups = {k: ui.checkbox(n, value=k in saved, on_change=lambda e: pg.groups_changed()).props("dense")
+                               for k, n in GROUP_NAMES.items()}
+            with ui.row().classes("items-center gap-3"):
+                ui.label("Semi-major axis:").classes("text-sm text-slate-600")
+                pg.p_aexcl = ui.checkbox("exclude this range", value=bool(st.get("pick_a_exclude")),
+                                         on_change=lambda e: pg.groups_changed()).props("dense")
+                pg.p_amin = ui.number("a from (AU)", value=st.get("pick_a_min"), step=0.1, min=0).classes("w-28").props(
+                    "dense clearable")
+                pg.p_amax = ui.number("a to (AU)", value=st.get("pick_a_max"), step=0.1, min=0).classes("w-28").props(
+                    "dense clearable")
+                for el in (pg.p_amin, pg.p_amax):
+                    el.on_value_change(lambda e: pg.groups_changed())
+            pg.p_count = ui.label("").classes("text-sm font-semibold text-slate-700")
         with ui.row().classes("items-center"):
             ui.button("Run pick", on_click=lambda: pg.run_pick()).props("color=primary")
             ui.button("Stop", on_click=lambda: stop_process(pg.log)).props("outline color=negative")
@@ -280,6 +320,18 @@ def handlers(pg):
             args += ["--cam-limit", f"{float(pg.p_mag.value):g}"]
         if pg.p_pre.value != "all":
             args += ["--prescreen", pg.p_pre.value]                # "auto" or a file
+        groups = [k for k, cb in pg.p_groups.items() if cb.value]
+        if not groups:
+            ui.notify("Tick at least one asteroid group", type="warning")
+            return
+        if len(groups) < len(pg.p_groups):
+            args += ["--groups", ",".join(groups)]
+        if pg.p_amin.value not in (None, ""):
+            args += ["--a-min", f"{float(pg.p_amin.value):g}"]
+        if pg.p_amax.value not in (None, ""):
+            args += ["--a-max", f"{float(pg.p_amax.value):g}"]
+        if pg.p_aexcl.value and (pg.p_amin.value not in (None, "") or pg.p_amax.value not in (None, "")):
+            args += ["--a-exclude"]
 
         async def done(rc):
             if rc == 0:
@@ -288,6 +340,47 @@ def handlers(pg):
                 ui.notify(f"{n} events; saved for site {pg.state['name']}", type="positive")
         await run_process(args, pg.log, env_site=pg.state["name"], on_done=done, env_catalog=pg.cat_sel.value)
     pg.run_pick = run_pick
+
+    async def count_update(*_):
+        """'These settings screen N of M asteroids' from the pick's cached asteroid list (picks.count), read once in
+        the background; before a pre-screen and the site and star test."""
+        from pysyzygos import picks as PK
+        cache = os.path.join(getattr(pg.config, "cache_path", "") or "", "PySyzygos_sbdb_cache.json")
+        if not os.path.isfile(cache):
+            pg.p_count.text = "Asteroid count: after the first pick (it downloads JPL's asteroid list)"
+            return
+        if pg.p_count.text == "" or "counting" in pg.p_count.text:
+            pg.p_count.text = "counting ..."
+        idx = await run.io_bound(PK.count_index, cache)
+        if idx is None:
+            return
+        f = lambda v: None if v in (None, "") else float(v)
+        hmax = None if pg.p_all.value else float(pg.p_hmax.value or 17)
+        if hmax is not None and idx["hmax"] is not None and hmax > idx["hmax"] or hmax is None and idx["hmax"] is not None:
+            pg.p_count.text = (f"Asteroid count: the stored list holds H < {idx['hmax']:g} only; the next pick downloads "
+                               f"the longer one")
+            return
+        groups = [k for k, cb in pg.p_groups.items() if cb.value]
+        n, n_h = PK.count(idx, hmax, groups, f(pg.p_amin.value), f(pg.p_amax.value), bool(pg.p_aexcl.value))
+        pg.p_count.text = (f"These settings screen {n:,} of {n_h:,} asteroids"
+                           + (f" with H < {hmax:g}" if hmax is not None else " (all numbered)")
+                           + " (before a pre-screen and the site and star test)")
+    pg.count_update = count_update
+
+    def groups_changed():
+        background_tasks.create(count_update())
+        save_ui_state(pick_groups=[k for k, cb in pg.p_groups.items() if cb.value],
+                      pick_a_min=pg.p_amin.value if pg.p_amin.value not in ("",) else None,
+                      pick_a_max=pg.p_amax.value if pg.p_amax.value not in ("",) else None,
+                      pick_a_exclude=bool(pg.p_aexcl.value))
+    pg.groups_changed = groups_changed
+
+    def band_pick(row):
+        """A band of the table: its a range into 'a from / to' (inside it)."""
+        pg.p_amin.value, pg.p_amax.value = row["lo"], row["hi"]
+        pg.p_aexcl.value = False
+        ui.notify(f"a {row['lo']:g} - {row['hi']:g} AU ({row['band']}); clear the fields for no limit", type="info")
+    pg.band_pick = band_pick
 
     async def run_prescreen():
         if not pg.catalog_ok():
@@ -324,3 +417,6 @@ def connect(pg):
     for el in (pg.p_start, pg.p_days, pg.p_mag, pg.p_hmax, pg.p_all, pg.p_pre):
         el.on_value_change(pg.prescreen_options)
     pg.prescreen_options()
+    for el in (pg.p_hmax, pg.p_all):                                    # the asteroid count follows H and 'all' too
+        el.on_value_change(lambda e: background_tasks.create(pg.count_update()))
+    background_tasks.create(pg.count_update())

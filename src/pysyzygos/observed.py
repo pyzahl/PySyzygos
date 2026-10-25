@@ -336,7 +336,10 @@ def details(rec, contacts=()):
         ("Added / last edited", f"{_v(r.get('added'))} / {_v(r.get('last_edited'))}")]))
     ra, de = r.get("star_ra"), r.get("star_dec")
     sec.append(("Star", [
-        ("Gaia id", f"{_v(r.get('star'))} (Gaia version {_v(r.get('star_gaia_version'))})"),
+        (("Gaia id", f"{_v(r.get('star'))} (Gaia version {_v(r.get('star_gaia_version'))})")
+         if r.get("star_gaia_version") not in (0, 9, "0", "9") else       # too bright for Gaia: Hipparcos 2 / UBSC
+         ("Star", f"HIP {_v(r.get('star'))} ({'Hipparcos 2' if str(r.get('star_gaia_version')) == '0' else 'UBSC'}"
+                  f" position: too bright for Gaia)")),
         ("Catalog name", f("star_catalog")),
         ("RA, Dec (J2000, at the event)", f"{_sexa(ra)} {_sexa(de, False)}  ({ra:.8f}\u00b0, {de:.8f}\u00b0)"
          if ra is not None and de is not None else "\u2014"),

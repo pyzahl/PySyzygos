@@ -28,7 +28,7 @@ F = P.SBDB_FIELDS
 def row(**kw):
     d = dict(spkid=20000001, full_name=" 1 Test", H="10", G=None, diameter=None, diameter_sigma=None, extent=None,
              albedo=None, a="2.5", e="0.1", i="5", om="10", w="20", ma="30", epoch="2461200.5", condition_code="0",
-             neo="N", **{"class": "MBA"}); d.update(kw); return [d[f] for f in F]
+             neo="N", pha="N", sats=0, **{"class": "MBA"}); d.update(kw); return [d[f] for f in F]
 data = [row(), row(spkid=20000002, diameter="100", diameter_sigma="2"), row(spkid=20000003, diameter="50"),
         row(spkid=20000004, e="1.2"), row(spkid=20000005, H=None), row(spkid=20000006, H="18.0")]
 rows = P.build_rows(F, data, 17.0)

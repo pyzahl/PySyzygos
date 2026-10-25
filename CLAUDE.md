@@ -65,6 +65,17 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `targets` override sets `"list"`). Engine `pysyzygos/screen.py` (site solve, OWC observability formula), orbits `pysyzygos/orbits.py` (SBDB full-precision
   elements + planets, RK4, ~0.01" vs Horizons), stars `BrightIndex` (G <= index_gmax(cam_limit) = max(15, ceil(limit)), cells sorted by G; a missing one is
   built by `run_screen` in the parent before the workers start, low-memory via a memmap). Worker processes.
+- Asteroid groups (2026-10-25, user + a colleague's request for high-value targets): `picks.GROUPS` / GROUP_NAMES
+  (main MBA/IMB/OMB, trojan TJN, marscross MCA, neo APO/AMO/ATE/IEO, tno TNO, other = any other class), `group_of`,
+  `parse_groups` (in the light picks.py: describe() names them; pick.py imports them). SBDB_FIELDS + pha, sats
+  (the cache refetches when fields are missing). build_rows rows: cls, group, pha, sats; pick `--groups` filters
+  after the pre-screen; pick CSV columns class, pha, sats (end); targets.py header "# asteroid groups:", pick_meta
+  groups. GUI Pick checkboxes `pg.p_groups` (gui_state pick_groups); a range `--a-min/--a-max` (`pg.p_amin/p_amax`, gui_state
+  pick_a_min/max/exclude, `--a-exclude`; CSV a_au; header/meta/describe); bands table (rowClick -> range); live
+  count `picks.count_index(cache json)` (numpy H/a/group of the cached SBDB list, once per file mtime, ~2 s) +
+  `picks.count(...)` -> `pg.p_count` (count_update on every filter change). Counts (numbered): main 870,924, trojan 10,633,
+  marscross 9,196, neo 3,874, tno 1,049, other 234; unnumbered non-main ~74,000 (not usable yet: target ids are
+  numbers). Plan for later phases: memory file pick-groups-plan. tests/test_pick_groups.py.
 - `pysyzygos/prescreen.py` (0.16.0; FORMAT 3 since 2026-10-10: time grid +-PAD_S 12 h, candidates kept if
   tc +- half touches the window, `numbers` +- HALF_MAX_S; region test via shadowtrack.ground_track; FORMAT 1 builds
   missed ~21 % of a 500 km region's asteroids through 41-sample gaps and axis-only sky tests): pre-screens = per region/window the asteroids with possible events (build:
