@@ -126,7 +126,10 @@ comparison; it shares the per-star solve and checks (`handle_star`).
   (v/c) R sin(alt), ~0.4-0.9 km, off at the surface (in the Earth's frame: the shadow runs along the star's aberrated
   direction). The path lines (`paths.shadow_path`) apply the same per ground point. Elsewhere (scans, pick,
   pre-screens) the asteroid is geocentric, `spkpos(target, et, 'J2000', 'CN', 'EARTH')` (the Earth's centre, NAIF 399, named: asteroid numbers are SPICE names in a search;
-  3 would be the Earth-Moon barycentre); their margins are many km.
+  3 would be the Earth-Moon barycentre); their margins are many km. The same holds for the ground point of a search
+  anywhere on Earth (`search.earth_point`: the axis at the geocentric closest approach, taken down to the surface):
+  it lies (v/c) R sin(alt), typically ~0.3 km, beside the center line; the event is then solved exactly at that
+  point with its own light time, so only the point's choice is approximate.
 - **Offsets:** `(dx, dy)` = the first two components of `M @ (r_asteroid - r_observer)` (that `spkcpo` vector), km east and
   north. Miss distance = `hypot(dx, dy)`.
 

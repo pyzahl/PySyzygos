@@ -1374,6 +1374,13 @@ described at its center-line point at that moment (altitudes, Sun, Moon, map pin
 Earth**. Checked on 15 observed events of 2024-2026: each found on the observed star, the times as the archive's
 conjunction to a few seconds (the observations' correction of the orbit).
 
+The map pin is not exactly on the center line: it typically lies ~0.3 km beside it (inside the shadow). The point
+comes from the geocentric step, with the light time from the Earth's center; the center line uses each ground
+point's own light time, which is up to 21 ms shorter where the shadow falls, and the asteroid moves ~0.3-0.5 km in
+that time (see ABOUT.md, "Asteroid as the observer sees it"). The event at the pin (time, duration, distance from the
+center line, altitudes) is solved exactly for that point; only the choice of the point is approximate. Use the
+center line of the map for planning.
+
 ## Report: event list, maps and previews
 
 The GUI builds and shows the report after every search; this section is about the page itself and the command.

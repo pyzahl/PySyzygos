@@ -496,7 +496,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   obs_check.* (results were lost once when the dataset was re-ticked). Phaethon video chords: mid-times within ~0.01-0.04 s.
 - Search anywhere on Earth (2026-10-23): config `search_scope = "earth"` (GUI Search toggle "Anywhere on Earth":
   targets from the list, results_list "earth", hits earth_log.csv, max_shadow_dist 0). search.py `EARTH`,
-  `earth_point` (geocentric closest approach over the bracket, shadow touches the WGS84 outline: ellipse A x
+  `earth_point` (geocentric closest approach over the bracket, geocentric light time: the pin is ~0.3 km beside the center line, documented in README/ABOUT (user agreed 2026-10-26, no fix wanted yet); shadow touches the WGS84 outline: ellipse A x
   sqrt(A^2 sin^2 d + C^2 cos^2 d) + r; ground point on the axis at that time, or just inside the outline), then
   star_test at that ground point; no window_is_observable gate, observable() not rejecting, p_site NaN, no
   horizon; record scope, ground_lat/lon, geo_utc, geo_miss_km, geo_x/y_km (J2000 axes), central; `site_lle(record)`
