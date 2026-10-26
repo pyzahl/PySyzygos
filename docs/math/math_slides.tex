@@ -149,10 +149,10 @@
     \end{column}
     \begin{column}{0.42\textwidth}
       \centering
-      \begin{tikzpicture}[font=\scriptsize, scale=0.95]
+      \begin{tikzpicture}[font=\scriptsize, scale=0.8]
         \fill[syzblue!8] (0,0) circle (1.8);
         \draw[syzblue!50] (0,0) circle (1.8);
-        \node[syzblue!70] at (0,-1.2) {Earth};
+        \node[syzblue!70] at (-0.9,-0.95) {Earth};
         % shadow track (quadratic), its band of r + reach
         \fill[syzaccent!20] plot[smooth] coordinates {(-2.3,0.35) (-1,0.93) (0.3,1.28) (1.6,1.38) (2.4,1.28)}
              -- plot[smooth] coordinates {(2.4,0.68) (1.6,0.78) (0.3,0.68) (-1,0.33) (-2.3,-0.25)} -- cycle;
@@ -162,7 +162,10 @@
         \fill[black] (-0.6,0.62) circle (1.6pt) node[below=2pt] {site A: test};
         \fill[black!60] (0.7,-0.5) circle (1.6pt) node[below=2pt, black!60] {site B: no};
         \node[anchor=north] at (0,-1.95) {fundamental plane through the Earth's center};
-      \end{tikzpicture}
+      \end{tikzpicture}\\[0.8ex]
+      \raggedright
+      {\scriptsize\textcolor{syzaccent}{\textit{Pre-filter (optional):}} asteroid groups (JPL orbit class) and a
+      range of $a$. No main belt: 464{,}740 $\to$ 14{,}714 asteroids, a 7-day pick in \SI{14}{s}.\par}
     \end{column}
   \end{columns}
 \end{frame}
