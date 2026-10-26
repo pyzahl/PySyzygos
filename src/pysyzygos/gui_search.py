@@ -106,8 +106,10 @@ def handlers(pg):
         except ValueError:
             p = None
         if p:
-            pg.targets_warn_s.text = f"The search uses the {pg.picks.describe(p)}."
-            pg.targets_warn_s.classes(replace="text-sm w-full text-slate-600")
+            pg.targets_warn_s.text = f"The search uses the {pg.picks.describe(p)}." + (
+                f" {pg.picks.warnings_text(p)}" if p.get("warnings") else "")
+            pg.targets_warn_s.classes(replace="text-sm w-full " + ("text-orange-600 font-semibold" if p.get("warnings")
+                                                                   else "text-slate-600"))
         else:
             pg.targets_warn_s.text = (f"No saved pick of site {pg.state['name']} covers this window: the search uses "
                                       f"targets.py or the config list. Run a pick for it (Pick tab) for better targets.")

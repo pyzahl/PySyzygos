@@ -309,6 +309,24 @@ def _fresh_spk(target_id, epochs, cache_dir=config.cache_path):
 
 
 HORIZONS = {}            # "up": whether JPL Horizons takes connections in this run (horizons_up; False after a failure)
+WARNINGS = {}            # problems of this run for the report header: key -> text (run_summary "warnings")
+OLD_ORBITS = {}          # target -> date of an older cached orbit file used because Horizons failed
+NOTED = {}               # kind -> [targets]: per-target fallbacks and skips (run_note, NOTE_TEXT)
+NOTE_TEXT = {"size_stale": "with size data from an older cache (JPL SBDB did not answer)",
+             "size_offline": "with size data from the offline copy (JPL SBDB did not answer)",
+             "skip_size": "skipped without size data",
+             "skip_body": "skipped without an ephemeris"}
+
+
+def run_note(kind, item):
+    """Record an automatic fallback or skip of this run (NOTE_TEXT kinds), so it reaches the run summary and the
+    report header (orange), not only the log, where it is easily overlooked."""
+    NOTED.setdefault(kind, [])
+    if str(item) not in NOTED[kind]:
+        NOTED[kind].append(str(item))
+# Answer texts of a broken Horizons server (not of one object): seen 2026-10-26 for every request, while the
+# connection worked: "wldini(): missing required file LTKERNL ERROR in VLRDC: Var not declared: IP_ADDR"
+HORIZONS_FAULTS = ("missing required file", "Var not declared", "wldini()", "ERROR in ")
 
 
 def horizons_up(connect_s=10):
@@ -324,6 +342,7 @@ def horizons_up(connect_s=10):
             HORIZONS["up"] = True
         except OSError as e:
             HORIZONS["up"] = False
+            WARNINGS["horizons"] = f"JPL Horizons did not answer ({type(e).__name__})"
             print(f"WARNING: JPL Horizons ({host}) does not answer ({type(e).__name__}: {str(e)[:60]}): orbits from "
                   f"cached files that cover the window, default path uncertainties", flush=True)
     return HORIZONS["up"]
@@ -331,8 +350,9 @@ def horizons_up(connect_s=10):
 
 def _horizons_spk(target_id, epochs, timeout=60):
     """The asteroid's SPK from JPL Horizons as bytes (network only, no SPICE: safe in threads). Raises
-    requests.RequestException (network) or RuntimeError (no such object, no SPK). A connection that fails marks
-    Horizons as down for the rest of the run (horizons_up)."""
+    requests.RequestException (network) or RuntimeError (no such object, no SPK). A connection that fails, or an
+    answer that is a server fault (HORIZONS_FAULTS, raised as requests.ConnectionError), marks Horizons as down for
+    the rest of the run (horizons_up), so fetch_target_orbit takes cached files."""
     for k in range(3):                                        # Horizons answers 503 to too many requests at once
         try:
             resp = requests.get(U.URL_JPL_HORIZONS_API,
@@ -340,8 +360,9 @@ def _horizons_spk(target_id, epochs, timeout=60):
                                         'MAKE_EPHEM': 'YES', 'START_TIME': epochs['start'],
                                         'STOP_TIME': epochs['stop'], 'OBJ_DATA': 'NO'},
                                 timeout=(10, timeout))         # connect within 10 s, the answer within timeout
-        except requests.ConnectionError:                      # refused or connect timeout: no more requests this run
+        except requests.ConnectionError as e:                 # refused or connect timeout: no more requests this run
             HORIZONS["up"] = False
+            WARNINGS["horizons"] = f"JPL Horizons did not answer ({type(e).__name__})"
             raise
         if resp.status_code != 503 or k == 2:
             break
@@ -352,6 +373,13 @@ def _horizons_spk(target_id, epochs, timeout=60):
         text = " ".join(str(data.get('result', data)).split())
         if "out of bounds" in text or "No matches found" in text:
             raise RuntimeError(f"no such object in Horizons: {text[:160]}")
+        if any(s in text for s in HORIZONS_FAULTS):            # Horizons itself is broken: down for the run
+            if HORIZONS.get("up", True):
+                print(f"WARNING: JPL Horizons answers with a server error ({text[:120]}): orbits from cached files "
+                      f"that cover the window, default path uncertainties", flush=True)
+            HORIZONS["up"] = False
+            WARNINGS["horizons"] = f"JPL Horizons answered with a server error ({text[:40].strip()} ...)"
+            raise requests.ConnectionError(f"JPL Horizons server error: {text[:120]}")
         raise RuntimeError(f"Horizons gave no SPK: {text[:200]}")
     return base64.b64decode(data['spk'])
 
@@ -411,6 +439,7 @@ def fetch_target_orbit(target_id, epochs, cache_dir=config.cache_path):
             print(f"WARNING: JPL Horizons not reachable ({str(err)[:60]}): orbit of {target_id} from "
                   f"{os.path.basename(old)} (downloaded {time.strftime('%Y-%m-%d', time.gmtime(os.path.getmtime(old)))})")
             fn = Path(old)
+            OLD_ORBITS[target_id] = time.strftime('%Y-%m-%d', time.gmtime(os.path.getmtime(old)))
     if blob is not None:                                       # downloaded now
         _save_spk(fn, blob)
     if target_id not in _loaded:
@@ -440,11 +469,13 @@ def sbdb_phys(target_id, timeout=30):
     except (requests.RequestException, ValueError) as e:
         print(f"SBDB lookup failed for {n}: {e}")
         if hit:
+            run_note("size_stale", n)
             return hit["phys"]                                    # stale data beats none
         from pysyzygos import offline                             # without network: the copies kept for offline use
         old = offline.phys_fallback(n)
         if old:
             print(f"  size data of {n} from the offline copy")
+            run_note("size_offline", n)
             return old["phys"]
         return None
     sbdb_cache.put({n: entry}, config.cache_path)
@@ -886,6 +917,7 @@ def finish_pending():
     t0 = time.time()
     if not horizons_up():                                    # outage: the default uncertainty for all, no waiting
         print(f"path uncertainties: JPL Horizons does not answer: the default for {len(items)} hit(s)", flush=True)
+        WARNINGS["path_error"] = f"default path uncertainty for {len(items)} hit(s) (none from JPL Horizons)"
         STEPS.add("hit: path uncertainty (JPL Horizons)", time.time() - t0, len(items), "hits", group=P2)
         return sum(bool(fin(None)) for (_, _, fin) in items)
     with ThreadPoolExecutor(max_workers=min(PATH_ERROR_WORKERS, len(items))) as ex:
@@ -895,6 +927,9 @@ def finish_pending():
         time.sleep(1.0)
         perrs[k] = path_error(items[k][0], items[k][1])
     dt = time.time() - t0
+    if any(p is None for p in perrs):
+        WARNINGS["path_error"] = (f"default path uncertainty for {sum(p is None for p in perrs)} of {len(perrs)} "
+                                  f"hit(s) (none from JPL Horizons)")
     STEPS.add("hit: path uncertainty (JPL Horizons)", dt, len(items), "hits", group=P2)
     print(f"path uncertainties: {len(items)} from JPL Horizons in {dt:.1f} s ({PATH_ERROR_WORKERS} at a time"
           + (f"; {len(again)} asked again, {sum(perrs[k] is None for k in again)} without" if again else "") + ")")
@@ -1408,6 +1443,29 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
     PENDING.append((target_id, res['best_utc'], finish))
     return True
 
+def run_warnings():
+    """Problems of this run, short texts for the run summary and the report header (orange): Horizons down or
+    broken, orbits from older cached files, skipped targets, stale size data, default path uncertainties, online
+    checks not done. Every automatic fallback or skip belongs here (run_note / WARNINGS), not only in the log."""
+    out = [WARNINGS["horizons"]] if "horizons" in WARNINGS else []
+    if OLD_ORBITS:
+        days = sorted(OLD_ORBITS.values())
+        out.append(f"{len(OLD_ORBITS)} orbit(s) from older cached files (downloaded "
+                   + (days[0] if days[0] == days[-1] else f"{days[0]} to {days[-1]}") + ")")
+    if SKIPPED:
+        out.append(f"{len(SKIPPED)} asteroid(s) skipped without an orbit: " + ", ".join(SKIPPED[:10])
+                   + (", ..." if len(SKIPPED) > 10 else ""))
+    pmc = sys.modules.get("pysyzygos.pmcheck")              # imported only when a 2-parameter star came up
+    if getattr(pmc, "FAILED", None):
+        out.append(f"proper-motion check not done for {len(pmc.FAILED)} star(s) (VizieR did not answer)")
+    for kind, items in NOTED.items():
+        if items:
+            out.append(f"{len(items)} target(s) {NOTE_TEXT.get(kind, kind)}: " + ", ".join(items[:10])
+                       + (", ..." if len(items) > 10 else ""))
+    out += [v for k, v in WARNINGS.items() if k != "horizons"]
+    return out
+
+
 def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     """Print the run statistics and the site/limits, and append them as one JSON line to <hits log>.runs.jsonl
     (read by report.py for the page header)."""
@@ -1445,6 +1503,10 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     if SKIPPED:
         s["skipped_targets"] = list(SKIPPED)
         print(f"  skipped (no orbit from JPL Horizons, e.g. a mistyped number): {', '.join(SKIPPED)}")
+    warn = run_warnings()
+    if warn:
+        s["warnings"] = warn
+        print("  WARNINGS: " + "; ".join(warn))
     t_db = time.time()
     db.finish_run(DB, RUN_ID, s)                         # results database; then the exports of the current series
     n = db.export(DB, config.hits_output_cvs_file, lst=getattr(config, "results_list", "main"))
@@ -1491,6 +1553,8 @@ def online_double_check(records):
     print(f"* Gaia online check of {len(records)} event star(s) (close and double stars; {why}) ...")
     archive = doubles.fetch_online([(r["star_ra"], r["star_dec"]) for r in records], rad)
     if archive is None:
+        WARNINGS["online_check"] = (f"Gaia online check of {len(records)} event star(s) not done (archive offline or "
+                                    f"slow): close/double-star notes from the local catalog only")
         return
     upd = doubles.online_fields(records, rad, archive)
     n = db.update_events(DB, records, upd, lst=getattr(config, "results_list", "main"))
@@ -1546,6 +1610,9 @@ def resolve_targets():
     config.targets = p["targets"]
     config.target_names = p["names"]
     print(f"* Targets: {picks.describe(p)}")
+    if p.get("warnings"):                                       # the pick's own fallbacks carry over to this run
+        WARNINGS["pick"] = "targets from a pick with warnings: " + "; ".join(p["warnings"])
+        print(f"  WARNING: {WARNINGS['pick']}")
     return picks.describe(p)
 
 
@@ -1574,12 +1641,14 @@ if __name__ == "__main__":
         for t in config.targets:
             if bodies.is_body(t):
                 print(f"{t}: planets and moons need the corridor search mode, skipping")
+                run_note("skip_body", t)
                 continue
             if not load_orbit(t, epochs):                           # once per target; unknown numbers: skipped
                 continue
             size = get_asteroid_size(t)
             if size is None:
                 print(f"No size data for {t}, skipping")
+                run_note("skip_size", t)
                 continue
             print(f"Estimated/known target {t} size: {size['r_max_km']:.1f} km (H={size.get('H')}, G={size.get('G')})")
             for ctp in periods:
@@ -1628,6 +1697,7 @@ if __name__ == "__main__":
                 bodies.ensure_kernel(spice, t, et0, et1, config.cache_path)
             except Exception as ex:
                 print(f"{t}: no ephemeris ({str(ex)[:160]}), skipping")
+                run_note("skip_body", t)
                 continue
             size = bodies.size(spice, t)
             print(f"Major body {t}: radius {size['r_km']:.0f} km, stars G <= {mag_lim:g}")
@@ -1637,6 +1707,7 @@ if __name__ == "__main__":
             size = get_asteroid_size(t)
             if size is None:
                 print(f"No size data for {t}, skipping")
+                run_note("skip_size", t)
                 continue
             print(f"Estimated/known target {t} size: {size['r_max_km']:.1f} km (H={size.get('H')}, G={size.get('G')})")
         plans[t] = (size, corridor.plan_corridor(t, et0, et1, size, mag_lim, config.max_shadow_dist,

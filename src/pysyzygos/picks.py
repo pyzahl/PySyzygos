@@ -127,7 +127,7 @@ def _read(py):
                 picked=meta.get("picked") or "", lat=meta.get("lat"), lon=meta.get("lon"), targets=[str(t) for t in mod.get("targets", [])],
                 names=mod.get("target_names", {}), py=py, csv=os.path.splitext(py)[0] + ".csv",
                 groups=meta.get("groups"), a_min=meta.get("a_min"), a_max=meta.get("a_max"),
-                a_exclude=bool(meta.get("a_exclude")))
+                a_exclude=bool(meta.get("a_exclude")), warnings=list(meta.get("warnings") or []))
 
 
 def list_for(site=None, folder=DIR):
@@ -160,6 +160,11 @@ def best_for(site, start, days, folder=DIR, lat=None, lon=None):
     s1 = (date.fromisoformat(s0) + timedelta(days=float(days))).isoformat()
     cover = [p for p in list_for(site, folder) if p["start"] <= s0 and end_of(p) >= s1 and not moved(p, lat, lon)]
     return max(cover, key=lambda p: (p["picked"], p["start"])) if cover else None
+
+
+def warnings_text(p):
+    """The saved pick's automatic fallbacks (pick.WARNINGS, e.g. an older asteroid list) as one line, '' if none."""
+    return "Warnings: " + "; ".join(p["warnings"]) if p.get("warnings") else ""
 
 
 def describe(p):

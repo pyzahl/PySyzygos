@@ -67,6 +67,9 @@ def _sep_arcsec(ra1, de1, ra2, de2):
     return 3600.0 * math.hypot(((ra1 - ra2 + 180) % 360 - 180) * c, de1 - de2)
 
 
+FAILED = []      # (ra, dec) of stars whose VizieR query failed in this process (search.run_warnings)
+
+
 def estimates(ra, dec, g, used=(0.0, 0.0), years=10.0, ra_err=None, dec_err=None, fetch=None):
     """The proper-motion estimates of the star at (ra, dec) (Gaia DR3 2016.0, deg), magnitude G: list of dicts
     label, pmra, pmdec (mas/yr, pmRA*cosDec), err (larger axis, mas/yr; None if not given), east, north (mas: its
@@ -77,6 +80,7 @@ def estimates(ra, dec, g, used=(0.0, 0.0), years=10.0, ra_err=None, dec_err=None
         u5 = _query(UCAC5, UCAC5_COLS, ra, dec, fetch)
         u4 = _query(UCAC4, UCAC4_COLS, ra, dec, fetch)
     except Exception:
+        FAILED.append((ra, dec))                      # the search's run warnings count these
         return []
     best = None
     for r in u5:                                      # UCAC5: its Gaia DR1 position (2015.0) next to DR3's

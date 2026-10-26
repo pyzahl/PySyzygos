@@ -44,7 +44,7 @@ ns.update(star_test=star_test,
           besselian_offsets=lambda et, sd, geo, t: (1.0, 2.0), get_asteroid_name=lambda t: "Test", horizons_up=lambda: True,
           path_sigma3_km=lambda t, utc: None, path_error=lambda t, utc: None)
 exec(funcs, ns)
-ns.update(DB=_con, RUN_ID=pysyzygos_db.start_run(_con, "corridor")[0])   # after the excerpt (it resets them)
+ns.update(WARNINGS={}, DB=_con, RUN_ID=pysyzygos_db.start_run(_con, "corridor")[0])   # after the excerpt (it resets them)
 # propagation stand-in (astropy is not installed in this sandbox): same output columns as propagate_exact
 def fake_prop(df, utc, pm_bias=True, rv=True):
     out = df.copy(); out["ra_20261003"], out["dec_20261003"] = out["ra"], out["dec"]; calls['propagate'] += 1; return out

@@ -7,6 +7,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Warnings kept with the results, in orange**: every automatic fallback or skip of a search is now listed in a
+  "Warnings" line of the results page header (below "Run") and in the run summary, not only in the log, where it was
+  easily overlooked. It covers: JPL Horizons down or answering with a server error; orbits from older cached files
+  (with their dates); asteroids skipped without an orbit or size data; planets/moons skipped; size data from an older
+  cache or the offline copy; default path uncertainties; the Gaia online double-star check or the VizieR
+  proper-motion check not done. A pick that had to use an older asteroid list (JPL SBDB not answering) saves this
+  with the pick: shown in orange in the Pick tab and the Search tab, and carried into the warnings of a search that
+  uses that pick.
 - **Asteroid groups in the pick**: checkboxes in the Pick tab (and `pick --groups`) to include or exclude Main belt,
   Jupiter Trojans, Mars-crossers, NEO, TNO and Everything else, by JPL's orbit class. Without the main belt a pick
   screens ~15,000 instead of ~465,000 asteroids (H < 17): a 7-day pick at G 13.5 took 14 s. Every pick event carries
@@ -56,6 +64,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   newest release's link. `pysyzygos update [--check]`.
 
 ### Fixed
+- **JPL Horizons server errors**: when Horizons answers with an internal error instead of an orbit file (2026-10-26:
+  "wldini(): missing required file LTKERNL ... Var not declared: IP_ADDR" for every request), the search now treats
+  Horizons as down for the run: one warning, no further requests, orbits from cached files that cover the window (any
+  age, dated in the log). Before, every target was asked for again and skipped, also when an older orbit file existed.
 - **Site tab: no more mixed-up sites.** Switching to another site with unsaved changes asks first (save /
   discard / cancel; before, the changes were dropped without a word); the save button turns amber ("Save changes")
   while there are any. **Add site** no longer copies the shown site's description, horizon and photo (only what was

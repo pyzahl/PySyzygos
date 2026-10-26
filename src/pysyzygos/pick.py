@@ -39,6 +39,9 @@ def hms(seconds):
     s = int(max(seconds, 0))
     return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}"
 
+WARNINGS = []    # automatic fallbacks of this pick (an older asteroid list): saved in pick_meta, shown in the GUI
+
+
 def fetch_sbdb(hmax, cache, max_age_s=None):
     """Bulk SBDB download of numbered asteroids with H < hmax (hmax None: all), full-precision elements. Cached (atomic
     write); reused while it covers hmax, has all SBDB_FIELDS in full precision and is younger than max_age_s (config
@@ -77,6 +80,8 @@ def fetch_sbdb(hmax, cache, max_age_s=None):
         print(f"WARNING: SBDB not reachable ({str(e)[:80]}): using the asteroid list from "
               f"{time.strftime('%Y-%m-%d', time.gmtime(old.get('fetched') or 0))} ({age:.0f} days old; orbits of that "
               f"date)", file=sys.stderr)
+        WARNINGS.append(f"JPL SBDB did not answer: asteroid list and orbits of "
+                        f"{time.strftime('%Y-%m-%d', time.gmtime(old.get('fetched') or 0))} ({age:.0f} days old)")
         return old["fields"], old["data"], old.get("fetched")
     blob["hmax"], blob["fetched"], blob["full_prec"] = want, time.time(), True
     offline.keep_sbdb(blob)                                      # a compressed copy for offline use, if switched on
@@ -198,6 +203,8 @@ def write_targets(path, best, a):
                     f"{'' if a.a_max is None else a.a_max} AU\n")
         if getattr(a, "group_set", None) and a.group_set != set(GROUP_NAMES):
             f.write(f"# asteroid groups: {', '.join(GROUP_NAMES[g] for g in GROUP_NAMES if g in a.group_set)}\n")
+        if WARNINGS:
+            f.write(f"# WARNINGS: {'; '.join(WARNINGS)}\n")
         f.write(f"# order: best event first (sorted by {a.sort}); comment = that event\n\n")
         f.write("targets = [\n")
         for e in best:
@@ -210,7 +217,7 @@ def write_targets(path, best, a):
         meta = dict(site=a.site, start=a.start, days=a.days, picked=f"{now:%Y-%m-%dT%H:%M:%S}", version=__version__, lat=a.lat, lon=a.lon,
                     reach_km=a.reach, cam_limit=a.cam_limit, hmax=None if a.all else a.hmax, top=a.top, sort=a.sort,
                     groups=sorted(getattr(a, "group_set", None) or GROUP_NAMES), a_min=a.a_min, a_max=a.a_max,
-                    a_exclude=bool(a.a_exclude))
+                    a_exclude=bool(a.a_exclude), warnings=list(WARNINGS))
         f.write(f"\npick_meta = {meta!r}\n")
 
 

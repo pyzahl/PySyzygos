@@ -140,6 +140,7 @@ def panel(pg):
                 "Download the selected pick's events as a CSV table."
                 " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added)")
         pg.pick_info = ui.label().classes("text-sm text-slate-600 w-full")
+        pg.pick_warn = ui.label().classes("text-sm w-full font-semibold").style("color:#ea580c")   # fallbacks
         pg.targets_info = ui.label().classes("text-sm text-slate-600 w-full")
         cols = [dict(name=k, label=lbl, field=k, sortable=True, align="left") for k, lbl in
                 (("target", "Target"), ("number", "#"), ("name", "Asteroid"), ("H", "H"), ("utc", "UT"),
@@ -158,6 +159,7 @@ def handlers(pg):
         rows = []
         if p is None:
             pg.pick_info.text = f"No saved pick for site {pg.state['name']} yet: run a pick."
+            pg.pick_warn.text = ""
             pg.targets_info.text = ""
         else:
             if os.path.isfile(p["csv"]):
@@ -165,6 +167,7 @@ def handlers(pg):
                     rows = list(csv.DictReader(f))
             rows = [dict(exports.pick_shown(r, p["targets"]), key=f"{r.get('number')}_{r.get('utc')}") for r in rows]
             pg.pick_info.text = f"{pg.picks.describe(p)}: {len(rows)} events ({p['csv']})"
+            pg.pick_warn.text = pg.picks.warnings_text(p)
             pg.targets_info.text = ("Targets: " + ", ".join(p["targets"][:60]) + (" ..." if len(p["targets"]) > 60 else ""))
         pg.p_table.rows = rows
         return len(rows)

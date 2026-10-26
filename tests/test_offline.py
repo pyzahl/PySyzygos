@@ -51,6 +51,11 @@ try:
     raise SystemExit("an expired offline copy was used instead of a download")
 except AssertionError:
     pass
+# no network: the old copy after all, and the pick records it (pick_meta warnings, GUI and report in orange)
+P.net.urlopen = lambda *a, **k: (_ for _ in ()).throw(OSError("network unreachable"))
+P.WARNINGS.clear()
+assert len(P.fetch_sbdb(17.0, cache_file)[1]) == 3
+assert len(P.WARNINGS) == 1 and "JPL SBDB did not answer" in P.WARNINGS[0] and "40 days old" in P.WARNINGS[0]
 # the size data: the cache file is restored from the offline copy when missing
 phys_cache = os.path.join(cache, SB.FILE)
 assert not os.path.exists(phys_cache) and SB.load(cache)["3200"]["phys"]["diameter"]["value"] == "6.25"

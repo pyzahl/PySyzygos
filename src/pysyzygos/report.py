@@ -103,7 +103,8 @@ def header_info(run, lat, lon):
                            f"altitude or reach limits"),
                 ("Run", (f"PySyzygos {run['version']}, " if run.get("version") else "") + f"{run['run_utc']} UT, "
                         f"{run['window_start'][:10]} + {run['window_days']:g} d, {run['targets']} asteroids, "
-                        f"{run['candidates']} candidates, {run['solves']} exact solves, {run['hits']} hits")]
+                        f"{run['candidates']} candidates, {run['solves']} exact solves, {run['hits']} hits")
+                ] + warnings_info(run)
     ns, ew = ("N" if s["lat"] >= 0 else "S"), ("E" if s["lon"] >= 0 else "W")
     out = [("Site", f"{s['name']}" + (f" ({s['desc']})" if s.get("desc") else "") +
             f": {abs(s['lat']):.4f}°{ns} {abs(s['lon']):.4f}°{ew}, {s['ele']:g} m"
@@ -120,6 +121,7 @@ def header_info(run, lat, lon):
            ("Run", (f"PySyzygos {run['version']}, " if run.get("version") else "") + f"{run['run_utc']} UT, {run['window_start'][:10]} + {run['window_days']:g} d, {run['targets']} asteroids, "
                    f"{run['candidates']} candidates, {run['solves']} exact solves, {run['hits']} hits"
                    + (f"; targets: {run['targets_from']}" if run.get("targets_from") else "")),
+           *warnings_info(run),
            ("Timing", f"total {run['total_s']:.1f} s: start-up {run['startup_s']:.1f} s, asteroid data "
                       f"{run['init_s']:.1f} s, search {run['search_s']:.1f} s (maps {run['maps_s']:.1f} s); "
                       f"{run['per_asteroid_s']:.2f} s per asteroid, {run['per_solve_s'] * 1000:.0f} ms search time per "
@@ -493,7 +495,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 16px 40px}
 h1{font-size:1.35rem;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 16px}
 .info{display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;font-size:.88rem;margin:0 0 16px}
-.info dt{color:var(--muted)}.info dd{margin:0}
+.info dt{color:var(--muted)}.info dd{margin:0}.info .warn{color:#ea580c;font-weight:600}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
 table{border-collapse:collapse;width:100%;min-width:760px}
 th,td{padding:8px 7px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line)}
@@ -1212,10 +1214,20 @@ def chance_bar_svg(miss_km, rad_km, sigma1_km, p_site=None, width=520, height=64
     return "".join(o)
 
 
+WARN_LABEL = "Warnings"
+
+
+def warnings_info(run):
+    """The run's warnings (search.run_warnings: Horizons down, old orbit files, ...) as one header line, or none."""
+    return [(WARN_LABEL, "; ".join(run["warnings"]))] if run.get("warnings") else []
+
+
 def info_html(info):
     if not info:
         return ""
-    return '<dl class="info">' + "".join(f"<dt>{esc(k)}</dt><dd>{esc(v)}</dd>" for k, v in info) + "</dl>"
+    return '<dl class="info">' + "".join(
+        f"<dt{' class=warn' if k == WARN_LABEL else ''}>{esc(k)}</dt><dd{' class=warn' if k == WARN_LABEL else ''}>"
+        f"{esc(v)}</dd>" for k, v in info) + "</dl>"
 
 
 # ------------------------------------------------------------------------------------------- the filter bar

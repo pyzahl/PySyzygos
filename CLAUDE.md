@@ -407,6 +407,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
   `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`. Galbraith: "as Occult"
   line on Occult's centre to 0.19 km. tests/test_pmcheck.py (stand-in TSV of Galbraith's rows).
+- Run warnings (2026-10-26, user's rule: every automatic fallback or critical skip is recorded permanently, not only
+  in the log): search.py `WARNINGS` (key -> text), `OLD_ORBITS`, `SKIPPED`, `NOTED` via `run_note(kind, target)`
+  (NOTE_TEXT kinds), pmcheck.FAILED -> `run_warnings()` -> run summary "warnings" -> report `warnings_info` row
+  "Warnings" (`info_html` class warn, orange). Pick: pick.WARNINGS (older SBDB list) -> pick_meta warnings + header
+  "# WARNINGS:" -> picks `warnings_text` (GUI Pick `pg.pick_warn`, Search tab targets line orange) and the search's
+  WARNINGS["pick"]. A new fallback anywhere: add it there. tests: test_orbit_cache (run warnings), test_offline.
 - Search hit flow (1.3.3): `handle_star` solves and checks, then for asteroids appends (target, best_utc, finish) to
   `PENDING`; `finish(perr)` (inner function: sigma, chance, star fields, db.add_event, maps) runs in `finish_pending()`
   after pass 2 (corridor and windows mode): `path_error` for all hits PATH_ERROR_WORKERS (2) at a time in threads
@@ -679,7 +685,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   rename, and rename finished files with `gaia_local.replace_file` (retries ~10 s: virus scanners). Tests check
   /proc/self/maps at the rename (test_gaia_local, test_shadowtrack). Found 2026-10-12 in the first Windows install.
 - Write cache files atomically (temp file + `os.replace`). Every cache (asteroid SPKs, SBDB bulk list, per-asteroid SBDB size data
-  `PySyzygos_sbdb_phys.json`; both SBDB caches refetched after `sbdb_max_age_days`; Horizons orbit SPKs after `orbit_max_age_days`, default 7 (2026-10-21; was 1): search `_fresh_spk` also reuses a file of another window that covers this one; `horizons_up()` probes Horizons once per run (10 s connect; False after a failed connection): when down, no requests, cached covering files of any age with a WARNING line, default path uncertainties (an outage cost ~1 min per target before); tests/test_orbit_cache.py) goes to `config.cache_path`
+  `PySyzygos_sbdb_phys.json`; both SBDB caches refetched after `sbdb_max_age_days`; Horizons orbit SPKs after `orbit_max_age_days`, default 7 (2026-10-21; was 1): search `_fresh_spk` also reuses a file of another window that covers this one; `horizons_up()` probes Horizons once per run (10 s connect; False after a failed connection or a server-fault answer, `HORIZONS_FAULTS` e.g. 'wldini(): missing required file', raised as ConnectionError): when down, no requests, cached covering files of any age with a WARNING line, default path uncertainties (an outage cost ~1 min per target before); tests/test_orbit_cache.py) goes to `config.cache_path`
   (`/dev/shm` if present, else the system temp folder); never hard-code a path. Gaia is not cached: corridor mode
   reads the local catalog, the old windows mode queries the archive uncached.
 - Historic Earth orientation (2026-10-12): `kernels.historic_earth_pck` (newest `earth_1962_*_combined.bpc`, NAIF
