@@ -29,8 +29,37 @@ def plane_basis(star_vector):
     return x, y, z
 
 
-# Math: AS.1 (slide AS): each ground point G's centre line shifted by v_perp (|A - E| - |A - G|)/c (light time
-# from that point, as LT.1 for the site; in the code ast0 = A - E, p_j = G - E).
+def bary_velocity(tid, et, ast0):
+    """The asteroid's barycentric velocity (km/s, J2000) at its emission time et - |ast0|/c (ast0: geocentric 'CN')."""
+    return np.asarray(spice.spkezr(tid, et - float(np.linalg.norm(ast0)) / C_KM_S, 'J2000', 'NONE', '0')[0][3:])
+
+
+# Math: PL.2, PL.3 (slide PL), AS.1 (slide AS): from a point of the geocentric plane down the ray along -z to the
+# ground, moved by v_perp dtau for that ground point's own light time.
+def ground_point(base, ast0, v_bary, z_ax, R, radii, iterations=4):
+    """The ground point (ITRF93, km) of the plane point base (J2000, from the Earth's centre, in the plane through it
+    perpendicular to z_ax): a ray from 2 Earth radii out on the star side along -z_ax to the first intersection with
+    the ellipsoid radii (a, b, c); the point sees the asteroid dtau = (|A - E| - |A - G|)/c sooner than the geocentre,
+    so the axis moves by the asteroid's barycentric velocity across the star x dtau (iterated from dtau = 0). ast0:
+    the asteroid from the Earth's centre ('CN'), v_bary: bary_velocity, R: pxform('J2000', 'ITRF93', et). Shared by
+    shadow_path and search.earth_point. Raises NotFoundError where the ray misses the Earth."""
+    from pysyzygos import earth
+    v_perp = v_bary - (v_bary @ z_ax) * z_ax
+    dist0 = float(np.linalg.norm(ast0))
+    dtau = 0.0
+    for _ in range(iterations):                                     # geocentric light time first, then the point's
+        vertex = base + v_perp * dtau + 2.0 * earth.A_KM * z_ax
+        point = spice.surfpt(R @ vertex, R @ (-z_ax), *radii)
+        p_j = R.T @ point
+        # the distance from the point to the asteroid where the point sees it (dtau further on its orbit): with
+        # ast0 alone the radial motion during dtau (~0.6 km) was left out, a few cm
+        dtau = (dist0 - float(np.linalg.norm(ast0 + v_bary * dtau - p_j))) / C_KM_S
+    return point
+
+
+# Math: PT.1-PT.4, PL.1-PL.4, PD.1 (slides PG, PT, PL, PD), AS.1 (slide AS): the geocentric plane, the lines on it,
+# the ray to the ground; each ground point G's centre line shifted by v_perp (|A - E| - |A - G|)/c (light time
+# from that point, as LT.1 for the site; in the code ast0 = A - E = a, p_j = G - E, dtau = PL.3).
 def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, step=None, sat_km=None, height_km=None):
     """Ground track of the shadow axis and its limits.
 
@@ -105,22 +134,13 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
         # each ground point gets the asteroid's light dtau = (|A| - |A - P|)/c sooner than the geocentre (up to 21 ms),
         # so it sees the asteroid dtau later on its orbit: the axis moves by the asteroid's BARYCENTRIC velocity
         # (across the star direction) x dtau (as search.besselian_offsets, which takes the light time from the site)
-        dist0 = float(np.linalg.norm(ast0))
-        v_bary = np.asarray(spice.spkezr(tid, et - dist0 / C_KM_S, 'J2000', 'NONE', '0')[0][3:])
-        v_perp = v_bary - (v_bary @ z_ax) * z_ax
+        v_bary = bary_velocity(tid, et, ast0)
 
         for name, off in offsets.items():
             # start 2 Earth radii out on the star side of the plane and look along -z (the light direction);
             # the first surface intersection is the star-facing side of the Earth
-            dtau = 0.0
             try:
-                for _ in range(4):                                      # geocentric light time first, then the point's
-                    vertex = axis_pt + v_perp * dtau + off * n3 + 2.0 * a * z_ax
-                    point = spice.surfpt(R @ vertex, R @ (-z_ax), *radii.get(name, (a, b, c)))
-                    p_j = R.T @ point
-                    # the distance from the point to the asteroid where the point sees it (dtau further on its
-                    # orbit): with ast0 alone the radial motion during dtau (~0.6 km) was left out, a few cm
-                    dtau = (dist0 - float(np.linalg.norm(ast0 + v_bary * dtau - p_j))) / C_KM_S
+                point = ground_point(axis_pt + off * n3, ast0, v_bary, z_ax, R, radii.get(name, (a, b, c)))
             except NotFoundError:
                 continue                                                # this line misses the Earth at this time
             lon, lat, _ = spice.recgeo(point, a, flat)
@@ -132,8 +152,9 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
     return out
 
 
-# The site-height shift: horizontal displacement h / tan(alt) towards the star's azimuth (the ray meets the raised
-# surface h / sin(alt) earlier), its component across the ground track (the axis's ground points 30 s apart).
+# Math: PD.2 (slide PD): the site-height shift: horizontal displacement h / tan(alt) towards the star's azimuth (the
+# ray meets the raised surface h / sin(alt) earlier), its component across the ground track (the axis's ground
+# points 30 s apart).
 def height_shift_km(target_id, star_dir, et, lon_deg, lat_deg, h_km):
     """How far the center line at the site's height (h_km above the WGS84 ellipsoid) lies from the one at height 0,
     across the ground track at the site: km, signed ('+' = towards the A side, shadow_path's 'edge_plus'); None with
@@ -160,10 +181,10 @@ def height_shift_km(target_id, star_dir, et, lon_deg, lat_deg, h_km):
     try:
         pts = []
         for t in (et - 30.0, et + 30.0):
-            ast, _ = spice.spkpos(tid, t, 'J2000', 'CN', 'EARTH')
+            ast = np.asarray(spice.spkpos(tid, t, 'J2000', 'CN', 'EARTH')[0])
             Rt = spice.pxform('J2000', 'ITRF93', t)
-            axis_pt = ast - (ast @ z_ax) * z_ax
-            pts.append(np.asarray(spice.surfpt(Rt @ (axis_pt + 2.0 * a * z_ax), Rt @ (-z_ax), a, a, c)))
+            axis_pt = ast - (ast @ z_ax) * z_ax                        # as shadow_path: the point's own light time
+            pts.append(np.asarray(ground_point(axis_pt, ast, bary_velocity(tid, t, ast), z_ax, Rt, (a, a, c))))
         along = pts[1] - pts[0]
         along -= (along @ up) * up
         across = np.cross(up, along)                                    # left of the ground motion

@@ -1164,17 +1164,19 @@ def site_lle(record):
     return config.LON, config.LAT, config.ELE
 
 
-# Math: FP.1, FP.2 (slide FP): the plane through the geocentre (an observer at the Earth's centre).
+# Math: FP.1, FP.2 (slide FP): the plane through the geocentre (an observer at the Earth's centre); PL.2, PL.3 (slide
+# PL): the pin with its ground point's own light time, as the path lines (paths.ground_point).
 def earth_point(target_id, star_dir, et_guess, bracket_s, r_km):
     """Search anywhere on Earth: the shadow's closest approach to the Earth's centre (the axis in the fundamental
     plane through the geocentre, asteroid 'CN' from the geocentre) within et_guess +/- bracket_s/2, and whether any
     part of the shadow (radius r_km) touches the Earth: the WGS84 ellipsoid's outline on the plane is an ellipse
     with semi-axes A (x, east) and sqrt(A^2 sin^2 d + C^2 cos^2 d) (y, north; d = the star's declination).
     Returns None (misses the Earth) or dict(et, x, y, miss (km, plane), lon, lat (deg: the axis point on the ground
-    at et; for a shadow touching only with its edge, the ground point just inside the Earth's outline nearest the
-    axis), central (the axis itself meets the Earth))."""
+    at et, with that point's own light time (paths.ground_point, PL.3: on the center line, as the path lines; with
+    the geocentric light time alone it was ~0.3 km beside it); for a shadow touching only with its edge, the ground
+    point just inside the Earth's outline nearest the axis), central (the axis itself meets the Earth))."""
     from pysyzygos import earth
-    from pysyzygos.paths import plane_basis
+    from pysyzygos.paths import plane_basis, ground_point, bary_velocity
     x_ax, y_ax, z_ax = plane_basis(star_dir)
     def xy(dt):
         v = np.asarray(spice.spkpos(str(target_id), et_guess + dt, 'J2000', 'CN', 'EARTH')[0])
@@ -1194,10 +1196,15 @@ def earth_point(target_id, star_dir, et_guess, bracket_s, r_km):
     q = p * math.sqrt(0.998 / k) if k > 0.998 else p             # edge only: the nearest point just inside
     et = et_guess + dt
     R = spice.pxform('J2000', 'ITRF93', et)
-    try:
-        pt = spice.surfpt(R @ (q[0] * x_ax + q[1] * y_ax + 2.0 * a * z_ax), R @ (-z_ax), a, a, c)
+    ast0 = np.asarray(spice.spkpos(str(target_id), et, 'J2000', 'CN', 'EARTH')[0])
+    try:                                                        # with the ground point's own light time (PL.3), as the
+        pt = ground_point(q[0] * x_ax + q[1] * y_ax, ast0, bary_velocity(str(target_id), et, ast0), z_ax, R,
+                          (a, a, c))                            # path lines: the pin is on the center line
     except NotFoundError:
-        return None
+        try:                                                    # an edge-only shadow: the geocentric point
+            pt = spice.surfpt(R @ (q[0] * x_ax + q[1] * y_ax + 2.0 * a * z_ax), R @ (-z_ax), a, a, c)
+        except NotFoundError:
+            return None
     lon, lat, _ = spice.recgeo(pt, a, earth.F)
     return dict(et=et, x=float(p[0]), y=float(p[1]), miss=float(np.hypot(*p)), lon=math.degrees(lon),
                 lat=math.degrees(lat), central=bool(k <= 1.0))

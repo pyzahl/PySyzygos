@@ -602,3 +602,161 @@
   \end{gather*}
   {\small \OWN\ $m_{\mathrm{ast}}$ from $H$, $G$ (IAU H--G system; \SP\ distances, phase angle); kept if $\Delta m \ge 0.1$}
 \end{frame}
+
+% the shadow path on the map (paths.shadow_path, paths.height_shift_km): the geocentric plane, the lines on it, the
+% ray to the ground with each point's own light time, duration and the site-height line
+\subsection{The shadow path on the map}
+
+% the geocentric plane, same oblique view as FG: z = s (to the star) right, y (north) up, x (east) toward the viewer
+\begin{frame}{Shadow path: the geocentric plane}\slideid{PG}
+  \begin{columns}[T]
+    \begin{column}{0.60\textwidth}
+      \centering
+      \begin{tikzpicture}[x={(-0.75cm,-0.55cm)}, y={(0cm,1cm)}, z={(1cm,0cm)}, scale=0.80,
+                          font=\scriptsize, >={Stealth[length=2mm]}]
+        % the plane through the Earth's center, perpendicular to the star
+        \fill[syzblue!7] (-2.3,-2.1,0) -- (2.4,-2.1,0) -- (2.4,2.3,0) -- (-2.3,2.3,0) -- cycle;
+        \draw[syzblue!45] (-2.3,-2.1,0) -- (2.4,-2.1,0) -- (2.4,2.3,0) -- (-2.3,2.3,0) -- cycle;
+        \node[syzblue, anchor=south, align=center] at (-2.3,2.3,0) {geocentric plane\\through $\vv{E}$, $\perp\,\uv{s}$};
+        % the Earth (WGS84, drawn as a sphere) and its outline on the plane
+        \shade[ball color=syzblue!18, opacity=0.55] (0,0,0) circle[radius=1.5cm];
+        \draw[syzblue!60, densely dotted] plot[smooth cycle, samples=48, domain=0:352.5, variable=\t]
+             ({1.5*cos(\t)}, {1.5*sin(\t)}, 0);
+        % the shadow axis on the plane, P_E(t), and a pair of limit lines +- o n
+        \draw[->, syzaccent, very thick] (1.9,-1.0,0) -- (-1.5,1.6,0) node[right, syzaccent] {$\pv{P}_{\!E}(t)$};
+        \draw[syzaccent, densely dashed] (-1.77,1.24,0) -- (1.63,-1.36,0) node[below, syzaccent] {$-o\,\uv{n}$};
+        \draw[syzaccent, densely dashed] (2.17,-0.64,0) -- (-1.23,1.96,0) node[above, syzaccent] {$+o\,\uv{n}$};
+        % the center line and a limit line on the ground (star-facing side)
+        \draw[syzaccent, very thick] plot[smooth, samples=40, domain=0.158:0.831, variable=\s]
+             ({1.9-3.4*\s}, {-1+2.6*\s}, {sqrt(max(0, 2.25-(1.9-3.4*\s)^2-(-1+2.6*\s)^2))});
+        \draw[syzaccent, densely dashed] plot[smooth, samples=40, domain=0.146:0.845, variable=\s]
+             ({1.63-3.4*\s}, {-1.36+2.6*\s}, {sqrt(max(0, 2.25-(1.63-3.4*\s)^2-(-1.36+2.6*\s)^2))});
+        % plane axes at the Earth's center
+        \draw[->, thick, syzblue] (0,0,0) -- (2.1,0,0) node[below] {$\uv{x}$ east};
+        \draw[->, thick, syzblue] (0,0,0) -- (0,2.05,0) node[left] {$\uv{y}$ north};
+        \fill (0,0,0) circle (1.6pt);
+        \node[anchor=north east] at (0.15,-0.1,0) {$\vv{E}$};
+        % the ray: from 2a on the star side of the axis point, along -s, to the first surface point G
+        \fill[syzaccent] (0.37,0.17,0) circle (1.5pt);
+        \draw[syzaccent!80!black, thick, densely dashed] (0.37,0.17,2.9) -- (0.37,0.17,1.443);
+        \draw[->, syzaccent!80!black, thick] (0.37,0.17,2.9) -- (0.37,0.17,2.15);
+        \node[syzaccent!80!black, above] at (0.37,0.17,2.9) {$\vv{V}$};
+        \fill[black] (0.37,0.17,1.443) circle (2pt);
+        \node[above left=1pt and -2pt] at (0.37,0.17,1.443) {$\vv{G}$};
+        % star direction and the star at infinity
+        \draw[->, very thick, syzaccent] (0,0,0) -- (0,0,1.9);
+        \draw[densely dashed, syzaccent] (0,0,3.2) -- (0,0,7.3);
+        \node[syzaccent, above] at (0,0,3.9) {$\uv{s}=\uv{z}$};
+        \node[syzaccent] at (0,0,7.6) {\Large$\star$};
+        \node[syzaccent, anchor=north] at (0,0,7.5) {star};
+        % the asteroid, geocentric with the Earth-center light time
+        \draw[gray, densely dashed, ->] (1.0,-0.31,5.0) -- (-0.26,0.65,5.0) node[above] {motion};
+        \fill[black!80] (0.37,0.17,5.0) circle (3pt);
+        \node[below=3pt] at (0.37,0.17,5.0) {$\vv{A}(t-\tau_E)$};
+        \draw[->, thick] (0,0,0) .. controls (0.1,-0.5,2.6) .. (0.33,0.13,4.85) node[pos=0.55, below] {$\vv{a}$};
+        \node[black!75, align=center, anchor=north] at (0,-1.5,3.6) {ray $\vv{V} - \lambda\uv{s}$\\to the WGS84 surface};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.39\textwidth}
+      \scriptsize
+      \textbf{Inputs} (\texttt{paths.shadow\_path}, per hit)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+        $\uv{s}$ & corrected star at $t_0$ (IN.1, ST2.3) \\
+        $t^{*}$ & site's closest approach (CA.1) \\
+        $r$ & asteroid's radius (SZ) \\
+        $\sigma_3$ & $3\sqrt{\sigma_{\mathrm{ast}}^2 + \sigma_\star^2}$ (Horizons, star) \\
+        $s_{\mathrm{sat}}$ & known satellite's zone \\
+        $h$ & site's height above WGS84 \\
+        \multicolumn{2}{@{}l}{\SP\ asteroid SPK, DE440, Earth orientation} \\
+      \end{tabular}\\[0.5ex]
+      \textbf{Steps:} asteroid from $\vv{E}$ (PT.1) $\to$ axis point and lines $o\,\uv{n}$ on the plane
+      (PT.2--PT.4) $\to$ ray along $-\uv{s}$ to $\vv{G}$ (PL.2), moved by $\vv{v}_{\perp}\delta\tau$ for
+      $\vv{G}$'s own light time (PL.1, PL.3, AS.1) $\to$ $\lambda, \varphi$ (PL.4), duration, height line (PD)
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Shadow path: the track on the plane}\slideid{PT}
+  \footnotesize\tightdisplays
+  \SP\ The asteroid from the Earth's center, light time from the Earth's center (\texttt{spkpos(\ldots, 'CN', 'EARTH')}):
+  \[
+    \tcbhighmath{\vv{a}(t) = \vv{A}(t - \tau_E) - \vv{E}(t),\qquad c\,\tau_E = |\vv{a}(t)|}
+    \tag{PT.1}
+  \]
+  \OWN\ Axes as FP.1, $\mathsf{M} = (\uv{x}, \uv{y}, \uv{z})^{\mathsf T}$; the axis point, the shadow's velocity
+  ($\pm\SI{0.5}{s}$) and the unit vector across the track (left of the motion: the $+$ or A side):
+  \[
+    \tcbhighmath{\begin{aligned}
+      \pv{P}_{\!E} &= \vv{a} - (\vv{a}\cdot\uv{z})\,\uv{z}, &
+      \vv{v} &= \bigl[\mathsf{M}\bigl(\vv{a}(t{+}\tfrac12\,\mathrm{s}) - \vv{a}(t{-}\tfrac12\,\mathrm{s})\bigr)\bigr]_{xy}/\mathrm{s}, &
+      \uv{n} &= (-v_y,\ v_x)/|\vv{v}|
+    \end{aligned}}
+    \tag{PT.2}
+  \]
+  \OWN\ Time grid: steps of $\approx\SI{100}{km}$, centered on the axis's closest approach to $\vv{E}$, $1.3\,a$ to each side:
+  \[
+    \tcbhighmath{\begin{aligned}
+      \Delta &= \min\bigl(60, \max(1, 100/|\vv{v}|)\bigr)\,\mathrm{s}, & t_k &= t^{*} + \Delta\,(k_0 + k),\\
+      k_0 &= \operatorname{round}\Bigl(-\frac{\pv{P}_{\!E}(t^{*})\cdot\vv{v}}{|\vv{v}|^2\,\Delta}\Bigr), &
+      |k| &\le \Bigl\lceil\frac{1.3\,a}{|\vv{v}|\,\Delta}\Bigr\rceil
+    \end{aligned}}
+    \tag{PT.3}
+  \]
+  The lines: center, shadow edges, 1-$\sigma$ and 3-$\sigma$ limits, satellite zone:
+  \[
+    \tcbhighmath{o \in \{0,\ \pm r,\ \pm(r + \sigma_3/3),\ \pm(r + \sigma_3),\ \pm(r + s_{\mathrm{sat}})\}}
+    \tag{PT.4}
+  \]
+\end{frame}
+
+\begin{frame}{Shadow path: from the plane to the ground}\slideid{PL}
+  \footnotesize\tightdisplays
+  \SP\ The asteroid's barycentric velocity at the emission time (\texttt{spkezr}, geometric), across the star:
+  \[
+    \tcbhighmath{\vv{v}_{\perp} = \dot{\vv{A}} - (\dot{\vv{A}}\cdot\uv{z})\,\uv{z},\qquad
+    \dot{\vv{A}} = \dot{\vv{A}}(t - |\vv{a}|/c)}
+    \tag{PL.1}
+  \]
+  \OWN\,\SP\ Per line: a vertex $2a$ out on the star side, a ray along $-\uv{s}$; its first intersection with the
+  ellipsoid (\texttt{surfpt} in ITRF93, $\mathsf{R}(t) = $ \texttt{pxform('J2000', 'ITRF93', t)}) is on the star-facing side:
+  \[
+    \tcbhighmath{\vv{V} = \pv{P}_{\!E} + \vv{v}_{\perp}\,\delta\tau + o\,\uv{n} + 2a\,\uv{z},\qquad
+    \vv{G} = \mathsf{R}^{\mathsf T}\,\mathrm{surfpt}\bigl(\mathsf{R}\vv{V},\ -\mathsf{R}\uv{z};\ a', a', c'\bigr)}
+    \tag{PL.2}
+  \]
+  $(a', c') = (a, c)$: height 0, as Occult; $(a{+}h, c{+}h)$: the line at the site's height ($<\SI{1}{cm}$ to \SI{5}{km}).\\[0.4ex]
+  \OWN\ $\vv{G}$'s own light time (AS.1, LT.1): it sees the asteroid $\delta\tau$ further on; from $\delta\tau = 0$, 4 iterations:
+  \[
+    \tcbhighmath{\delta\tau \leftarrow \bigl(|\vv{a}| - |\vv{a} + \dot{\vv{A}}\,\delta\tau - \vv{G}|\bigr)/c
+    \qquad(\le \SI{21}{ms}:\ \text{the line moves} \approx 0.3\text{--}\SI{0.6}{km})}
+    \tag{PL.3}
+  \]
+  \SP\ Longitude and latitude on WGS84: $(\lambda, \varphi) = \mathrm{recgeo}(\mathsf{R}\vv{G};\ a, f)$ \eqtag{PL.4}
+  \\[0.6ex]{\scriptsize\color{black!75}PL.2--PL.3 is one function (\texttt{paths.ground\_point}) for every ground point:
+  all path lines, the whole-Earth pin (\texttt{search.earth\_point}) and the site-height line's track direction.}
+\end{frame}
+
+\begin{frame}{Shadow path: duration and the site's height}\slideid{PD}
+  \footnotesize\tightdisplays
+  \OWN\ Center-line duration: the shadow's speed relative to the rotating ground point $\vv{G}$ (one second later):
+  \[
+    \tcbhighmath{\vv{v}_G = \bigl[\mathsf{M}\bigl(\mathsf{R}(t{+}1\,\mathrm{s})^{\mathsf T} - \mathsf{R}(t)^{\mathsf T}\bigr)\,\mathsf{R}(t)\vv{G}\bigr]_{xy}/\mathrm{s},
+    \qquad
+    \Delta t_{\mathrm{occ}} = \frac{2r}{|\vv{v} - \vv{v}_G|}}
+    \tag{PD.1}
+  \]
+  \OWN\ The line at the site's height (\texttt{height\_shift\_km}): a ray along $\uv{s}$ meets the raised surface
+  $h/\sin h_\star$ earlier, $h/\tan h_\star$ horizontally toward the star's azimuth; across the ground track
+  ($\uv{c}$: horizontal, from the axis's ground points at $t \mp \SI{30}{s}$, on the $+\uv{n}$ side):
+  \[
+    \tcbhighmath{\Delta_h = \frac{h}{\sin h_\star}\,\bigl(\uv{s} - \sin h_\star\,\uv{u}\bigr)\cdot\uv{c}
+    \qquad\bigl(|\Delta_h| \le h / \tan h_\star\bigr)}
+    \tag{PD.2}
+  \]
+  {\small $\uv{u}$ the local vertical, $h_\star$ the star's altitude (OV.1). \SI{2000}{m} at $h_\star = \SI{75}{\degree}$:
+  \SI{0.533}{km}; measured between the KML lines: \SI{0.535}{km}.}\\[0.8ex]
+  {\footnotesize\color{black!75}\textbf{Plane vs.\ plane:} the solver (FP) works in the plane through the observer with
+  its own light time; the path is built in the plane through the Earth's center and gives each ground point its own
+  light time (PL.3): the same shadow. Check: each $\vv{G}$ taken as an observer (OB.1, LT.2, FP.2) lies $|o|$ from the
+  shadow's center to \SI{3}{mm}.}
+\end{frame}

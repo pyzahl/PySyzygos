@@ -496,7 +496,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   obs_check.* (results were lost once when the dataset was re-ticked). Phaethon video chords: mid-times within ~0.01-0.04 s.
 - Search anywhere on Earth (2026-10-23): config `search_scope = "earth"` (GUI Search toggle "Anywhere on Earth":
   targets from the list, results_list "earth", hits earth_log.csv, max_shadow_dist 0). search.py `EARTH`,
-  `earth_point` (geocentric closest approach over the bracket, geocentric light time: the pin is ~0.3 km beside the center line, documented in README/ABOUT (user agreed 2026-10-26, no fix wanted yet); shadow touches the WGS84 outline: ellipse A x
+  `earth_point` (geocentric closest approach over the bracket, ground point via paths.ground_point = each point's own light time, as all path lines (2026-10-26, user: all paths the exact same corrections; pin to center line 0.2-1.4 m, was up to 0.38 km); shadow touches the WGS84 outline: ellipse A x
   sqrt(A^2 sin^2 d + C^2 cos^2 d) + r; ground point on the axis at that time, or just inside the outline), then
   star_test at that ground point; no window_is_observable gate, observable() not rejecting, p_site NaN, no
   horizon; record scope, ground_lat/lon, geo_utc, geo_miss_km, geo_x/y_km (J2000 axes), central; `site_lle(record)`
@@ -610,7 +610,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `docs/math/` (2026-10-20, tracked): the math slides on their own (beamer): `pysyzygos_math.tex` (main),
   `math_slides.tex` (the slides, single source: workflow, need for speed SP (funnel), search corridor CO
   (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, astrometry ST1 ST2
-  AS, solver IN OB LT, Besselian figure, FG FP CA OV), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
+  AS, solver IN OB LT, Besselian figure, FG FP CA OV, shadow path on the map PG (geocentric-plane figure + inputs)
+  PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
   library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
   (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The
   private talk (slides/, gitignored) \input's preamble and math_slides from here; personal slides and the Galbraith

@@ -64,6 +64,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   newest release's link. `pysyzygos update [--check]`.
 
 ### Fixed
+- **Whole-Earth search: the map pin is now on the center line.** The pin's ground point gets its own light time,
+  exactly as every path line (one shared function, `paths.ground_point`); before it used the light time from the
+  Earth's center and lay up to ~0.4 km beside the center line (now within 1.4 m in the test events). The ground-track
+  direction of the site-height line uses the same function.
 - **JPL Horizons server errors**: when Horizons answers with an internal error instead of an orbit file (2026-10-26:
   "wldini(): missing required file LTKERNL ... Var not declared: IP_ADDR" for every request), the search now treats
   Horizons as down for the run: one warning, no further requests, orbits from cached files that cover the window (any
