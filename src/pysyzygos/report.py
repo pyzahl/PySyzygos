@@ -592,6 +592,23 @@ function pyoToast(msg,stay){var t=document.getElementById('pyotoast');if(!t){t=d
  'max-width:min(720px,92vw);padding:10px 14px;border-radius:8px;background:#1e293b;color:#f8fafc;font-size:.9rem;'+
  'box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:1000';document.body.appendChild(t);}
  t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(function(){t.hidden=true;},stay?9000:4000);}
+// a question in the page's own style (the browser's confirm/prompt boxes show "127.0.0.1:8081 says" at the top edge):
+// onYes() on OK; with value (a string) an input field too, onYes(text)
+function pyoAsk(msg,ok,onYes,value){var d=document.createElement('dialog');
+ d.style.cssText='width:min(440px,92vw);height:fit-content;padding:18px 20px;border-radius:10px';
+ var p=document.createElement('p');p.style.cssText='margin:0 0 14px;white-space:pre-line';p.textContent=msg;d.appendChild(p);
+ var inp=null;if(typeof value==='string'){inp=document.createElement('input');inp.value=value;
+  inp.style.cssText='width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;margin:0 0 14px';d.appendChild(inp);}
+ var row=document.createElement('div');row.style.cssText='display:flex;justify-content:flex-end;gap:8px';
+ function btn(t,f){var b=document.createElement('button');b.className='tb';b.type='button';b.textContent=t;
+  b.addEventListener('click',f);row.appendChild(b);return b;}
+ function close(){d.close();d.remove();}
+ btn('Cancel',close);
+ var y=btn(ok||'OK',function(){var v=inp?inp.value.trim():undefined;if(inp&&!v)return;close();onYes(v);});
+ y.style.cssText='background:var(--accent);color:#fff;border-color:var(--accent)';
+ d.appendChild(row);d.addEventListener('cancel',function(){d.remove();});
+ if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();y.click();}});
+ document.body.appendChild(d);d.showModal();(inp||y).focus();}
 </script>"""
 
 # observed events (layout 'observed'): a click on a row asks the GUI for the whole record (gui_results: obs_select)
@@ -615,11 +632,11 @@ fetch('/api/favorites/keys').then(function(r){return r.json();}).then(function(j
  bs.forEach(function(b){b.hidden=false;mark(b,have.has(b.dataset.key));
   b.addEventListener('click',function(){
    if(b.textContent==='★'){                    // a favorite: remove it again (asked first only if you edited it)
-    if(edited.has(b.dataset.key)&&!confirm('Remove this event from the favorites?\\nIts status and note are '+
-      'deleted with it.'))return;
-    fetch('/api/favorites/remove?'+new URLSearchParams({keys:b.dataset.key})).then(function(r){return r.json();})
-     .then(function(j){if(j.ok){mark(b,false);tell();}pyoToast(j.msg,!j.ok);})
-     .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});return;}
+    var rm=function(){fetch('/api/favorites/remove?'+new URLSearchParams({keys:b.dataset.key}))
+     .then(function(r){return r.json();}).then(function(j){if(j.ok){mark(b,false);tell();}pyoToast(j.msg,!j.ok);})
+     .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});};
+    if(edited.has(b.dataset.key))pyoAsk('Remove this event from the favorites?\\nIts status and note are deleted '+
+      'with it.','Remove',rm);else rm();return;}
    var q=new URLSearchParams({tid:b.dataset.tid,utc:b.dataset.utc});
    fetch('/api/favorites/add?'+q).then(function(r){return r.json();}).then(function(j){
     if(j.ok){mark(b,true);tell();}pyoToast(j.msg,!j.ok);})
@@ -651,10 +668,10 @@ function need(){var k=sel();if(!k.length){pyoToast('Select events first (check b
 document.getElementById('favsetst').addEventListener('click',function(){var k=need();if(!k)return;
  call('/api/favorites/update?'+new URLSearchParams({keys:k.join(','),status:document.getElementById('favstatus').value}));});
 document.getElementById('favdel').addEventListener('click',function(){var k=need();if(!k)return;
- if(confirm('Remove '+k.length+' favorite(s) with their copied maps and previews?'))
-  call('/api/favorites/remove?'+new URLSearchParams({keys:k.join(',')}));});
+ pyoAsk('Remove '+k.length+' favorite(s) with their copied maps and previews?','Remove',function(){
+  call('/api/favorites/remove?'+new URLSearchParams({keys:k.join(',')}));});});
 document.getElementById('favpast').addEventListener('click',function(){
- if(confirm('Remove every favorite whose event is before today (UTC)?'))call('/api/favorites/cleanup');});
+ pyoAsk('Remove every favorite whose event is before today (UTC)?','Remove',function(){call('/api/favorites/cleanup');});});
 document.querySelectorAll('tr.favrow').forEach(function(tr){tr.addEventListener('click',function(ev){
  if(ev.target.closest('input,button,a'))return;
  document.querySelectorAll('tr.favrow.cur').forEach(function(x){x.classList.remove('cur');});
@@ -1389,12 +1406,13 @@ sel.addEventListener('change',function(){if(sel.value&&sets[sel.value])setForm(s
 document.getElementById('fclear').addEventListener('click',function(){setForm({});sel.value='';apply();});
 document.getElementById('fsave').addEventListener('click',function(){var s=spec();
  if(!Object.keys(s).length){pyoToast('Set a filter first');return;}
- var n=(prompt('Name of this filter set (shared by Results and Favorites):',sel.value||'')||'').trim();if(!n)return;
- sets[n]=s;fill(n);store('/api/filters/save?'+new URLSearchParams({name:n,spec:JSON.stringify(s)}));apply();
- pyoToast('Filter set \\u201c'+n+'\\u201d saved');});
+ pyoAsk('Name of this filter set (shared by Results and Favorites):','Save',function(n){
+  sets[n]=s;fill(n);store('/api/filters/save?'+new URLSearchParams({name:n,spec:JSON.stringify(s)}));apply();
+  pyoToast('Filter set \\u201c'+n+'\\u201d saved');},sel.value||'');});
 document.getElementById('fdel').addEventListener('click',function(){var n=sel.value;
- if(!n){pyoToast('Choose a saved filter set first');return;}if(!confirm('Delete the filter set \\u201c'+n+'\\u201d?'))return;
- delete sets[n];fill('');store('/api/filters/delete?'+new URLSearchParams({name:n}));apply();});
+ if(!n){pyoToast('Choose a saved filter set first');return;}
+ pyoAsk('Delete the filter set \\u201c'+n+'\\u201d?','Delete',function(){
+  delete sets[n];fill('');store('/api/filters/delete?'+new URLSearchParams({name:n}));apply();});});
 var last={};try{last=JSON.parse(localStorage.getItem(PK)||'{}')||{};}catch(e){}
 setForm(last.spec);apply();if(last.spec&&Object.keys(last.spec).length)bar.open=true;
 load(function(){fill(last.name);});})();

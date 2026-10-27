@@ -73,6 +73,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   newest release's link. `pysyzygos update [--check]`.
 
 ### Fixed
+- **Questions on the results and favorites pages in the page's own style**: removing favorites (selected, past
+  events, an edited one), saving and deleting filter sets asked through the browser's own box, titled
+  "127.0.0.1:8081 says" at the top edge; now a small dialog in the middle of the page (`report.pyoAsk`).
 - **Whole-Earth search: the map pin is now on the center line.** The pin's ground point gets its own light time,
   exactly as every path line (one shared function, `paths.ground_point`); before it used the light time from the
   Earth's center and lay up to ~0.4 km beside the center line (now within 1.4 m in the test events). The ground-track
