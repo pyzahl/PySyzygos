@@ -611,7 +611,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `math_slides.tex` (the slides, single source: workflow, need for speed SP (funnel), search corridor CO
   (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, astrometry ST1 ST2
   AS, solver IN OB LT, Besselian figure, FG FP CA OV, shadow path on the map PG (geocentric-plane figure + inputs)
-  PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
+  PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26); "variables and outputs" slides (no ID) after the
+  astrometry, solver and PG slides: inputs, intermediate symbols, outputs with record field names (keep in step)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
   library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
   (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The
   private talk (slides/, gitignored) \input's preamble and math_slides from here; personal slides and the Galbraith

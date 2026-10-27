@@ -290,6 +290,7 @@
         $\uv{p}$ & the star from Gaia, then corrected \\
         $\uv{s}$ & the star as finally used: from the Earth, deflection applied \\
         $\uv{x}, \uv{y}, \uv{z}$ & the fundamental plane: east, north, toward the star ($\uv{z}$ is $\uv{s}$) \\
+        $\uv{e}_3$ & $(0, 0, 1)$: the ICRF (J2000) north pole, not the pole of date; sets ``north'' (FP.1) \\
       \end{tabular}\\[0.8ex]
       \textbf{Time and distances}\\[0.4ex]
       \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
@@ -399,6 +400,52 @@
     \item \textbf{Uncertainty}: Horizons 3-$\sigma$ error ellipse (RSS) $\to$ path $\sigma$,
           combined with the star's position error
   \end{itemize}
+\end{frame}
+
+% explicit inputs, intermediate variables and outputs of the astrometry slides (ST1, ST2, AS)
+\begin{frame}{Astrometry: variables and outputs}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.02}
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \textbf{Inputs} (per candidate star)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+        $\alpha, \delta$ & Gaia DR3 position at J2016.0 (ICRF, rad) \\
+        $\varpi$ & parallax (mas) \\
+        $\mu_{\alpha*}, \mu_\delta$ & proper motion (mas/yr; UCAC for 2-parameter stars) \\
+        $v_r$ & radial velocity (km/s; fast nearby stars) \\
+        $G$ & magnitude: selects $\omega$ (ST1.1) \\
+        $t_0$ & the corridor scan's guessed time (TDB) \\
+      \end{tabular}\\[0.6ex]
+      \textbf{Intermediate}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+        $\omega_{x,y,z}$ & Gaia frame spin for the star's $G$ bin, \si{\micro as/yr} (ST1.1) \\
+        $\uv{p}$ & star direction: at $t_0$ (ST1.2), then from $\vv{E}$ (ST2.1) \\
+        $\vv{E}$ & the Earth from the barycenter, geometric \\
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \textbf{Intermediate} (deflection, ST2.2)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+        $GM_b, E_b$ & body's mass parameter; its distance to $\vv{E}$ \\
+        $\uv{e}_b, \uv{q}_b$ & body $\to$ Earth, body $\to$ asteroid \\
+        $\vv{f}, \delta\uv{p}$ & one body's bending; the total shift \\
+      \end{tabular}\\[0.6ex]
+      \textbf{Outputs} {\tiny(record fields)}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+        $\uv{s}$ & the star used by solver and path (ST2.3): \texttt{star\_ra}, \texttt{star\_dec} \\
+        & ST2.1 shift: \texttt{corr\_parallax\_mas} \\
+        & ST2.2 shift: \texttt{corr\_deflection\_mas} \\
+      \end{tabular}\\[0.6ex]
+      \textbf{The asteroid} (AS, IN)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+        $\vv{A}(t)$ & barycentric, from its Horizons SPK (input) \\
+        $\dot{\vv{A}}$ & its barycentric velocity (PL.1) \\
+        $\vv{v}_\perp$ & $\dot{\vv{A}}$ across the star (AS.1, PL.1) \\
+        $\sigma_{\mathrm{ast}}$ & Horizons' 1-$\sigma$ (RSS), km; with the star's: \texttt{path\_sigma1\_km} \\
+      \end{tabular}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 \subsection{Solver}
@@ -603,6 +650,52 @@
   {\small \OWN\ $m_{\mathrm{ast}}$ from $H$, $G$ (IAU H--G system; \SP\ distances, phase angle); kept if $\Delta m \ge 0.1$}
 \end{frame}
 
+% explicit inputs, intermediate variables and outputs of the solver slides (IN, OB, LT, FP, CA, OV)
+\begin{frame}{The exact solver: variables and outputs}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.02}
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \textbf{Inputs} (IN)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+        $\uv{s}$ & corrected star (ST2.3) \\
+        $\varphi, \lambda, h$ & site: geodetic, WGS84 height \\
+        $t_0$, $T$ & the scan's guess and bracket (s) \\
+        $r$, $r_{\max}$ & radius and its upper bound (SZ) \\
+        reach & the site's reach (km) \\
+      \end{tabular}\\[0.6ex]
+      \textbf{Intermediate}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+        $e^2, N$ & WGS84 eccentricity$^2$, prime-vertical radius (OB.1) \\
+        $\vv{r}_{\mathrm{ITRF}}$ & the site, Earth-fixed (OB.1) \\
+        $\mathsf{R}(t)$ & ITRF93 $\to$ J2000 rotation (OB.2) \\
+        $\vv{O}(t)$ & the observer, barycentric (OB.2) \\
+        $\tau$, $\vv{\rho}$ & light time; asteroid from the site (LT.1, LT.2) \\
+        $\uv{x}, \uv{y}, \uv{z}$ & plane axes (FP.1) \\
+        $\xi, \eta, d$ & shadow center east, north; distance (FP.2) \\
+        $\Delta t$ & offset from $t_0$, $|\Delta t| \le T/2$ (CA.1) \\
+        $\uv{u}$ & local vertical (OV.1) \\
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \textbf{Outputs} {\tiny(record fields)}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.78\linewidth}@{}}
+        $t^{*}$ & closest approach (CA.1): \texttt{best\_utc}, \texttt{best\_et} \\
+        $d_{\min}$ & shadow center to the site (CA.1): \texttt{min\_distance}; $d_{\min} - r$: \texttt{margin\_km} \\
+        hit & CA.2: the event is logged \\
+        $\xi, \eta$ & at $t^{*}$: \texttt{offset\_east\_km}, \texttt{offset\_north\_km} \\
+        $h_\star, h_\odot$ & star, Sun altitude (OV.1): \texttt{star\_alt}, \texttt{sun\_alt} \\
+        $v$ & shadow speed (OV.2): \texttt{speed\_kms} \\
+        $\ell$ & chord at the site (OV.2): \texttt{chord\_km} \\
+        $\Delta t_{\mathrm{occ}}$ & duration at the site (OV.2): \texttt{duration\_s};
+                                   central $2r/v$: \texttt{max\_duration\_s} \\
+        $m_{\mathrm{ast}}$ & asteroid magnitude: \texttt{m\_ast} \\
+        $\Delta m$ & drop (OV.3): \texttt{mag\_drop} \\
+      \end{tabular}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 % the shadow path on the map (paths.shadow_path, paths.height_shift_km): the geocentric plane, the lines on it, the
 % ray to the ground with each point's own light time, duration and the site-height line
 \subsection{The shadow path on the map}
@@ -672,6 +765,52 @@
       \textbf{Steps:} asteroid from $\vv{E}$ (PT.1) $\to$ axis point and lines $o\,\uv{n}$ on the plane
       (PT.2--PT.4) $\to$ ray along $-\uv{s}$ to $\vv{G}$ (PL.2), moved by $\vv{v}_{\perp}\delta\tau$ for
       $\vv{G}$'s own light time (PL.1, PL.3, AS.1) $\to$ $\lambda, \varphi$ (PL.4), duration, height line (PD)
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% explicit intermediate variables and outputs of the shadow-path slides (PT, PL, PD); inputs: slide PG
+\begin{frame}{Shadow path: variables and outputs}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.02}
+  \begin{columns}[T]
+    \begin{column}{0.49\textwidth}
+      \textbf{Intermediate} (inputs: slide PG)\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}
+        $\vv{a}, \tau_E$ & asteroid from $\vv{E}$; its light time (PT.1) \\
+        $\mathsf{M}$ & J2000 $\to$ plane axes, rows $\uv{x}, \uv{y}, \uv{z}$ \\
+        $\pv{P}_{\!E}$ & shadow axis point on the geocentric plane (PT.2) \\
+        $\vv{v}, \uv{n}$ & its velocity; unit vector to the left (PT.2) \\
+        $\Delta, t_k$ & time step; sample times (PT.3) \\
+        $k_0, k$ & grid center; sample index (PT.3) \\
+        $o$ & a line's offset across the track (PT.4) \\
+        $\dot{\vv{A}}, \vv{v}_\perp$ & barycentric velocity; across $\uv{s}$ (PL.1) \\
+        $\vv{V}$ & start of the ray, $2a$ toward the star (PL.2) \\
+        $a', c'$ & ellipsoid radii: height 0 or $h$ (PL.2) \\
+        $\delta\tau$ & the ground point's light-time lead (PL.3) \\
+        $\vv{v}_G$ & the ground point's motion in the plane (PD.1) \\
+        $\uv{u}, h_\star, \uv{c}$ & vertical; star altitude; across the ground track (PD.2) \\
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \textbf{Outputs}\\[0.3ex]
+      \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.78\linewidth}@{}}
+        $\vv{G}$ & ground point of a line at $t_k$ (PL.2, PL.3) \\
+        $\lambda, \varphi$ & its longitude, latitude, WGS84 (PL.4) \\
+        $\Delta t_{\mathrm{occ}}$ & center-line duration at $\vv{G}$ (PD.1) \\
+        $\Delta_h$ & site-height shift (PD.2): \texttt{height\_shift\_km} \\
+      \end{tabular}\\[0.6ex]
+      \texttt{shadow\_path} returns, per line, the points $(t_k, \lambda, \varphi, \Delta t_{\mathrm{occ}})$
+      ($\Delta t_{\mathrm{occ}}$ on the center line only; a $t_k$ whose ray misses the Earth is left out):\\[0.3ex]
+      \begin{tabular}{@{}l l@{}}
+        \texttt{center} & $o = 0$ \\
+        \texttt{edge\_plus/minus} & $\pm r$ \\
+        \texttt{sigma1\_plus/minus} & $\pm(r + \sigma_3/3)$ \\
+        \texttt{sigma\_plus/minus} & $\pm(r + \sigma_3)$ \\
+        \texttt{satellite\_plus/minus} & $\pm(r + s_{\mathrm{sat}})$ \\
+        \texttt{center\_height} & $o = 0$ on $(a{+}h, c{+}h)$ \\
+      \end{tabular}\\[0.4ex]
+      $\to$ KML lines, the report map, the globe, path checks
     \end{column}
   \end{columns}
 \end{frame}
