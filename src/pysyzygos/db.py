@@ -98,6 +98,8 @@ HITS = [
     ("dt_along", "chk_along_s", "num", "s", "observed minus predicted, along the track, in seconds (archive's fit)"),
     ("dt_site", "chk_site_dt_s", "num", "s", "observed minus predicted chord mid-time at the observers' sites (median)"),
     ("scope", "scope", "text", "", "'earth' for a search anywhere on Earth, '' at a site"),
+    ("class", "ast_class", "text", "", "JPL orbit class: MBA, IMB, OMB, TJN, MCA, APO, AMO, ATE, IEO, TNO, CEN, ... "
+     "e.g. class IN ('TJN', 'TNO')"),
 ]
 
 

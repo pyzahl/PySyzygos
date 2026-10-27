@@ -95,6 +95,10 @@ def entry_from_api(js, fetched=None):
     """Cache entry from one sbdb.api reply (with phys-par=1)."""
     phys = {q["name"]: q for q in js.get("phys_par", [])}
     phys["_fullname"] = js.get("object", {}).get("fullname")
+    ob = js.get("object") or {}
+    oc = ob.get("orbit_class") or {}
+    phys["_class"] = dict(name="class", value=oc.get("code") or "", title=oc.get("name") or "",   # JPL's orbit
+                          neo=bool(ob.get("neo")), pha=bool(ob.get("pha")))   # class (MBA, TJN, ...; '' if none)
     o = js.get("orbit") or {}
     if o.get("orbit_id"):                                         # the orbit solution (as OWC's "Orbit Date")
         phys["orbit"] = dict(name="orbit", value=f"JPL#{o['orbit_id']} of {str(o.get('soln_date', ''))[:10]}",
@@ -138,4 +142,8 @@ def entry_from_bulk(row, fetched):
     if "diameter" in phys and row.get("diameter_sigma") not in (None, ""):
         phys["diameter"]["sigma"] = str(row["diameter_sigma"])
     phys["_fullname"] = (row.get("full_name") or "").strip() or None
+    if "class" in row:                                            # the pick's list has the orbit class too
+        from pysyzygos.picks import CLASS_NAMES
+        phys["_class"] = dict(name="class", value=row["class"] or "", title=CLASS_NAMES.get(row["class"] or "", ""),
+                              neo=row.get("neo") == "Y", pha=row.get("pha") == "Y")
     return dict(fetched=fetched, source="sbdb_query", phys=phys)

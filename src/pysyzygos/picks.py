@@ -38,6 +38,13 @@ GROUP_NAMES = {"main": "Main belt", "trojan": "Jupiter Trojans", "marscross": "M
                "tno": "TNO", "other": "Everything else"}
 
 
+CLASS_NAMES = {"MBA": "Main-belt asteroid", "IMB": "Inner main-belt asteroid", "OMB": "Outer main-belt asteroid",
+               "TJN": "Jupiter Trojan", "MCA": "Mars-crosser", "APO": "Apollo (NEO, Earth-crossing)",
+               "AMO": "Amor (NEO, outside the Earth's orbit)", "ATE": "Aten (NEO, Earth-crossing)",
+               "IEO": "Atira (NEO, inside the Earth's orbit)", "TNO": "Trans-Neptunian object", "CEN": "Centaur",
+               "AST": "Asteroid (other)", "PAA": "Parabolic orbit", "HYA": "Hyperbolic orbit"}   # JPL SBDB orbit classes
+
+
 def group_of(cls):
     """The group key of an SBDB orbit class ('other' for any class not in GROUPS)."""
     c = str(cls or "").strip().upper()

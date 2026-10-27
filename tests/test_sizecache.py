@@ -26,7 +26,9 @@ def get(url, params, timeout):
 cache_dir = tempfile.mkdtemp()
 cfg = types.SimpleNamespace(cache_path=cache_dir, sbdb_max_age_days=30)
 ns = dict(U=__import__('pysyzygos.urls', fromlist=['urls']), np=np, re=re, json=json, time=time, os=os, Path=Path, functools=functools, config=cfg, sbdb_cache=pysyzygos_sbdb,
-          requests=types.SimpleNamespace(get=get, RequestException=RequestException))
+          requests=types.SimpleNamespace(get=get, RequestException=RequestException),
+          run_note=lambda kind, item: NOTES.append((kind, item)))   # search's run warnings (stale size data)
+NOTES = []
 exec(code, ns)
 
 s = ns['get_asteroid_size']("19"); print(s)
@@ -55,17 +57,22 @@ assert ns['sbdb_phys']("99") is None and "99" not in json.loads((Path(cache_dir)
 
 # bulk entries (pick tool) give the same size as per-object entries, and never replace a newer per-object entry
 online[0] = True; cfg.sbdb_max_age_days = 30
-api = pysyzygos_sbdb.entry_from_api(dict(object=dict(fullname="9 Metis"), phys_par=[
+api = pysyzygos_sbdb.entry_from_api(dict(object=dict(fullname="9 Metis", orbit_class=dict(code="MBA",
+                                                    name="Main-belt Asteroid")), phys_par=[
     dict(name="diameter", value="190", sigma="4", ref="NEOWISE"), dict(name="extent", value="222x182x130"),
     dict(name="H", value="6.3"), dict(name="G", value="0.17")]))
 bulk = pysyzygos_sbdb.entry_from_bulk(dict(full_name="     9 Metis (A848 HA)", diameter="190", diameter_sigma="4",
-                                          extent="222x182x130", H="6.3", G="0.17", albedo=""), fetched=time.time())
+                                          extent="222x182x130", H="6.3", G="0.17", albedo="", **{"class": "MBA"}),
+                                     fetched=time.time())
 sizes = []
 for e in (api, bulk):
     pysyzygos_sbdb.put({"9": e}, cache_dir, keep_newer=False); ns['get_asteroid_size'].cache_clear()
     sizes.append({k: v for k, v in ns['get_asteroid_size']("9").items() if k != "source"})
 print("api ", sizes[0]); print("bulk", sizes[1]); assert sizes[0] == sizes[1]
 assert bulk["phys"]["_fullname"] == "9 Metis (A848 HA)"
+assert api["phys"]["_class"]["value"] == bulk["phys"]["_class"]["value"] == "MBA"          # the orbit class, both ways
+assert pysyzygos_sbdb.entry_from_api(dict(object=dict(fullname="x")))["phys"]["_class"]["value"] == ""   # none: kept
+# known (even empty): used from the cache; an entry from before the orbit class is fetched once more
 pysyzygos_sbdb.put({"9": dict(api, fetched=time.time() + 100)}, cache_dir)            # newer per-object entry
 assert pysyzygos_sbdb.put({"9": bulk}, cache_dir) == 0 and pysyzygos_sbdb.get("9", cache_dir)[0]["source"] == "sbdb.api"
 print("SIZE CACHE TESTS PASSED")

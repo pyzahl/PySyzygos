@@ -7,6 +7,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **The asteroid's orbit class in the results**: the asteroid's hover in Results and Favorites shows JPL's orbit class
+  (e.g. "Jupiter Trojan (TJN)", "Mars-crossing Asteroid (MCA)"); record fields `ast_class`, `ast_class_name`, SQL
+  filter column `class` (e.g. `class IN ('TJN', 'TNO')`). For events found from now on; the size cache fetches each
+  asteroid's SBDB entry once more to get it.
 - **Pre-screens of some asteroids only**: `prescreen build --groups/--a-min/--a-max/--a-exclude`, and the GUI's
   "Build pre-screen" with the Pick tab's asteroid selection, as the pick. A whole-Earth pre-screen of Jupiter Trojans,
   NEOs and TNOs holds ~12,000 asteroids (H < 17; ~15 s per day to build). Its selection is stored with it (name,

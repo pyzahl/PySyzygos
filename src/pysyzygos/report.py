@@ -168,6 +168,18 @@ def parse_utc(text):
     return t + timedelta(seconds=float("0." + frac)) if frac else t
 
 
+def class_text(r):
+    """'Jupiter Trojan (TJN)' from the record's JPL orbit class (ast_class / ast_class_name); '' if not known."""
+    code = str(r.get("ast_class") or "").strip()
+    if not code or code.lower() == "nan":
+        return ""
+    name = str(r.get("ast_class_name") or "").strip()
+    if not name or name.lower() == "nan":
+        from pysyzygos.picks import CLASS_NAMES
+        name = CLASS_NAMES.get(code, "")
+    return f"{name} ({code})" if name else code
+
+
 def size_estimated(e):
     """True if the event's asteroid size comes from H with an assumed albedo (no measured diameter)."""
     return str(e.get("size_src") or "").lower().startswith("h only")
@@ -382,7 +394,8 @@ def build_event(r, lat, lon, kml_dir, out_dir):
         margin = miss - rad
     body = ":" in tid                                            # a planet or moon (bodies.py: P:Jupiter, M:Io)
     label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else asteroid_label(tid, r.get("target_name"))
-    return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body, kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
+    return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body,
+                cls=class_text(r), kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
                 contact_dur=num(r.get("duration_s")) if (r.get("d_utc") or "").strip() else None,
                 star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1], sky_names=sky_names(r),
@@ -1091,7 +1104,8 @@ def start_end_text(e):
 
 def html_row(e):
     size = f"D≈{2 * e['rad']:.1f} km" if e["rad"] is not None else ""
-    tip_ast = esc(f"{e.get('full') or e['label']}" + (f" · {size}" + (f", {size_source_text(e['size_src'])}" if e['size_src'] else "") if size else ""))
+    tip_ast = esc(f"{e.get('full') or e['label']}" + (f" · {e['cls']}" if e.get("cls") else "")
+                  + (f" · {size}" + (f", {size_source_text(e['size_src'])}" if e['size_src'] else "") if size else ""))
     drop_tip = ""
     if e["m_ast"] is not None:
         before = f"{e['m_before']:.2f} → " if e["m_before"] is not None else ""

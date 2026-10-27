@@ -75,7 +75,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   problems) -> prescreen build(selection=) filters rows, meta keys groups/a_*, settings 'selection' only when
   restricted (old partials resume), default name global-<tag>; check() adds selection_covers(meta_selection(meta),
   opt['selection'] (missing = all)); pick passes it; SHARE_KEYS; GUI: no new controls, `pg.selection_args` (pick and
-  pre-screen build), `pg.selection_now` (fit check; groups_changed refreshes it). GUI Pick checkboxes `pg.p_groups` (gui_state pick_groups); a range `--a-min/--a-max` (`pg.p_amin/p_amax`, gui_state
+  pre-screen build), `pg.selection_now` (fit check; groups_changed refreshes it). Orbit class in results (2026-10-26): sbdb entry phys '_class' (value code, title
+  name, neo, pha; always set by entry_from_api, by entry_from_bulk when the row has 'class'); search sbdb_phys /
+  `_phys_fresh` treat entries without '_class' as stale (one refetch); `asteroid_class` -> record ast_class,
+  ast_class_name (end, in finish); `picks.CLASS_NAMES`; report `class_text` in the asteroid hover (tip_ast);
+  db.HITS column class. GUI Pick checkboxes `pg.p_groups` (gui_state pick_groups); a range `--a-min/--a-max` (`pg.p_amin/p_amax`, gui_state
   pick_a_min/max/exclude, `--a-exclude`; CSV a_au; header/meta/describe); bands table (rowClick -> range); live
   count `picks.count_index(cache json)` (numpy H/a/group of the cached SBDB list, once per file mtime, ~2 s) +
   `picks.count(...)` -> `pg.p_count` (count_update on every filter change). Counts (numbered): main 870,924, trojan 10,633,

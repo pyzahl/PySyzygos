@@ -460,7 +460,7 @@ def sbdb_phys(target_id, timeout=30):
     nothing is cached (failures are not cached)."""
     n = str(target_id).strip()
     hit, fresh = sbdb_cache.get(n, config.cache_path, getattr(config, "sbdb_max_age_days", 30))
-    if fresh:
+    if fresh and "_class" in hit["phys"]:                       # entries from before the orbit class: once more
         return hit["phys"]
     try:
         resp = requests.get(U.URL_JPL_SBDB_API, params={"sstr": n, "phys-par": 1}, timeout=timeout)
@@ -936,13 +936,26 @@ def finish_pending():
     return sum(bool(fin(perr)) for (_, _, fin), perr in zip(items, perrs))
 
 
+def _phys_fresh(n, age):
+    """A cached SBDB entry recent enough and with the orbit class (older entries lack it: fetched once more)."""
+    hit, fresh = sbdb_cache.get(n, config.cache_path, age)
+    return fresh and "_class" in hit["phys"]
+
+
+def asteroid_class(target_id):
+    """(code, name) of the asteroid's JPL orbit class (MBA, TJN, APO, TNO, ...; '' if unknown, a planet or moon)."""
+    if bodies.is_body(target_id):
+        return "", ""
+    c = ((sbdb_phys(str(target_id).strip()) or {}).get("_class")) or {}
+    return c.get("value", ""), c.get("title", "")
+
+
 def prefetch_sizes(targets, workers=4):
     """Fetch the SBDB data of the targets whose cached copy is missing or stale, several at a time (network only:
     threads); the cache file is then written once, here in the calling thread. sbdb_phys finds them afterwards."""
     from concurrent.futures import ThreadPoolExecutor
     age = getattr(config, "sbdb_max_age_days", 30)
-    todo = [str(t).strip() for t in targets
-            if not bodies.is_body(t) and not sbdb_cache.get(str(t).strip(), config.cache_path, age)[1]]
+    todo = [str(t).strip() for t in targets if not bodies.is_body(t) and not _phys_fresh(str(t).strip(), age)]
     if len(todo) < 2:
         return 0
 
@@ -1397,6 +1410,10 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         except Exception:                                                  # a side value: never stops the search
             hs = None
         record.update(height_shift_km=float("nan") if hs is None else round(hs, 3))
+        try:                                                               # JPL orbit class (report hover, filters)
+            record.update(zip(("ast_class", "ast_class_name"), asteroid_class(target_id)))
+        except Exception:
+            record.update(ast_class="", ast_class_name="")
         print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
               + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
                  + ")" if record["star_flag"] else ""))
