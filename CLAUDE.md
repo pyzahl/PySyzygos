@@ -70,7 +70,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `parse_groups` (in the light picks.py: describe() names them; pick.py imports them). SBDB_FIELDS + pha, sats
   (the cache refetches when fields are missing). build_rows rows: cls, group, pha, sats; pick `--groups` filters
   after the pre-screen; pick CSV columns class, pha, sats (end); targets.py header "# asteroid groups:", pick_meta
-  groups. GUI Pick checkboxes `pg.p_groups` (gui_state pick_groups); a range `--a-min/--a-max` (`pg.p_amin/p_amax`, gui_state
+  groups. Pre-screens (2026-10-26): `picks.selection` (groups or None = all, a_min/a_max/a_exclude), `restricted`,
+  `select_rows`, `selection_text`/`_tag`, `selection_covers(built, want)` (groups subset, a range inside; else
+  problems) -> prescreen build(selection=) filters rows, meta keys groups/a_*, settings 'selection' only when
+  restricted (old partials resume), default name global-<tag>; check() adds selection_covers(meta_selection(meta),
+  opt['selection'] (missing = all)); pick passes it; SHARE_KEYS; GUI: no new controls, `pg.selection_args` (pick and
+  pre-screen build), `pg.selection_now` (fit check; groups_changed refreshes it). GUI Pick checkboxes `pg.p_groups` (gui_state pick_groups); a range `--a-min/--a-max` (`pg.p_amin/p_amax`, gui_state
   pick_a_min/max/exclude, `--a-exclude`; CSV a_au; header/meta/describe); bands table (rowClick -> range); live
   count `picks.count_index(cache json)` (numpy H/a/group of the cached SBDB list, once per file mtime, ~2 s) +
   `picks.count(...)` -> `pg.p_count` (count_update on every filter change). Counts (numbered): main 870,924, trojan 10,633,

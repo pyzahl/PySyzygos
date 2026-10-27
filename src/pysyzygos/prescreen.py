@@ -389,8 +389,9 @@ def open_partial(path, settings, fresh=False):
 
 def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km=EDGE_KM, max_sun_alt=0.0,
           min_alt=0.0, workers=4, out=None, catalog=None, sbdb_cache=None, name=None, chunk=None, mp_start="spawn",
-          max_mem=None, mem_frac=0.6, fresh=False):
-    """Build a pre-screen and write it to out (SQLite). Progress is saved after every chunk in out + '.partial'; a
+          max_mem=None, mem_frac=0.6, fresh=False, selection=None):
+    """Build a pre-screen and write it to out (SQLite). selection (picks.selection: asteroid groups, a range, as the
+    pick's) restricts it to those asteroids: a much smaller file, used only by picks inside that selection (check). Progress is saved after every chunk in out + '.partial'; a
     rerun with the same settings resumes there. Chunk size and workers follow the free memory (max_mem bytes or
     mem_frac of the available memory) unless chunk is given. Returns (path, n_events, n_asteroids)."""
     import gc, multiprocessing
@@ -405,6 +406,12 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     rows = P.build_rows(fields, data, hmax)
     del fields, data
     gc.collect()
+    from pysyzygos import picks as PK
+    sel = PK.selection(**(selection or {}))
+    if PK.restricted(sel):                                       # only these asteroids, as the pick's filter
+        n_all = len(rows)
+        rows = PK.select_rows(rows, sel)
+        say(f"asteroid selection {PK.selection_text(sel)}: {len(rows)} of {n_all} asteroids")
     SC.load_kernels(spice, HOME)
     et0 = spice.str2et(f"{start}T00:00:00")
     et1 = et0 + days * 86400.0
@@ -414,13 +421,13 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     with S.step("star index (catalog)"):
         L.open_index(catalog, L.index_gmax(cam_limit))              # build missing indexes here, once
     supplement = bool(L.use_supplement() and L.has_supplement(catalog))
-    name = name or ("global" if region is None else "region")
+    name = name or ("global" if region is None else "region") + (f"-{PK.selection_tag(sel)}" if PK.restricted(sel) else "")
     out = out or os.path.join(DIR, f"{name}__{start}_{days:g}d_G{cam_limit:g}" + (".global.npy" if region is None
                                                                                   else ".db"))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     partial = out + ".partial"
     settings = dict(_settings(start, days, region, cam_limit, hmax, min_drop, reach_km, max_sun_alt, min_alt, catalog),
-                    supplement=supplement)
+                    supplement=supplement, **({"selection": sel} if PK.restricted(sel) else {}))
     con = open_partial(partial, settings, fresh)
     done_nums = {r[0] for r in con.execute("SELECT number FROM done")}
     n_events = con.execute("SELECT COUNT(*) FROM events").fetchone()[0] + \
@@ -517,7 +524,7 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
                 hmax=hmax, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
                 asteroids_screened=len(rows), sbdb_fetched=fetched, built=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
                 build_s=round(time.time() - t0), catalog=os.path.basename(str(catalog)), version=__version__,
-                resumed=bool(done_nums), supplement=supplement, workers=w)
+                resumed=bool(done_nums), supplement=supplement, workers=w, **sel)
     if region is None:
         n_ev, n_ast = _write_global(con, out, meta)
         con.close()
@@ -764,7 +771,15 @@ def check(meta, et0, et1, lat, lon, opt):
         out.append("built without the high-RUWE supplement")
     if opt.get("hmax_all") or (meta.get("hmax") is not None and opt.get("hmax") is not None and opt["hmax"] > meta["hmax"]):
         out.append(f"H limit beyond the pre-screen's ({meta.get('hmax')})")
+    from pysyzygos import picks as PK                         # a pre-screen of some asteroid groups / an a range only
+    out += PK.selection_covers(meta_selection(meta), opt.get("selection"))
     return out
+
+
+def meta_selection(meta):
+    """The asteroid selection a pre-screen was built with (picks.selection; all asteroids for older builds)."""
+    from pysyzygos import picks as PK
+    return PK.selection(meta.get("groups"), meta.get("a_min"), meta.get("a_max"), meta.get("a_exclude", False))
 
 
 def age_days(meta):
@@ -825,7 +840,8 @@ def remove(path):
 MANIFEST = "prescreens.json"
 SHARE_DIR = os.path.join("release", "world-prescreens")
 SHARE_KEYS = ("start", "days", "et0", "et1", "region", "cam_limit", "hmax", "min_drop", "reach_km", "max_sun_alt",
-              "min_alt", "supplement", "asteroids_screened", "n_events", "n_asteroids", "built", "build_s", "version")
+              "min_alt", "supplement", "asteroids_screened", "n_events", "n_asteroids", "built", "build_s", "version",
+              "groups", "a_min", "a_max", "a_exclude")
 
 
 def _files(path):
@@ -1063,8 +1079,11 @@ def describe(path, meta=None):
     reg = m.get("region")
     where = "whole Earth" if not reg else (f"lat {reg['lat_min']:.1f}..{reg['lat_max']:.1f}, "
                                            f"lon {reg['lon_min']:.1f}..{reg['lon_max']:.1f}")
+    from pysyzygos import picks as PK
+    only = PK.selection_text(meta_selection(m))
     return (f"{m.get('name', '?')}: {m['start']} + {m['days']:g} d, {where}, for picks up to G {m['cam_limit']:g}, "
-            + (f"reach {m['reach_km']:g} km, " if reg else "") + f"H {m.get('hmax')}; built {m.get('built', '?')[:16]}")
+            + (f"reach {m['reach_km']:g} km, " if reg else "") + f"H {m.get('hmax')}" + (f", only {only}" if only else "")
+            + f"; built {m.get('built', '?')[:16]}")
 
 
 def main(argv=None):
@@ -1098,6 +1117,12 @@ def main(argv=None):
     b.add_argument("--cam-limit", type=float, default=max(float(c("cam_limit", 16.0)), 16.0), help="faintest star, G")
     b.add_argument("--hmax", type=float, default=c("hmax", 17.0))
     b.add_argument("--all", action="store_true", help="all numbered asteroids, any H")
+    from pysyzygos.picks import GROUP_NAMES
+    b.add_argument("--groups", default="all", help="only these asteroid groups (as pick --groups): "
+                   + ", ".join(GROUP_NAMES) + "; default all. Picks of other groups do not use it")
+    b.add_argument("--a-min", type=float, help="only asteroids with a semi-major axis of at least this, AU")
+    b.add_argument("--a-max", type=float, help="only asteroids with a semi-major axis of at most this, AU")
+    b.add_argument("--a-exclude", action="store_true", help="the asteroids OUTSIDE the --a-min/--a-max range")
     b.add_argument("--min-drop", type=float, default=0.1)
     b.add_argument("--reach", type=float, default=EDGE_KM,
                    help="regional: the largest reach (km) a pick will use; whole Earth (--global): the margin beyond "
@@ -1181,6 +1206,7 @@ def main(argv=None):
                 return 1
         return 0
     if a.cmd == "remote":
+        from pysyzygos import picks as PK
         m, man = remote_list()
         if not man:
             print("No pre-screen mirror answered (offline?).")
@@ -1190,7 +1216,8 @@ def main(argv=None):
         for e in man.get("prescreens", []):
             mb = e["archive_bytes"] / 1e6
             print(f"  {e['name']}{'  [installed]' if e['name'] + '.global.npy' in here else ''}\n"
-                  f"    {e['start']} + {e['days']:g} d, whole Earth, for picks up to G {e['cam_limit']:g} (any reach); "
+                  f"    {e['start']} + {e['days']:g} d, whole Earth, for picks up to G {e['cam_limit']:g} (any reach"
+                  + (f"; only {PK.selection_text(meta_selection(e))}" if PK.restricted(meta_selection(e)) else "") + "); "
                   f"{e['n_events']} events of {e['n_asteroids']} asteroids, built "
                   f"{str(e.get('built'))[:10]} ({e.get('version')}), download {mb:.0f} MB")
         return 0
@@ -1277,10 +1304,12 @@ def main(argv=None):
 
 
 def _build_cli(a, c, region, name):
+    from pysyzygos.picks import parse_groups
     build(a.start, a.days, region, a.cam_limit, None if a.all else a.hmax, a.min_drop, a.reach, a.max_sun_alt,
           a.min_alt, a.workers, a.output, a.catalog, os.path.join(c("cache") or tempfile.gettempdir(),
                                                                   "PySyzygos_sbdb_cache.json"), name,
-          a.chunk, max_mem=a.max_mem * 1e9 if a.max_mem else None, mem_frac=a.mem_frac, fresh=a.fresh)
+          a.chunk, max_mem=a.max_mem * 1e9 if a.max_mem else None, mem_frac=a.mem_frac, fresh=a.fresh,
+          selection=dict(groups=parse_groups(a.groups), a_min=a.a_min, a_max=a.a_max, a_exclude=a.a_exclude))
 
 
 if __name__ == "__main__":

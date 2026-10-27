@@ -995,6 +995,7 @@ pysyzygos prescreen build --start 2026-11-01 --days 30 --global                 
 pysyzygos prescreen build --start 2026-11-01 --days 30 --around-sites 300     # one box around all sites of sites.py
 pysyzygos prescreen build --start 2026-11-01 --days 30 --around-site 500      # a box 500 km around your site
 pysyzygos prescreen build --start 2026-11-01 --days 30 --region europe        # a named region, or lat_min,lat_max,lon_min,lon_max
+pysyzygos prescreen build --start 2026-11-01 --days 30 --global --groups trojan,neo,tno   # only these groups (small, fast)
 pysyzygos prescreen list                                                      # the built ones (window, region, size, age)
 pysyzygos pick --start 2026-11-03 --days 7 --prescreen auto                   # the newest fitting one, else all
 pysyzygos pick --start 2026-11-03 --days 7 --prescreen prescreen/<name>.db    # this one (refused if it does not fit)
@@ -1009,13 +1010,20 @@ age (older than 30 days: rebuild), and whether it fits the current pick or why n
 
 **When a pre-screen fits a pick.** It must cover the pick's window and site and have been built with limits at least
 as loose as the pick's: star limit, reach (regional pre-screens only), minimum drop, Sun and star altitude limits, H
-limit. The build's defaults are loose (star limit G 16 or the site's, reach 200 km, Sun below 0, star above 0), so it
+limit; and a pre-screen of some asteroids only (below) must hold all of the pick's. The build's defaults are loose (star limit G 16 or the site's, reach 200 km, Sun below 0, star above 0), so it
 fits nearly every pick. A whole-Earth pre-screen fits any reach: inside the Earth's disk it holds every event, and its
 200 km is only how far beyond the Earth's edge and the day/night line it looks (grazes, edge cases). The
 pick checks this and refuses one that does not fit (auto then screens all asteroids). It then screens only the
 pre-screen's asteroids with an event in its window and a star within its own star limit: built to G 16, a 500 km
 region keeps about 1 asteroid in 6; a pick to G 13.2 then screens about 1 in 40, and a whole-Earth site test
 typically a few hundred asteroids.
+
+**Only some asteroids (`--groups`, `--a-min`, `--a-max`, `--a-exclude`).** A pre-screen build takes the same
+asteroid filter as the pick (the Pick tab's "Which asteroids to screen": groups and a range): built for, e.g.,
+Jupiter Trojans, NEOs and TNOs it holds ~12,000 instead of ~465,000 asteroids (H < 17), a whole-Earth day in ~15 s
+instead of minutes, and a much smaller file (`global-trojan-neo-tno__...`). A pick uses it only when its own
+selection lies inside (NEO and TNO only: yes; all groups: no, it would miss the main belt's events; then *auto*
+takes another or screens all).
 
 **Whole Earth (`--global`).** Finding which stars' shadows touch the Earth at all is the expensive part of a build;
 testing a region is cheap. So a whole-Earth build costs about the same as a region build, and instead of testing a

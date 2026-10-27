@@ -317,9 +317,12 @@ def main(argv=None):
                mag_adjust=a.mag_adjust, extinction=a.extinction)
     from pysyzygos import gaia_local as L
     sup = bool(L.use_supplement() and L.has_supplement(a.catalog))   # high-RUWE stars too: the pre-screen must have them
+    from pysyzygos.picks import selection as _selection         # a pre-screen of some groups only fits this selection
+    opt_ps = dict(hmax=hmax, hmax_all=a.all, supplement=sup,
+                  selection=_selection(a.group_set, a.a_min, a.a_max, a.a_exclude))
     if a.prescreen == "auto":                           # the newest fitting pre-screen, else the full screen
         from pysyzygos import prescreen as PS
-        path, _, other = PS.best_fit(et0, et1, a.lat, a.lon, dict(opt, hmax=hmax, hmax_all=a.all, supplement=sup))
+        path, _, other = PS.best_fit(et0, et1, a.lat, a.lon, dict(opt, **opt_ps))
         if path is None:
             print("pre-screen: none fits this pick" + "".join(f"\n  {os.path.basename(p)}: {'; '.join(bad)}"
                                                             for p, _, bad in other)
@@ -328,7 +331,7 @@ def main(argv=None):
     if a.prescreen:                                     # only the asteroids with events in the pre-screen
         from pysyzygos import prescreen as PS
         meta = PS.read_meta(a.prescreen)
-        bad = PS.check(meta, et0, et1, a.lat, a.lon, dict(opt, hmax=hmax, hmax_all=a.all, supplement=sup))
+        bad = PS.check(meta, et0, et1, a.lat, a.lon, dict(opt, **opt_ps))
         if bad:
             print(f"pre-screen {a.prescreen} does not fit this pick: " + "; ".join(bad) +
                   ". Build a fitting one (pysyzygos prescreen build) or pick without --prescreen.", file=sys.stderr)

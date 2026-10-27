@@ -58,6 +58,85 @@ def parse_groups(text):
     return out
 
 
+# ---------------------------------------------------------------- the asteroid selection of a pick or pre-screen
+def selection(groups=None, a_min=None, a_max=None, a_exclude=False):
+    """The asteroid selection (pick --groups/--a-*, the same for a pre-screen build) as stored with a pre-screen:
+    dict(groups = sorted group keys or None for all, a_min, a_max (AU or None), a_exclude)."""
+    g = None if groups is None or set(groups) >= set(GROUP_NAMES) else sorted(groups)
+    return dict(groups=g, a_min=a_min, a_max=a_max, a_exclude=bool(a_exclude) and (a_min, a_max) != (None, None))
+
+
+def restricted(sel):
+    """True if the selection leaves asteroids out (groups or a range)."""
+    return bool(sel and (sel.get("groups") is not None or sel.get("a_min") is not None or sel.get("a_max") is not None))
+
+
+def select_rows(rows, sel):
+    """The pick.build_rows rows inside the selection (group and semi-major axis)."""
+    g = set(sel["groups"]) if sel.get("groups") is not None else None
+    lo = sel["a_min"] if sel.get("a_min") is not None else 0.0
+    hi = sel["a_max"] if sel.get("a_max") is not None else float("inf")
+    has_a = sel.get("a_min") is not None or sel.get("a_max") is not None
+    return [r for r in rows if (g is None or r["group"] in g)
+            and (not has_a or (lo <= r["a"] <= hi) != bool(sel.get("a_exclude")))]
+
+
+def selection_text(sel):
+    """'groups NEO, TNO; a 3.7-4.2 AU' ('' for all asteroids)."""
+    out = []
+    if sel and sel.get("groups") is not None:
+        out.append("groups " + ", ".join(GROUP_NAMES[k] for k in GROUP_NAMES if k in sel["groups"]))
+    if sel and (sel.get("a_min") is not None or sel.get("a_max") is not None):
+        lo, hi = sel.get("a_min"), sel.get("a_max")
+        r = (f"a {lo:g}-{hi:g} AU" if lo is not None and hi is not None else
+             f"a >= {lo:g} AU" if lo is not None else f"a <= {hi:g} AU")
+        out.append(("not " if sel.get("a_exclude") else "") + r)
+    return "; ".join(out)
+
+
+def selection_tag(sel):
+    """A file-name part for a restricted selection ('neo-tno', 'trojan_a5-5.4', 'main_not-a2-3'); '' for all."""
+    out = []
+    if sel and sel.get("groups") is not None:
+        out.append("-".join(k for k in GROUP_NAMES if k in sel["groups"]))
+    if sel and (sel.get("a_min") is not None or sel.get("a_max") is not None):
+        lo = "" if sel.get("a_min") is None else format(sel["a_min"], "g")
+        hi = "" if sel.get("a_max") is None else format(sel["a_max"], "g")
+        out.append(("not-" if sel.get("a_exclude") else "") + f"a{lo}-{hi}")
+    return "_".join(out)
+
+
+def _a_inside(want, built):
+    """True if every semi-major axis the selection want lets through, built lets through too."""
+    inf = float("inf")
+    if built.get("a_min") is None and built.get("a_max") is None:
+        return True
+    if want.get("a_min") is None and want.get("a_max") is None:
+        return False
+    blo, bhi = (-inf if built.get("a_min") is None else built["a_min"]), (inf if built.get("a_max") is None else built["a_max"])
+    wlo, whi = (-inf if want.get("a_min") is None else want["a_min"]), (inf if want.get("a_max") is None else want["a_max"])
+    if not built.get("a_exclude"):                        # built keeps [blo, bhi]: want must keep a part of it
+        return not want.get("a_exclude") and blo <= wlo and whi <= bhi
+    if want.get("a_exclude"):                             # built leaves [blo, bhi] out: want must leave out more
+        return wlo <= blo and bhi <= whi
+    return whi < blo or bhi < wlo                         # want keeps a range outside the left-out one
+
+
+def selection_covers(built, want):
+    """Problems (list of str) when the asteroids of selection want are not all in built (a pre-screen's selection):
+    then a pick with want could miss events. Both dicts as selection(); None = all asteroids."""
+    built, want = built or selection(), want or selection()
+    out = []
+    if built.get("groups") is not None:
+        extra = (set(GROUP_NAMES) if want.get("groups") is None else set(want["groups"])) - set(built["groups"])
+        if extra:
+            out.append(f"built for {selection_text(dict(groups=built['groups']))[7:]} only (the pick also wants "
+                       + ", ".join(GROUP_NAMES[k] for k in GROUP_NAMES if k in extra) + ")")
+    if not _a_inside(want, built):
+        out.append(f"built for {selection_text(dict(built, groups=None))} only")
+    return out
+
+
 # ---------------------------------------------------------------- how many asteroids the pick settings screen
 _COUNT = {}
 

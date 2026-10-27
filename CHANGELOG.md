@@ -7,6 +7,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Pre-screens of some asteroids only**: `prescreen build --groups/--a-min/--a-max/--a-exclude`, and the GUI's
+  "Build pre-screen" with the Pick tab's asteroid selection, as the pick. A whole-Earth pre-screen of Jupiter Trojans,
+  NEOs and TNOs holds ~12,000 asteroids (H < 17; ~15 s per day to build). Its selection is stored with it (name,
+  description, table, shared list); a pick uses it only when its own selection lies inside, else it is refused with
+  the reason (e.g. "built for Jupiter Trojans, NEO, TNO only").
 - **Warnings kept with the results, in orange**: every automatic fallback or skip of a search is now listed in a
   "Warnings" line of the results page header (below "Run") and in the run summary, not only in the log, where it was
   easily overlooked. It covers: JPL Horizons down or answering with a server error; orbits from older cached files

@@ -45,4 +45,28 @@ assert P.count(idx) == (4, 4) and P.count(idx, 17) == (3, 3)
 assert P.count(idx, None, ["neo"]) == (1, 4) and P.count(idx, 17, ["main"], 3.7, 4.2) == (1, 3)
 assert P.count(idx, 17, None, 2.0, 3.3, True) == (2, 3)                                    # outside 2.0-3.3: 3.9 and 5.2
 assert P.count_index(os.path.join(tmp, "missing.json")) is None
+
+# the selection (pick and pre-screen build alike) and whether a restricted pre-screen holds a pick's asteroids
+sel = P.selection
+assert sel() == dict(groups=None, a_min=None, a_max=None, a_exclude=False) and not P.restricted(sel())
+assert sel(set(P.GROUP_NAMES)) == sel() and sel(None, None, None, True)["a_exclude"] is False   # no range: no exclude
+hv = sel({"neo", "tno", "trojan"})
+assert P.restricted(hv) and hv["groups"] == ["neo", "tno", "trojan"]
+assert P.selection_tag(hv) == "trojan-neo-tno" and P.selection_text(hv) == "groups Jupiter Trojans, NEO, TNO"
+assert P.selection_tag(sel(["main"], 2.0, 3.0, True)) == "main_not-a2-3" and P.selection_tag(sel(None, 3.7)) == "a3.7-"
+rows = [dict(group="main", a=2.5), dict(group="main", a=3.9), dict(group="neo", a=1.2), dict(group="trojan", a=5.2)]
+assert [r["a"] for r in P.select_rows(rows, hv)] == [1.2, 5.2]
+assert [r["a"] for r in P.select_rows(rows, sel(None, 3.7, 4.2))] == [3.9]
+assert [r["a"] for r in P.select_rows(rows, sel(None, 2.0, 3.0, True))] == [3.9, 1.2, 5.2]
+cov = P.selection_covers
+assert cov(None, None) == [] and cov(None, hv) == []                         # a full pre-screen holds every pick
+assert cov(hv, sel({"neo"})) == [] and cov(hv, hv) == []                      # fewer groups: fits
+assert cov(hv, sel()) and "Main belt" in cov(hv, sel())[0]                    # all groups: would miss main belt events
+assert cov(hv, sel({"neo", "main"})) and cov(hv, sel({"neo"}, 1.0, 2.0)) == []
+hil = sel(None, 3.7, 4.2)                                                     # a pre-screen of the Hildas
+assert cov(hil, sel(None, 3.8, 4.0)) == [] and cov(hil, sel(None, 3.6, 4.0)) and cov(hil, sel()) and \
+    cov(hil, sel(None, 3.8, 4.0, True))
+nomb = sel(None, 2.0, 3.3, True)                                              # all but the core main belt
+assert cov(nomb, sel(None, 3.7, 4.2)) == [] and cov(nomb, sel(None, 1.5, 3.3, True)) == []
+assert cov(nomb, sel(None, 3.0, 4.2)) and cov(nomb, sel(None, 2.5, 3.0, True)) and cov(nomb, sel())
 print("PICK GROUPS TESTS PASSED")

@@ -33,6 +33,14 @@ assert PS.check(glob_meta, 0.0, 3 * 86400.0, -80.0, 10.0, dict(pick, reach_km=50
     ["star limit 17 beyond the pre-screen's 16"]                # the other limits still count
 assert "reach" not in PS.describe("x", dict(glob_meta, name="g", built="2026-10-21")) and \
     "reach 200 km" in PS.describe("x", dict(meta, name="r", built="2026-10-21"))
+# a pre-screen of some asteroid groups only (prescreen build --groups, the pick's filter): only for picks inside it
+hv_meta = dict(glob_meta, groups=["neo", "tno", "trojan"], a_min=None, a_max=None, a_exclude=False)
+assert PS.check(glob_meta, 0.0, 3 * 86400.0, -80.0, 10.0, pick) == []                         # old builds: all asteroids
+bad = PS.check(hv_meta, 0.0, 3 * 86400.0, -80.0, 10.0, pick)                                  # the pick wants all groups
+assert len(bad) == 1 and "Main belt" in bad[0], bad
+from pysyzygos import picks as PK
+assert PS.check(hv_meta, 0.0, 3 * 86400.0, -80.0, 10.0, dict(pick, selection=PK.selection({"neo", "tno"}))) == []
+assert "only groups Jupiter Trojans, NEO, TNO" in PS.describe("x", dict(hv_meta, name="g", built="2026-10-26"))
 
 # the file: asteroids with events in the window
 p = os.path.join(tempfile.mkdtemp(), "t.db")

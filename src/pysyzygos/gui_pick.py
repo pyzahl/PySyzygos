@@ -94,7 +94,8 @@ def panel(pg):
                      "events there; every later pick of a site inside that region and window ('Asteroids: auto') "
                      "then screens only those (a pick then takes seconds). Build it for the next weeks, around all your "
                      "sites, or for the whole Earth (same build time, bigger file: any site, also later ones); "
-                     "rebuild after a few weeks (orbits are those of the build day). Uses the H limit and workers above; star limit "
+                     "rebuild after a few weeks (orbits are those of the build day). Uses the H limit, the asteroid selection (groups, a range: a much smaller "
+                     "pre-screen, used only by picks inside that selection) and workers above; star limit "
                      "at least G 16; loose limits (reach 200 km, Sun below 0, star above 0). Stop saves; the same "
                      "build again resumes.").classes("text-sm text-slate-600")
             with ui.row().classes("items-end gap-4"):
@@ -196,7 +197,7 @@ def handlers(pg):
             t0 = _day_et(pg.p_start.value)
             t1 = t0 + float(pg.p_days.value or 1) * 86400
             want = dict(cam_limit=float(pg.p_mag.value or 0), hmax=None if pg.p_all.value else float(pg.p_hmax.value or 17),
-                        hmax_all=bool(pg.p_all.value),
+                        hmax_all=bool(pg.p_all.value), selection=pg.selection_now(),
                         supplement=bool(SUPPLEMENT["on"] and pg.cat_sel.value
                                         and pg.gaia_local.has_supplement(os.path.join(ROOT, pg.cat_sel.value))))
             files = PS.list_files(os.path.join(ROOT, PS.DIR))
@@ -222,7 +223,9 @@ def handlers(pg):
                                                                   f"lon {reg['lon_min']:.0f}..{reg['lon_max']:.0f}",
                              sites=", ".join(inside) or "-",
                              limits=f"G \u2264 {m['cam_limit']:g}, H < {m.get('hmax')}"
-                                    + (f", reach \u2264 {m['reach_km']:g} km" if reg else ""),
+                                    + (f", reach \u2264 {m['reach_km']:g} km" if reg else "")
+                                    + (f"; only {pg.picks.selection_text(PS.meta_selection(m))}"
+                                       if pg.picks.restricted(PS.meta_selection(m)) else ""),
                              found=f"{n_ast} / {n_ev}",
                              age="?" if age is None else (f"{age:.0f} d ago" + (" (old: rebuild)" if age > 30 else "")),
                              fits="fits" if not bad else "; ".join(bad)))
@@ -258,7 +261,9 @@ def handlers(pg):
             for e in reversed(man["prescreens"]):
                 mb = e["archive_bytes"] / 1e6
                 with ui.row().classes("items-center gap-3"):
-                    ui.label(f"{e['start']} + {e['days']:g} d, for picks up to G {e['cam_limit']:g} (any reach), "
+                    only = pg.picks.selection_text(PS.meta_selection(e))
+                    ui.label(f"{e['start']} + {e['days']:g} d, for picks up to G {e['cam_limit']:g} (any reach"
+                             + (f"; only {only}" if only else "") + "), "
                              f"{e['n_asteroids']} asteroids / {e['n_events']} events, built "
                              f"{str(e.get('built'))[:10]}, {mb:.0f} MB").classes("text-sm")
                     if e["name"] + ".global.npy" in here:
@@ -323,18 +328,10 @@ def handlers(pg):
             args += ["--cam-limit", f"{float(pg.p_mag.value):g}"]
         if pg.p_pre.value != "all":
             args += ["--prescreen", pg.p_pre.value]                # "auto" or a file
-        groups = [k for k, cb in pg.p_groups.items() if cb.value]
-        if not groups:
-            ui.notify("Tick at least one asteroid group", type="warning")
+        sel = selection_args()
+        if sel is None:
             return
-        if len(groups) < len(pg.p_groups):
-            args += ["--groups", ",".join(groups)]
-        if pg.p_amin.value not in (None, ""):
-            args += ["--a-min", f"{float(pg.p_amin.value):g}"]
-        if pg.p_amax.value not in (None, ""):
-            args += ["--a-max", f"{float(pg.p_amax.value):g}"]
-        if pg.p_aexcl.value and (pg.p_amin.value not in (None, "") or pg.p_amax.value not in (None, "")):
-            args += ["--a-exclude"]
+        args += sel
 
         async def done(rc):
             if rc == 0:
@@ -372,6 +369,7 @@ def handlers(pg):
 
     def groups_changed():
         background_tasks.create(count_update())
+        pg.prescreen_options()                                     # which pre-screens fit depends on the selection
         save_ui_state(pick_groups=[k for k, cb in pg.p_groups.items() if cb.value],
                       pick_a_min=pg.p_amin.value if pg.p_amin.value not in ("",) else None,
                       pick_a_max=pg.p_amax.value if pg.p_amax.value not in ("",) else None,
@@ -385,6 +383,30 @@ def handlers(pg):
         ui.notify(f"a {row['lo']:g} - {row['hi']:g} AU ({row['band']}); clear the fields for no limit", type="info")
     pg.band_pick = band_pick
 
+    def selection_args():
+        """The asteroid selection of 'Which asteroids to screen' (groups, a range) as pick / prescreen build
+        arguments; None (with a warning) when no group is ticked."""
+        groups = [k for k, cb in pg.p_groups.items() if cb.value]
+        if not groups:
+            ui.notify("Tick at least one asteroid group", type="warning")
+            return None
+        args = ["--groups", ",".join(groups)] if len(groups) < len(pg.p_groups) else []
+        if pg.p_amin.value not in (None, ""):
+            args += ["--a-min", f"{float(pg.p_amin.value):g}"]
+        if pg.p_amax.value not in (None, ""):
+            args += ["--a-max", f"{float(pg.p_amax.value):g}"]
+        if pg.p_aexcl.value and (pg.p_amin.value not in (None, "") or pg.p_amax.value not in (None, "")):
+            args += ["--a-exclude"]
+        return args
+    pg.selection_args = selection_args
+
+    def selection_now():
+        """The same selection as picks.selection (for the pre-screen fit check)."""
+        f = lambda v: None if v in (None, "") else float(v)
+        return pg.picks.selection([k for k, cb in pg.p_groups.items() if cb.value], f(pg.p_amin.value),
+                                  f(pg.p_amax.value), bool(pg.p_aexcl.value))
+    pg.selection_now = selection_now
+
     async def run_prescreen():
         if not pg.catalog_ok():
             return
@@ -397,6 +419,10 @@ def handlers(pg):
                            *where, "--workers", str(int(pg.p_workers.value))]
         args += ["--all"] if pg.p_all.value else ["--hmax", str(pg.p_hmax.value)]
         args += ["--cam-limit", f"{max(16.0, float(pg.p_mag.value or 0)):g}"]
+        sel = pg.selection_args()                                  # the same asteroid filter as the pick
+        if sel is None:
+            return
+        args += sel
         if pg.ps_fresh.value:
             args += ["--fresh"]
             pg.ps_fresh.value = False
