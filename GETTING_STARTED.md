@@ -103,7 +103,7 @@ the semi-major axis (click a band, e.g. Hildas). A line there says how many aste
 When it is done, the table shows the events found. Click **Use for search**: it sets the Search tab to the same
 window and takes you there.
 
-<img width="2246" height="1818" alt="image" src="https://github.com/user-attachments/assets/aa334f0b-d6c1-4586-8507-fecfa299c19e" />
+<img width="2377" height="1911" alt="image" src="https://github.com/user-attachments/assets/1ac48938-9dbc-4c16-b9a6-c9fa8380c187" />
 
 
 
