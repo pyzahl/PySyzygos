@@ -95,6 +95,11 @@ path for events at your site. The log at the bottom shows its progress.
 > **The first pick is the slow one.** It first downloads JPL's list of all asteroids (about 100 MB, a minute or
 > two), then screens them: several minutes, more for a long window. Later picks reuse the list.
 
+**Only some asteroids?** The box **Which asteroids to screen** chooses them by orbit: untick **Main belt** to screen
+only Jupiter Trojans, NEOs, TNOs and the other rarer kinds (~15,000 instead of ~465,000: seconds), or set a range of
+the semi-major axis (click a band, e.g. Hildas). A line there says how many asteroids your choice screens. See
+"Which asteroids" in the [README](README.md#which-asteroids-groups-orbit-class-and-a-range).
+
 When it is done, the table shows the events found. Click **Use for search**: it sets the Search tab to the same
 window and takes you there.
 

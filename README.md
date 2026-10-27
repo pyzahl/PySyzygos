@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.4.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.4.1 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -38,6 +38,10 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Site Configuration and Run Setup](#site-configuration-and-run-setup)
 - [Star catalog (required)](#star-catalog-required)
 - [Pick tool: choose targets](#pick-tool-choose-targets)
+  - [Which asteroids: groups, orbit class and a range](#which-asteroids-groups-orbit-class-and-a-range)
+  - [Three ways to choose the asteroids](#three-ways-to-choose-the-asteroids)
+  - [How the pick works](#how-the-pick-works)
+  - [Pre-screens](#pre-screens)
 - [Web interface (GUI)](#web-interface-gui)
 - [Planets and moons](#planets-and-moons)
 - [Occult data (optional add-on)](#occult-data-optional-add-on)
@@ -473,18 +477,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    (from the site's telescope, capped at the catalog; change it for one run), and run the pick: it screens all asteroids (H below 17 by default)
    for actual events at your site and saves the best targets for this site and window. Without a pre-screen this is
    the slow step (several minutes); a saved pick is reused by every later search of the same site and window.
-   **Asteroid groups** (JPL's orbit classes; ticked = screened): Main belt (MBA, IMB with the Hungarias, OMB with
-   the Hildas), Jupiter Trojans, Mars-crossers, NEO (Apollo, Amor, Aten, Atira), TNO, Everything else (Centaurs and
-   the rest). Unticking the main belt leaves ~25,000 of ~900,000 numbered asteroids (~15,000 below H 17): the
-   high-value targets in seconds, also with faint stars (Star G limit up to the catalog's, e.g. G 18 for campaign
-   events). Most NEOs are smaller than H 17: raise **H below** for them. **a from / to (AU)** limits the
-   semi-major axis as well (empty: no limit), inside the range or, with **exclude this range**, outside it. The
-   table of typical bands above the boxes (Hungarias 1.78-2.0, inner / middle / outer main belt 2.0-2.5-2.82-3.3,
-   Cybeles 3.3-3.7, Hildas 3.7-4.2, Jupiter Trojans 5.0-5.4 AU) fills the range on a click. A line below shows at
-   once how many asteroids the settings screen ("These settings screen 4,073 of 464,740 asteroids with H < 17";
-   counted in the pick's stored asteroid list, before a pre-screen and the site and star test). The class, PHA flag and satellite count go
-   with every event (pick CSV); the saved pick names its groups. Command line: `pysyzygos pick --groups
-   trojan,tno,neo [--a-min 3.7 --a-max 4.2 [--a-exclude]]`. **CSV**
+   **Which asteroids to screen**: tick the **asteroid groups** (Main belt, Jupiter Trojans, Mars-crossers, NEO, TNO,
+   Everything else; by JPL's orbit class) and optionally a **semi-major axis** range (a band table fills it). Without
+   the main belt a pick screens ~15,000 instead of ~465,000 asteroids: campaign targets in seconds. A line shows how
+   many asteroids the settings screen. Details: [Which asteroids: groups, orbit class and a
+   range](#which-asteroids-groups-orbit-class-and-a-range). **CSV**
    downloads the selected pick's events as a table (the Results tab has the same button for the search results, named
    `hits_<site>__<start>_<days>d.csv`).
 
@@ -498,7 +495,9 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    such as USA, Europe or Australia; or **whole Earth (any site)**, which serves every site and is the most flexible,
    ~1 GB per month) and click **Build pre-screen**. A build takes about as long as a few full picks (roughly an hour or two
    for a month with 4 workers), shows its progress in the log, and can be stopped with **Stop** and resumed by
-   clicking **Build pre-screen** again (**Start over** discards a stopped build instead). The table lists the built
+   clicking **Build pre-screen** again (**Start over** discards a stopped build instead). A build uses the asteroid
+   selection above: e.g. Trojans, NEOs and TNOs only for the whole Earth take minutes for a month, and such a
+   pre-screen serves picks of those groups only. The table lists the built
    pre-screens with their window, region, the sites inside, limits, size, age (rebuild after a few weeks: orbits
    are those of the build day) and whether each fits the current pick, or why not. Details: "Pick tool: choose
    targets" below.
@@ -932,7 +931,63 @@ pysyzygos pick --start 2026-10-01 --days 14 --top 30
 pysyzygos pick --all                    # exhaustive: every numbered asteroid (~900k)
 pysyzygos pick --sort date              # ranking: mag (default, brightest star first), date, margin, drop
 pysyzygos pick --prescreen auto         # screen only the asteroids of a fitting pre-screen (see below), else all
+pysyzygos pick --groups trojan,neo,tno  # only these asteroid groups (next section)
+pysyzygos pick --a-min 3.7 --a-max 4.2  # only a semi-major axis of 3.7-4.2 AU (the Hildas)
 ```
+
+### Which asteroids: groups, orbit class and a range
+
+By default a pick screens every numbered asteroid below the H limit, ~465,000 at H < 17, nearly all of them in the
+main belt. For campaign targets (Jupiter Trojans for Lucy, TNOs, NEOs, Centaurs) choose the asteroids by their orbit
+instead: without the main belt a pick screens ~15,000 asteroids (H < 17) and takes seconds, also with faint stars.
+
+**In the GUI**: Pick tab, box **Which asteroids to screen** (above **Run pick**):
+
+* **Asteroid groups** (ticked = screened), by JPL's orbit class:
+
+  | Group | JPL orbit classes | Numbered asteroids | Command line |
+  |---|---|---|---|
+  | Main belt | MBA, IMB (with the Hungarias), OMB (with the Hildas) | 870,924 | `main` |
+  | Jupiter Trojans | TJN | 10,633 | `trojan` |
+  | Mars-crossers | MCA | 9,196 | `marscross` |
+  | NEO | APO (Apollo), AMO (Amor), ATE (Aten), IEO (Atira) | 3,874 | `neo` |
+  | TNO | TNO | 1,049 | `tno` |
+  | Everything else | CEN (Centaurs) and the rest | 234 | `other` |
+
+* **Semi-major axis**: **a from (AU)** / **a to (AU)** (empty: no limit); with **exclude this range** the asteroids
+  outside it. A click on a row of the band table fills the range:
+
+  | Band | a (AU) |
+  |---|---|
+  | Hungarias | 1.78 - 2.0 |
+  | Inner / middle / outer main belt | 2.0 - 2.5 / 2.5 - 2.82 / 2.82 - 3.3 |
+  | Cybeles | 3.3 - 3.7 |
+  | Hildas | 3.7 - 4.2 |
+  | Jupiter Trojans | 5.0 - 5.4 |
+
+  The bands are a guide: families are better defined with eccentricity and inclination too. Groups and range
+  combine: e.g. Main belt only with a 3.7-4.2 AU gives the Hildas (4,072 at H < 17).
+* A line below shows at once how many asteroids the settings screen ("These settings screen 4,073 of 464,740
+  asteroids with H < 17"; counted in the stored asteroid list, before a pre-screen and the site and star test; after
+  the first pick, which downloads that list).
+* The GUI remembers the choice. **Build pre-screen** uses it too (see "Only some asteroids" under Pre-screens).
+
+**Command line**: `pysyzygos pick --groups trojan,neo,tno` (comma-separated keys from the table, or `all`),
+`--a-min 3.7 --a-max 4.2`, `--a-exclude` (outside the range); the same options for `pysyzygos prescreen build`.
+
+**Tips**: most NEOs are smaller than H 17: raise **H below** (`--hmax`) or use **all** H (`--all`) for them. Small,
+distant targets need faint stars: raise the **Star G limit** up to the catalog's (G 18 for campaign events; RECON
+campaign: about half of its Trojan events have stars fainter than G 16).
+
+**Where the class shows up**:
+
+* Pick: each event in the pick's CSV file (`pick_events.csv`, and the saved copy `picks/<site>__<start>_<days>d.csv`)
+  carries `class` (JPL code), `pha` (potentially hazardous), `sats` (known satellites) and `a_au`; for the Pick tab's
+  **CSV** button add them in `csv_exports.py` in the data folder, e.g. `("Class", "raw:class")`; the saved pick (`targets.py`, `picks/`) names its groups and range in its
+  header, and the Search tab's line about the pick names them too.
+* Search results and favorites: hover over the asteroid's name for its orbit class, e.g. "Jupiter Trojan (TJN)"
+  (record fields `ast_class`, `ast_class_name`; for events found from version 1.4.1 on). In Results, **SQL filter
+  (advanced)** has the column `class`: e.g. `class IN ('TJN', 'TNO')` or `class <> 'MBA'`.
 
 ### Three ways to choose the asteroids
 
@@ -1019,7 +1074,8 @@ region keeps about 1 asteroid in 6; a pick to G 13.2 then screens about 1 in 40,
 typically a few hundred asteroids.
 
 **Only some asteroids (`--groups`, `--a-min`, `--a-max`, `--a-exclude`).** A pre-screen build takes the same
-asteroid filter as the pick (the Pick tab's "Which asteroids to screen": groups and a range): built for, e.g.,
+asteroid filter as the pick (the Pick tab's "Which asteroids to screen": groups and a range, see [Which asteroids:
+groups, orbit class and a range](#which-asteroids-groups-orbit-class-and-a-range)): built for, e.g.,
 Jupiter Trojans, NEOs and TNOs it holds ~12,000 instead of ~465,000 asteroids (H < 17), a whole-Earth day in ~15 s
 instead of minutes, and a much smaller file (`global-trojan-neo-tno__...`). A pick uses it only when its own
 selection lies inside (NEO and TNO only: yes; all groups: no, it would miss the main belt's events; then *auto*
@@ -1193,8 +1249,10 @@ pysyzygos --port 8090 --no-browser
   read directions. **Horizon from the photo** turns the line into
   horizon points, and
   **UserHorizon.txt** downloads them for OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
-* **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, then **Run pick**; the pick is
-  saved for the selected site and window. **Saved picks of this site** lists them (newest window first); the
+* **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, **Which asteroids to screen**
+  (asteroid groups by orbit class, a semi-major-axis range, with a live count: see "Which asteroids: groups, orbit
+  class and a range"), then **Run pick**; the pick is saved for the selected site and window. **Pre-screens** (below
+  Run pick) builds and lists pre-screens, with the same asteroid selection. **Saved picks of this site** lists them (newest window first); the
   selected one's events appear in a sortable table, with the target asteroids marked. **Use for search** sets the
   search window to that pick's window. **Reload** rereads the list (e.g. after a pick on the command line).
 * **Planets & Moons**: see "Planets and moons" below.

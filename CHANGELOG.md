@@ -6,6 +6,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.4.1] "Beyond Horizons" - 2026-10-27
+
 ### Added
 - **The asteroid's orbit class in the results**: the asteroid's hover in Results and Favorites shows JPL's orbit class
   (e.g. "Jupiter Trojan (TJN)", "Mars-crossing Asteroid (MCA)"); record fields `ast_class`, `ast_class_name`, SQL
@@ -1085,6 +1087,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
+[1.4.1]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...main
 [1.4.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.4.0
 [1.3.2]: https://github.com/pyzahl/PySyzygos/compare/v1.3.0...main
 [1.3.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.3.0
