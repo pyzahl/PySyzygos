@@ -6,6 +6,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+- **Results and favorites pages: the explanations below the table can be folded away** ("Columns and marks
+  explained"; open by default, the browser remembers the last choice for all these pages).
+
 ## [1.4.1] "Beyond Horizons" - 2026-10-27
 
 ### Added

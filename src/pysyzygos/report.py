@@ -537,7 +537,8 @@ span.swarn2{color:#92400e;background:#fde68a;font-weight:600;font-size:85%;paddi
 span.swarn{color:#fff;background:#c62828;font-weight:700;font-size:85%;padding:0 4px;border-radius:3px;cursor:help;white-space:nowrap}
 span.sizeest{color:#3730a3;background:#e0e7ff;font-weight:600;font-size:75%;padding:0 4px;border-radius:3px;
  cursor:help;white-space:nowrap;vertical-align:middle}
-.notes{color:var(--muted);font-size:.85rem;margin-top:16px}
+.notesbox{margin-top:16px}.notesbox summary{cursor:pointer;font-weight:600;color:var(--muted);font-size:.9rem}
+.notes{color:var(--muted);font-size:.85rem;margin-top:6px}
 .notes li{margin:3px 0}
 .empty{padding:28px;text-align:center;color:var(--muted)}
 """
@@ -592,6 +593,10 @@ function pyoToast(msg,stay){var t=document.getElementById('pyotoast');if(!t){t=d
  'max-width:min(720px,92vw);padding:10px 14px;border-radius:8px;background:#1e293b;color:#f8fafc;font-size:.9rem;'+
  'box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:1000';document.body.appendChild(t);}
  t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(function(){t.hidden=true;},stay?9000:4000);}
+// the explanations below the table: open or closed as last time (one setting for every page)
+document.addEventListener('DOMContentLoaded',function(){var d=document.getElementById('pyonotes');if(!d)return;
+ try{if(localStorage.getItem('pyo_notes')==='closed')d.open=false;}catch(e){}
+ d.addEventListener('toggle',function(){try{localStorage.setItem('pyo_notes',d.open?'open':'closed');}catch(e){}});});
 // a question in the page's own style (the browser's confirm/prompt boxes show "127.0.0.1:8081 says" at the top edge):
 // onYes() on OK; with value (a string) an input field too, onYes(text)
 function pyoAsk(msg,ok,onYes,value){var d=document.createElement('dialog');
@@ -1490,6 +1495,7 @@ def to_html(events, meta):
 <p class="sub">{len(events)} events{esc(meta['span'])} · {esc(meta['observer'])} · times in UT · generated {esc(meta['generated'])} · {n_kml} map file{'s' if n_kml != 1 else ''}</p>
 {info_html(meta.get("info"))}{f'<p class="sqlnote">{esc(meta["sql"])}</p>' if meta.get("sql") else ''}
 {table}
+<details class="notesbox" id="pyonotes" open><summary>Columns and marks explained</summary>
 <ul class="notes">
 <li>Star magnitude is Gaia G. The drop assumes the star is fully covered and ignores the star's angular size and diffraction, so bright stars and very small bodies can show a smaller real drop.</li>
 <li><b>+moon</b> after an asteroid: it has known satellites (W. R. Johnston's compilation, NASA PDS 2019; "+moon?": only reported in an occultation, not confirmed); hover for their sizes and distances. A satellite casts its own shadow, somewhere within the dotted "satellite zone" lines on the map (its distance from the asteroid plus its radius): observers outside the main path may see a short extra event. Newer discoveries: Johnston's Archive (johnstonsarchive.net).</li>
@@ -1500,6 +1506,7 @@ def to_html(events, meta):
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
+</details>
 </main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{OBS_JS if meta.get("layout") == "observed" else ""}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
