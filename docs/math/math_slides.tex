@@ -595,10 +595,27 @@
     \tag{FP.2}
   \]
   {\small The star is at infinity: its shadow is a cylinder of radius $r$ along $\uv{s}$;
-  the observer is inside it when $d(t) < r$.}\\[1ex]
+  the observer is inside it when $d(t) < r$: \alert{exact, no projection to the ground needed} (hit, duration, chance).}\\[0.6ex]
+
   {\footnotesize\color{black!75}\textbf{Not the classical (Besselian) plane:} that one goes through the Earth's center, with
   the light time from the Earth's center, and each observer is projected onto it. Ours goes through the observer,
   with the light time from the site (LT): the same geometry, no projection and no $z/c$ term.}
+\end{frame}
+
+\begin{frame}{Step 3: the plane and the ground}\slideid{FP}
+  The plane is perpendicular to the star, \alert{not level}: tilted by $90^\circ - h_\star$ against the horizon.
+  \begin{itemize}\setlength{\itemsep}{0.5ex}
+    \item \textbf{Exact without projection:} in the shadow $\iff d < r$, duration, chance (all sky-plane quantities)
+    \item \textbf{On the ground} the footprint is stretched: at $t^{*}$ the offset lies along $\uv{n}$ (across the motion
+          relative to the site); a horizontal step changes it by $\sqrt{1 - (\uv{n}\cdot\uv{u})^2}$ per km:
+  \end{itemize}
+  \[
+    \tcbhighmath{g = k\,d_{\min},\qquad k = \frac{1}{\sqrt{1 - (\uv{n}\cdot\uv{u})^2}},\qquad 1 \le k \le \frac{1}{\sin h_\star}}
+    \tag{FP.3}
+  \]
+  {\small $k$ halfway to the center line ($h_\star$ changes across the track): \SI{7}{m} from the map's center line at
+  \SI{100}{km}. \textbf{Results show $g$} (default; System tab: plane $d$); chance and reach stay in the plane.
+  $k$ = 1.4 at \SI{45}{\degree}, 2.9 at \SI{20}{\degree}.}
 \end{frame}
 
 \begin{frame}{Step 4: closest approach and the hit test}\slideid{CA}
@@ -618,6 +635,25 @@
     \qquad(\text{logged ``in the shadow'': } d_{\min} < r_{\max})}
     \tag{CA.2}
   \]
+\end{frame}
+
+\begin{frame}{Step 4: precision of the solver}\slideid{CA}
+  \SC\ Brent stops when $t^{*}$ is known to $\delta t \le \SI{1}{ms}$ (\texttt{xatol}). Near the minimum
+  \[
+    d(t^{*} + \delta t) = \sqrt{d_{\min}^2 + (v\,\delta t)^2}\qquad(v:\ \text{the shadow's speed in the plane})
+  \]
+  so the time is off to first order, the distance only to second order:
+  \[
+    \tcbhighmath{\delta t^{*} \le \SI{1}{ms}\ \widehat{=}\ v\,\delta t\ \text{along the track},\qquad
+    \delta d \le \frac{(v\,\delta t)^2}{2\,d_{\min}}\ \ (\le v\,\delta t)}
+    \tag{CA.3}
+  \]
+  \begin{itemize}\setlength{\itemsep}{0.5ex}
+    \item Shadow speeds of 1{,}439 logged events: median \SI{9}{km/s}, 95\,\% below \SI{29}{km/s}, max \SI{34}{km/s}
+    \item $\Rightarrow$ along the track \SI{9}{m} (median) to \SI{34}{m}; $\delta d$: \SI{6}{cm} at $d_{\min} = \SI{10}{km}$,
+          \SI{0.6}{m} at \SI{1}{km}, at most \SI{34}{m} for a site on the center line
+    \item In practice far better (parabolic steps): path check \SI{0.2}{\micro s} and $\le$ \SI{3}{mm}
+  \end{itemize}
 \end{frame}
 
 \begin{frame}{Step 5: observable?}\slideid{OV}
@@ -892,10 +928,12 @@
     \qquad\bigl(|\Delta_h| \le h / \tan h_\star\bigr)}
     \tag{PD.2}
   \]
+  \OWN\ The limit lines ($o \ne 0$): a site there has its closest approach $|o|$ away when the offset is across the motion
+  \emph{relative to it}; PL.2 with (iterated from $\uv{n}$ to 1\,cm)
+  \[
+    \tcbhighmath{\uv{n} \to \uv{n}_G = \frac{\bigl(-(v - v_G)_y,\ (v - v_G)_x\bigr)}{|\vv{v} - \vv{v}_G|}}
+    \tag{PD.3}
+  \]
   {\small $\uv{u}$ the local vertical, $h_\star$ the star's altitude (OV.1). \SI{2000}{m} at $h_\star = \SI{75}{\degree}$:
-  \SI{0.533}{km}; measured between the KML lines: \SI{0.535}{km}.}\\[0.8ex]
-  {\footnotesize\color{black!75}\textbf{Plane vs.\ plane:} the solver (FP) works in the plane through the observer with
-  its own light time; the path is built in the plane through the Earth's center and gives each ground point its own
-  light time (PL.3): the same shadow. Check: each $\vv{G}$ taken as an observer (OB.1, LT.2, FP.2) lies $|o|$ from the
-  shadow's center to \SI{3}{mm}.}
+  \SI{0.533}{km}; measured between the KML lines: \SI{0.535}{km}.}
 \end{frame}

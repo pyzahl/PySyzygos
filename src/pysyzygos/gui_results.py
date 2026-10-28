@@ -9,7 +9,7 @@ import csv, os, re, time
 from pysyzygos import db, exports, favorites
 from pysyzygos.home import HOME as ROOT
 from nicegui import run, ui
-from pysyzygos.gui_common import KSTARS_OPT, PYSYZYGOS, load_ui_state, resizable_box, run_process, save_ui_state
+from pysyzygos.gui_common import KSTARS_OPT, PYSYZYGOS, dist_args, load_ui_state, resizable_box, run_process, save_ui_state
 
 # the SQL filter's help: columns of the view hits, the run's site, and the functions (db.HITS, db.FUNCTIONS)
 SQL_NAMES = ([(n, "%" if k == "pct" else u, m) for n, _, k, u, m in db.HITS]
@@ -155,6 +155,7 @@ def handlers(pg):
             show_frame()
             return
         await run_process(PYSYZYGOS + ["report", f["csv"], "-o", f["out"], "--db", f["db"], "--list", f["lst"]]
+                          + dist_args()
                           + (["--sort", "date"] if src == "observed" else []) + (["--where", where] if where else []),
                           pg.log)
         show_frame()

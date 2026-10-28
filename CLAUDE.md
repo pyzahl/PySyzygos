@@ -58,6 +58,16 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   towards the star's azimuth, across the ground track (direction from the axis's ground points at et -+ 30 s) ->
   record `height_shift_km` (end; + = A side), report `height_text` (shadow cell title), favorites "Site height
   shift". Checked 2026-10-22: 0.533 vs 0.535 km measured between the lines (2000 m, alt 75 deg).
+  Limit lines (2026-10-27, PD.3): offset across the motion RELATIVE TO THE GROUND POINT (v - v_G), not the geocentric
+  n (sites on the old lines passed closer: Phaethon -306 m at 500 km); started from the previous sample's direction
+  (`last_n`), refined to 1 cm (LIMIT_PASSES max 5); ~+0.13 s per path. Consistency check part 1b tests the lines'
+  closest approach. `ground_point` (PL.2/PL.3, shared with earth_point, height_shift_km), `bary_velocity`.
+  Ground distance (FP.3): `paths.ground_scale(v_rel, star, up)` = 1/sqrt(1-(n.u)^2); `search.ground_distance` takes
+  it halfway to the center line (7 m at 100 km) -> record ground_scale, ground_dist_km, ground_margin_km (end, in
+  finish); report `DISTANCE` ("ground" default | "plane"; --distance; DIST_NOTE/DIST_HEAD; e miss/margin = shown,
+  miss_p/margin_p = plane for chance, sigma_text, chord; `dist_text` hover); GUI System `pg.sys_dist` ->
+  `pg.set_distance` (gui_state shadow_distance, report.DISTANCE in-process, rebuild both pages), `gui_common.dist_args`
+  for report runs; db.HITS ground_dist. Reach stays a plane distance.
 - `pysyzygos/report.py`: `hits_log.csv` (+ last run of `hits_log.runs.jsonl` for the header) to HTML/Markdown with an embedded Leaflet map. Standard library only.
 - `pysyzygos/pick.py`: event finder over all asteroids (OWC-style) for a window; writes `pick_events.csv` and
   `targets.py`, and saves both per site + window in `picks/` (`pysyzygos/picks.py`; pysyzygos/search.py with

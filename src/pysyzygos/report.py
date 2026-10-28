@@ -392,6 +392,11 @@ def build_event(r, lat, lon, kml_dir, out_dir):
     miss, margin = num(r.get("min_distance")), num(r.get("margin_km"))
     if margin is None and miss is not None and rad is not None:
         margin = miss - rad
+    miss_p, margin_p = miss, margin                              # in the observer's fundamental plane (chance, chord)
+    g_miss, g_margin = num(r.get("ground_dist_km")), num(r.get("ground_margin_km"))
+    dist_kind = "plane"
+    if DISTANCE == "ground" and g_miss is not None:              # on the ground (default; FP.3), when recorded
+        miss, margin, dist_kind = g_miss, g_margin, "ground"
     body = ":" in tid                                            # a planet or moon (bodies.py: P:Jupiter, M:Io)
     label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else asteroid_label(tid, r.get("target_name"))
     return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body,
@@ -402,7 +407,8 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 hz=(str(r.get("horizon_flag") or "").strip(), num(r.get("horizon_alt")), num(r.get("horizon_sep_deg"))),
                 mag=mag, drop=drop, dur=dur, alt=alt,
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
-                miss=miss, margin=margin, rad=rad, hshift=num(r.get("height_shift_km")), kml=kml, kml_abs=kml_abs, preview=preview,
+                miss=miss, margin=margin, miss_p=miss_p, margin_p=margin_p, dist_kind=dist_kind,
+                g_scale=num(r.get("ground_scale")), rad=rad, hshift=num(r.get("height_shift_km")), kml=kml, kml_abs=kml_abs, preview=preview,
                 m_ast=num(r.get("m_ast")), m_before=num(r.get("m_before")), calc=num(r.get("calc_s")),
                 sun=num(r.get("sun_alt")),
                 margin_mag=num(r.get("mag_margin")), airmass=num(r.get("airmass")), ext=num(r.get("extinction_mag")),
@@ -820,6 +826,30 @@ def esc(s):
     return html.escape(str(s), quote=True)
 
 
+DIST_HEAD = {"ground": "on the ground", "plane": "in the fundamental plane"}
+DIST_NOTE = {"ground": "Shadow dist is the observer's distance from the shadow centre line on the ground, across the "
+                       "track: the shadow cylinder's footprint is stretched where the star is low (up to 1 / sin of "
+                       "its altitude against the fundamental plane, which the chance uses; hover for both).",
+             "plane": "Shadow dist is the observer's distance from the shadow centre line in the fundamental plane "
+                      "(perpendicular to the star; on the ground it is up to 1 / sin of the star's altitude larger; "
+                      "hover for both)."}
+DISTANCE = "ground"      # the shadow distance shown: "ground" (FP.3, default) or "plane" (the observer's fundamental
+                         # plane); the GUI's System tab (gui_state shadow_distance), --distance
+
+
+def dist_text(e):
+    """Hover of the shadow distance: which distance it is, and the other one."""
+    if e.get("miss") is None:
+        return ""
+    if e.get("dist_kind") == "ground":
+        return (f"on the ground, across the track (the stretched footprint of the shadow); {e['miss_p']:.1f} km in the "
+                f"fundamental plane (x {e['g_scale']:.2f})" if e.get("g_scale") else "on the ground, across the track")
+    if DISTANCE == "ground":
+        return "in the fundamental plane (an older result without the ground distance)"
+    return (f"in the fundamental plane (perpendicular to the star)" +
+            (f"; {e['miss_p'] * e['g_scale']:.1f} km on the ground" if e.get("g_scale") else ""))
+
+
 def shadow_cell(e):
     if e["miss"] is None:
         return '<td class="num" data-s="">—</td>'
@@ -833,7 +863,7 @@ def shadow_cell(e):
                f'{m:.1f} km out</span></span>')
     else:
         sub = f'<span class="sub" title="{m:.1f} km outside the shadow path">{m:.1f} km out</span>'
-    tip = height_text(e.get("hshift"))
+    tip = "; ".join(t for t in (dist_text(e), height_text(e.get("hshift"))) if t)
     tip = f' title="{esc(tip)}"' if tip else ""
     return f'<td class="num" data-s="{e["miss"]:.3f}" style="min-width:5.5em"{tip}>{e["miss"]:.1f} km{sub}</td>'
 
@@ -1112,7 +1142,7 @@ def start_end_text(e):
     """'; start ~ HH:MM:SS.sss, end ~ HH:MM:SS.sss (...)' for the event-time hover: the closest approach -+ half the
     duration, at the site's own chord when it is inside the shadow (2 sqrt(r^2 - d^2) / v, v = 2 r / the center-line
     duration), else -+ half the center-line duration. '' without a duration."""
-    dur, rad, miss = e.get("dur"), e.get("rad"), e.get("miss")
+    dur, rad, miss = e.get("dur"), e.get("rad"), e.get("miss_p", e.get("miss"))
     if not dur:
         return ""
     if rad and miss is not None and miss < rad:
@@ -1197,17 +1227,19 @@ def chance_text(e):
 
 def sigma_text(e):
     """The site's distance from the centre line in units of the path's 1-sigma, e.g. '0.4σ'; '' if not known."""
-    if e.get("miss") is None or not e.get("sigma1"):
+    m = e.get("miss_p", e.get("miss"))                        # the plane distance: sigma is a plane quantity
+    if m is None or not e.get("sigma1"):
         return ""
-    return f"{e['miss'] / e['sigma1']:.1f}\u03c3"
+    return f"{m / e['sigma1']:.1f}\u03c3"
 
 
 def chance_cell(e):
     tip = ""
     if e.get("p_site") is not None and e.get("sigma1") is not None:
-        tip = (f"shadow distance {e['miss']:.1f} km, shadow radius {e['rad']:.1f} km, path uncertainty 1 sigma "
-               f"{e['sigma1']:.1f} km ({e['sigma_src'] or '?'}): the site lies {sigma_text(e)} from the centre "
-               f"line") if e.get("miss") is not None and e.get("rad") else ""
+        mp = e.get("miss_p", e.get("miss"))
+        tip = (f"shadow distance {mp:.1f} km (fundamental plane), shadow radius {e['rad']:.1f} km, path uncertainty "
+               f"1 sigma {e['sigma1']:.1f} km ({e['sigma_src'] or '?'}): the site lies {sigma_text(e)} from the "
+               f"centre line") if mp is not None and e.get("rad") else ""
     p = e.get("p_site")
     txt = chance_text(e) + (f" \u00b7 {sigma_text(e)}" if sigma_text(e) and p is not None else "")
     return f'<td class="num" data-s="{"" if p is None else f"{p:.4f}"}" title="{esc(tip)}">{esc(txt)}</td>'
@@ -1435,7 +1467,7 @@ def to_html(events, meta):
             '<th class="num" data-k title="Maximum duration (centre line), seconds">Max dur (s)</th>'
             '<th data-k title="Star altitude and compass direction at closest approach">Altitude' + AZ_SWITCH + '</th>'
             '<th data-k title="Moon distance from the star; shown while the Moon is up">Moon dist</th>'
-            '<th class="num" data-k title="Distance of the observer from the shadow centre line">Shadow dist</th>'
+            '<th class="num" data-k title="Distance of the observer from the shadow centre line (' + DIST_HEAD[DISTANCE] + ')">Shadow dist</th>'
             '<th class="num" data-k title="Chance that the shadow covers your site, from the shadow distance, the shadow '
             'radius and the 1-sigma path uncertainty">Chance</th>'
             + ('<th data-k>Status</th><th data-k class="c-narrow">Note</th><th data-k class="c-narrow">Added (UT)</th>'
@@ -1463,7 +1495,7 @@ def to_html(events, meta):
                 f'<th class="num{on("mag")}" data-k title="Gaia G magnitude of the star">Star mag</th>'
                 '<th data-k title="Star altitude and compass direction at closest approach">Altitude' + AZ_SWITCH + '</th>'
                 '<th data-k title="Moon distance from the star; shown while the Moon is up">Moon dist</th>'
-                '<th class="num" data-k title="Distance of the observer from the shadow centre line">Shadow dist</th>'
+                '<th class="num" data-k title="Distance of the observer from the shadow centre line (' + DIST_HEAD[DISTANCE] + ')">Shadow dist</th>'
                 '<th class="num" data-k title="Chance that the shadow covers your site">Chance</th>'
                 '<th>Tools</th>')
         body = "".join(html_row_body(e) for e in events)
@@ -1502,7 +1534,7 @@ def to_html(events, meta):
 <li><b>\u26a0</b> after a drop: a close or double star. The number is the drop with the light of neighbours within a few arcseconds, which stays in the camera image when the star is covered; hover for details (neighbours from the local catalog; with the online check also Gaia's double-star hints and neighbours the catalog leaves out).</li>
 <li><span class="sizeest">size est.</span> after an asteroid: no measured diameter; its size is estimated from H with an assumed albedo, so diameter, duration and shadow width are uncertain by a factor of about 1.7 (typical for small asteroids, H above ~15).</li>
 <li>Chance: the probability that the shadow covers your site, from the shadow distance, the shadow radius and the path uncertainty (1 sigma: JPL Horizons' 3-sigma position uncertainty / 3, else the default). It assumes the size is right; an uncertain size ("size est." after the asteroid) or a far-future event (large uncertainty) makes it a rough guide. Check again as the date approaches: the orbit, and with it the chance, improves.</li>
-<li>Shadow dist is the observer's distance from the shadow centre line in the fundamental plane. "Inside" means within the shadow radius; otherwise it is the gap to the shadow edge. Radius comes from the size lookup (hover the asteroid name).</li>
+<li>{DIST_NOTE[DISTANCE]} "Inside" means within the shadow radius; otherwise it is the gap to the shadow edge. Radius comes from the size lookup (hover the asteroid name).</li>
 <li>Altitude is the star's altitude at closest approach. The Moon is shown only while above the horizon. Click a column heading to sort.</li>
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
@@ -1563,6 +1595,8 @@ def main(argv=None):
     ap.add_argument("--lat", type=float, help="observer latitude, deg north (for the compass direction)")
     ap.add_argument("--lon", type=float, help="observer longitude, deg east (negative = west)")
     ap.add_argument("--max-miss", type=float, help="only events whose centre-line distance is below this (km)")
+    ap.add_argument("--distance", choices=("ground", "plane"), default=None,
+                    help="shadow distance on the ground (default) or in the fundamental plane (GUI: System tab)")
     ap.add_argument("--min-drop", type=float, help="only events with at least this magnitude drop")
     ap.add_argument("--sort", choices=("mag", "date"), default="mag",
                     help="row order: mag = brightest star first (default), date = by event time")
@@ -1577,6 +1611,8 @@ def main(argv=None):
     ap.add_argument("--tile-url", default=U.URL_OSM_TILES,
                     help="tile URL template for the embedded map (default: OpenStreetMap, fine for light personal use)")
     a = ap.parse_args(argv)
+    global DISTANCE
+    DISTANCE = a.distance or DISTANCE
 
     cfg_lat, cfg_lon, cfg_maps = load_config_observer(a.csv)
     lat = a.lat if a.lat is not None else cfg_lat

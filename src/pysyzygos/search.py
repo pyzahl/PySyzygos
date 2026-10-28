@@ -24,7 +24,8 @@ import warnings, erfa
 warnings.filterwarnings("ignore", category=erfa.ErfaWarning)
 
 from pysyzygos import config
-from pysyzygos.paths import shadow_path, path_sigma3_km, path_error, write_shadow_kml, site_probability, height_shift_km
+from pysyzygos.paths import shadow_path, path_sigma3_km, path_error, write_shadow_kml, site_probability, height_shift_km, \
+    ground_scale
 from pysyzygos import corridor
 from pysyzygos import doubles          # close and double stars at an event
 from pysyzygos import horizon          # the site's own horizon (OccultWatcher [User Horizon])
@@ -720,6 +721,35 @@ def _up_j2000(et, obs_geo):
     up_itrf = np.array([np.cos(lat)*np.cos(lon), np.cos(lat)*np.sin(lon), np.sin(lat)])
     return spice.pxform('ITRF93', 'J2000', et) @ up_itrf
 
+# Math: FP.3 (slide FP): k = ground / plane distance across the track, evaluated halfway between the site and the
+# center line (k changes across the track with the star's altitude; at the site alone: 0.45 % off at 100 km).
+def ground_distance(et, star_dir, obs_geo, target_id, d_km):
+    """k: the site's distance from the center line on the ground is k x d_km (its plane distance at the closest
+    approach et). paths.ground_scale at the ground point halfway to the center line (the horizontal direction that
+    reduces the plane offset fastest). NaN if the star is too low there."""
+    from pysyzygos import earth
+    from pysyzygos.paths import plane_basis
+
+    def k_at(geo):
+        p0 = np.array(besselian_offsets(et - 1.0, star_dir, geo, target_id))
+        p1 = np.array(besselian_offsets(et + 1.0, star_dir, geo, target_id))
+        return ground_scale((p1 - p0) / 2.0, star_dir, _up_j2000(et, geo))
+    k0 = k_at(obs_geo)
+    if not np.isfinite(k0) or d_km < 1e-6:
+        return k0
+    x_ax, y_ax, _ = plane_basis(star_dir)
+    dx, dy = besselian_offsets(et, star_dir, obs_geo, target_id)
+    e = (dx * x_ax + dy * y_ax) / np.hypot(dx, dy)               # from the site toward the shadow's center
+    up = _up_j2000(et, obs_geo)
+    c = e - (e @ up) * up                                        # horizontal: toward the center line on the ground
+    c /= np.linalg.norm(c)
+    R = spice.pxform('J2000', 'ITRF93', et)
+    site = np.array(spice.georec(obs_geo['lon'], obs_geo['lat'], obs_geo['alt'], earth.A_KM, earth.F))
+    lon, lat, _ = spice.recgeo(site + R @ (c * d_km * k0 / 2.0), earth.A_KM, earth.F)
+    k1 = k_at(dict(lon=lon, lat=lat, alt=obs_geo['alt']))
+    return k1 if np.isfinite(k1) else k0
+
+
 def sun_alt_deg(et, obs_geo):
     sun, _ = spice.spkpos('SUN', et, 'J2000', 'LT+S', 'EARTH')
     return np.degrees(np.arcsin(_up_j2000(et, obs_geo) @ (sun / np.linalg.norm(sun))))
@@ -758,8 +788,8 @@ def window_is_observable(et0, span, obs_geo, target_id, min_star_alt=config.MIN_
 # ==========================================
 # 3. EXECUTION AND TEST HARNESS
 # ==========================================
-# Math: IN.1, CA.1, CA.2 (slides IN, CA): s from (ra, dec); t* = t0 + argmin d over the bracket (bounded
-# Brent on the offset, xatol 1 ms); hit if d_min < r_max + reach.
+# Math: IN.1, CA.1-CA.3 (slides IN, CA): s from (ra, dec); t* = t0 + argmin d over the bracket (bounded
+# Brent on the offset, xatol 1 ms: d_min off only to second order, CA.3); hit if d_min < r_max + reach.
 def star_test (loc = EarthLocation(lat=40.7128*u.deg, lon=-74.0060*u.deg, height=10*u.m),
                center_time_utc = "2026-10-01T04:30:00", time_span = 24*3600,
                star_ra=np.radians(68.98), star_dec=np.radians(16.50),
@@ -1414,6 +1444,14 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             record.update(zip(("ast_class", "ast_class_name"), asteroid_class(target_id)))
         except Exception:
             record.update(ast_class="", ast_class_name="")
+        try:                                                               # the distances on the ground (FP.3)
+            k = ground_distance(res['best_et'], star_dir, obs_geo, target_id, res['min_distance'])
+        except Exception:
+            k = float("nan")
+        record.update(ground_scale=round(k, 4) if np.isfinite(k) else float("nan"),
+                      ground_dist_km=round(res['min_distance'] * k, 3) if np.isfinite(k) else float("nan"),
+                      ground_margin_km=round((res['min_distance'] - size['r_km']) * k, 3) if np.isfinite(k)
+                      else float("nan"))
         print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
               + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
                  + ")" if record["star_flag"] else ""))

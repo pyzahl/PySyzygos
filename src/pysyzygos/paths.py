@@ -29,6 +29,9 @@ def plane_basis(star_vector):
     return x, y, z
 
 
+LIMIT_PASSES = 5          # limit lines: offset across the motion relative to their ground point, at most this many passes
+
+
 def bary_velocity(tid, et, ast0):
     """The asteroid's barycentric velocity (km/s, J2000) at its emission time et - |ast0|/c (ast0: geocentric 'CN')."""
     return np.asarray(spice.spkezr(tid, et - float(np.linalg.norm(ast0)) / C_KM_S, 'J2000', 'NONE', '0')[0][3:])
@@ -57,7 +60,7 @@ def ground_point(base, ast0, v_bary, z_ax, R, radii, iterations=4):
     return point
 
 
-# Math: PT.1-PT.4, PL.1-PL.4, PD.1 (slides PG, PT, PL, PD), AS.1 (slide AS): the geocentric plane, the lines on it,
+# Math: PT.1-PT.4, PL.1-PL.4, PD.1, PD.3 (slides PG, PT, PL, PD), AS.1 (slide AS): the geocentric plane, the lines on it,
 # the ray to the ground; each ground point G's centre line shifted by v_perp (|A - E| - |A - G|)/c (light time
 # from that point, as LT.1 for the site; in the code ast0 = A - E = a, p_j = G - E, dtau = PL.3).
 def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, step=None, sat_km=None, height_km=None):
@@ -117,6 +120,7 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
     if sat_km:
         offsets.update(satellite_plus=r_km + sat_km, satellite_minus=-(r_km + sat_km))
     out = {k: [] for k in offsets}
+    last_n = {}                                     # per limit line: the converged direction of the previous sample
     radii = {}
     if height_km is not None and abs(height_km) >= 0.001:              # the center line at the site's height
         offsets['center_height'] = 0.0
@@ -140,7 +144,22 @@ def shadow_path(target_id, star_dir, et_best, r_km, sigma3_km, half_span=None, s
             # start 2 Earth radii out on the star side of the plane and look along -z (the light direction);
             # the first surface intersection is the star-facing side of the Earth
             try:
-                point = ground_point(axis_pt + off * n3, ast0, v_bary, z_ax, R, radii.get(name, (a, b, c)))
+                # a limit line: a site there has its closest approach when its offset is across the shadow's motion
+                # RELATIVE TO IT (the ground turns with the Earth), not across the geocentric motion (n3): up to
+                # ~0.7 % of the offset closer for slow shadows (PD.3). Started from the previous sample's direction,
+                # refined until it changes the point by less than 1 cm (mostly no extra ray)
+                n_use = last_n.get(name, n) if off else n
+                point = ground_point(axis_pt + off * (n_use[0] * x_ax + n_use[1] * y_ax), ast0, v_bary, z_ax, R,
+                                     radii.get(name, (a, b, c)))
+                for _ in range(LIMIT_PASSES if off else 0):
+                    v_rel = v_axis - (M @ (R1.T @ point - R.T @ point))[:2]
+                    nr = np.array([-v_rel[1], v_rel[0]]) / np.linalg.norm(v_rel)
+                    if abs(off) * np.linalg.norm(nr - n_use) < 1e-5:     # the direction holds to 1 cm
+                        break
+                    n_use = nr
+                    point = ground_point(axis_pt + off * (nr[0] * x_ax + nr[1] * y_ax), ast0, v_bary, z_ax, R,
+                                         radii.get(name, (a, b, c)))
+                last_n[name] = n_use
             except NotFoundError:
                 continue                                                # this line misses the Earth at this time
             lon, lat, _ = spice.recgeo(point, a, flat)
@@ -195,6 +214,24 @@ def height_shift_km(target_id, star_dir, et, lon_deg, lat_deg, h_km):
     across /= np.linalg.norm(across)
     toward_star = zf - sin_alt * up                                     # horizontal, length cos(alt)
     return float(h_km / sin_alt * (toward_star @ across))
+
+
+# Math: FP.3 (slide FP): the plane is perpendicular to the star, not level: a site g from the center line on the
+# ground, across the track, is g / k in the plane; k = 1 / sqrt(1 - (n . u)^2), between 1 and 1 / sin(star altitude).
+def ground_scale(v_rel_xy, star_dir, up):
+    """k = ground distance / plane distance for a site: n is the unit vector across the shadow's motion relative to
+    the site (in the plane, from v_rel_xy = its (xi, eta) velocity; at the closest approach the site's offset is along
+    n), u the site's vertical (J2000). A horizontal step across the ground track changes the plane offset by
+    sqrt(1 - (n . u)^2) per km. NaN when the star is too low (k above 60, below ~1 deg) or the shadow does not move."""
+    x_ax, y_ax, _ = plane_basis(star_dir)
+    v = np.asarray(v_rel_xy, float)
+    nv = float(np.hypot(*v))
+    if nv < 1e-12:
+        return float("nan")
+    n3 = (-v[1] * x_ax + v[0] * y_ax) / nv
+    u = np.asarray(up, float) / np.linalg.norm(up)
+    q = 1.0 - float(n3 @ u) ** 2
+    return float(1.0 / np.sqrt(q)) if q > 1.0 / 3600.0 else float("nan")
 
 
 def site_probability(miss_km, r_km, sigma1_km):

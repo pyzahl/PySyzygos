@@ -110,7 +110,7 @@ def run_case(label, xi0, eta0, vxi, veta, r=2.0, s3=6.0, expect_empty=False, exp
         else:
             assert len(v_) >= 3, f"{k} has only {len(v_)} points"
 
-    worst_plane, worst_dur = 0.0, 0.0
+    worst_plane, worst_dur, worst_limit = 0.0, 0.0, 0.0
     v = np.array([vxi, veta]); nrm = np.array([-v[1], v[0]]) / np.linalg.norm(v)
     for name, off in offs.items():
         for et, lon, lat, dur in paths[name]:
@@ -127,9 +127,18 @@ def run_case(label, xi0, eta0, vxi, veta, r=2.0, s3=6.0, expect_empty=False, exp
             dtau = 0.0
             for _ in range(5):
                 dtau = (np.linalg.norm(A_) - np.linalg.norm(A_ + vb * dtau - P_)) / C_KMS
-            want = np.array([xi0 + vxi*t, eta0 + veta*t]) + off*nrm + dtau * np.array([vb @ x, vb @ y])
+            # the limit lines' offset is across the shadow's motion RELATIVE TO THE GROUND POINT (where a site there
+            # has its closest approach), not across the geocentric motion
+            p1_ = s.pxform('ITRF93', 'J2000', et + 1.0) @ geodetic_to_xyz(lon, lat)
+            vr = v - np.array([(p1_ - P_) @ x, (p1_ - P_) @ y])
+            nrel = np.array([-vr[1], vr[0]]) / np.linalg.norm(vr)
+            want = np.array([xi0 + vxi*t, eta0 + veta*t]) + off*nrel + dtau * np.array([vb @ x, vb @ y])
             got = np.array([p_j2000 @ x, p_j2000 @ y])
-            worst_plane = max(worst_plane, np.linalg.norm(got - want))
+            err = np.linalg.norm(got - want)
+            if off:                                            # one refinement pass in paths: ~mm, allowed 2 cm
+                worst_limit = max(worst_limit, err)
+            else:
+                worst_plane = max(worst_plane, err)
             # (2) must be the star-facing side
             assert p_j2000 @ z > 0, "point on the far side of the Earth"
             # (3) centre-line duration vs an independent calculation
@@ -137,8 +146,9 @@ def run_case(label, xi0, eta0, vxi, veta, r=2.0, s3=6.0, expect_empty=False, exp
                 p1 = s.pxform('ITRF93', 'J2000', et + 1.0) @ geodetic_to_xyz(lon, lat)
                 vg = np.array([(p1 - p_j2000) @ x, (p1 - p_j2000) @ y])
                 worst_dur = max(worst_dur, abs(dur - 2*r/np.linalg.norm(v - vg)))
-    print(f"   max plane-position error {worst_plane:.2e} km, max duration error {worst_dur:.2e} s")
-    assert worst_plane < 1e-6 and worst_dur < 1e-6
+    print(f"   max plane-position error {worst_plane:.2e} km (limit lines {worst_limit:.2e} km), max duration "
+          f"error {worst_dur:.2e} s")
+    assert worst_plane < 1e-6 and worst_dur < 1e-6 and worst_limit < 2e-5          # 1 cm convergence in paths
     c = paths['center']
     print(f"   centre line covers {c[0][0]-ET0:+.0f} s .. {c[-1][0]-ET0:+.0f} s, duration range "
           f"{min(p[3] for p in c):.3f}..{max(p[3] for p in c):.3f} s")
@@ -234,3 +244,16 @@ assert P(-3, 5, 2) == P(3, 5, 2)                                    # symmetric
 assert P(20, 1, 3) < 1e-6 and 0 <= P(1e9, 1, 1) <= 1
 print("site probability: ok")
 print("ALL TESTS PASSED")
+
+# ground_scale (FP.3): k = 1 / sqrt(1 - (n . u)^2): 1 with the star overhead or the offset horizontal, 1 / sin(alt) with
+# the offset in the star's vertical plane
+gs = m.ground_scale
+star = np.array([1.0, 0.0, 0.0])                              # the star on the J2000 x axis
+xa, ya, za = m.plane_basis(star)                              # plane: x east = (0,1,0), y north = (0,0,1) here
+assert abs(gs((1.0, 0.0), star, star) - 1.0) < 1e-12          # star at the zenith (up = star)
+h = np.radians(30.0)
+up = np.cos(h) * ya + np.sin(h) * za                          # star 30 deg high; the vertical plane holds y (north)
+assert abs(gs((1.0, 0.0), star, up) - 1.0 / np.sin(h)) < 1e-9 # motion along x: offset along y (in the vertical plane)
+assert abs(gs((0.0, 1.0), star, up) - 1.0) < 1e-9             # motion along y: offset along x, horizontal
+assert np.isnan(gs((1.0, 0.0), star, ya)) and np.isnan(gs((0.0, 0.0), star, up))   # star on the horizon; no motion
+print("GROUND SCALE TESTS PASSED")

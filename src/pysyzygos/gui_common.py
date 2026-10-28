@@ -38,6 +38,11 @@ def load_ui_state():
         return {}
 
 
+def dist_args():
+    """The report's --distance (System tab: shadow distance on the ground, default, or in the fundamental plane)."""
+    return ["--distance", load_ui_state().get("shadow_distance") or "ground"]
+
+
 def save_ui_state(**kw):
     """Remember GUI choices across restarts (gui_state.json in the data folder, written atomically)."""
     import tempfile

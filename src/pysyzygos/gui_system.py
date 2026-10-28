@@ -9,7 +9,7 @@ import json, os, shutil
 from pysyzygos import home, starcat
 from pysyzygos.home import HOME as ROOT, PKG
 from nicegui import run, ui
-from pysyzygos.gui_common import PYSYZYGOS, catalog_options, run_process, save_ui_state
+from pysyzygos.gui_common import PYSYZYGOS, catalog_options, run_process, save_ui_state, load_ui_state
 
 
 def panel(pg):
@@ -40,6 +40,16 @@ def panel(pg):
             ui.button("Setup status", on_click=lambda: pg.sys_status()).props("outline dense").tooltip(
                 "pysyzygos setup --status (in the log below): kernels, Earth orientation, catalogs, supplement, "
                 "the site's height")
+        with ui.row().classes("gap-2 items-center"):
+            ui.label("Shadow distance in Results and Favorites:").classes("text-sm")
+            pg.sys_dist = ui.select({"ground": "on the ground (default)", "plane": "in the fundamental plane"},
+                                    value=load_ui_state().get("shadow_distance") or "ground").props("dense").classes(
+                "w-60").tooltip(
+                "On the ground: the site's distance from the center line across the track on the ground (the shadow "
+                "cylinder's footprint is stretched where the star is low, up to 1 / sin of its altitude). In the "
+                "fundamental plane: perpendicular to the star, as the solver and the chance use it. The hover of each "
+                "distance shows both.")
+            pg.sys_dist.on_value_change(lambda e: pg.set_distance(e.value))
         ui.separator()
         with ui.row().classes("items-center gap-2"):
             ui.label("Data in use").classes("font-semibold")
@@ -106,6 +116,18 @@ def panel(pg):
 
 def handlers(pg):
     """The system tab's functions and state, as attributes of pg."""
+    async def set_distance(mode):
+        """System tab: the shadow distance shown (ground / plane): saved, used by this process (favorites page, CSV
+        exports) and the report runs (dist_args); both pages rebuilt."""
+        from pysyzygos import report
+        save_ui_state(shadow_distance=mode)
+        report.DISTANCE = mode
+        pg.load_favs()
+        ui.notify("Shadow distance " + ("on the ground" if mode == "ground" else "in the fundamental plane")
+                  + ": rebuilding the results page", type="info")
+        await pg.build_report()
+    pg.set_distance = set_distance
+
     def sys_refresh():
         from pysyzygos import offline
         pg.off_info.text = offline.status_text()

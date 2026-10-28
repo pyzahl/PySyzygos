@@ -1205,7 +1205,12 @@ the ground the path itself is wider than that when the star is low.
   motion). That strip is only a coarse pre-filter before the exact solve for the site and does not change the result;
   the search's previews show it as dotted lines along the track ("search corridor").
 * Grazes and near misses are kept: anything within r_max + reach. The **Shadow dist** column says "inside" or how
-  many km outside the shadow edge your site is.
+  many km outside the shadow edge your site is. It is the distance **on the ground**, across the track (from 1.4.1;
+  older results: in the fundamental plane): the plane perpendicular to the star is tilted against the ground, so the
+  shadow's footprint is stretched where the star is low, up to 1 / sin(star altitude) (1.4x at 45°, 2.9x at 20°).
+  Hover the distance for both values. **System** tab, "Shadow distance in Results and Favorites": *in the
+  fundamental plane* shows the plane distance instead (as the solver and the chance use it; `pysyzygos report
+  --distance plane`). The reach (search range) is a plane distance, so it keeps rather more events than fewer.
 
 Without a saved pick, the search reads `targets.py` (written by the last pick) through `pysyzygos_config.py`, which
 imports it when present; or set `targets = ["218001", ...]` there yourself (with `targets_source = "list"`).

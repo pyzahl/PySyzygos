@@ -9,7 +9,7 @@ import json, os, time
 from pysyzygos import exports
 from pysyzygos.home import HOME as ROOT
 from nicegui import ui
-from pysyzygos.gui_common import PYSYZYGOS, resizable_box, run_process, stop_process, today_utc
+from pysyzygos.gui_common import PYSYZYGOS, dist_args, resizable_box, run_process, stop_process, today_utc
 
 
 def panel(pg):
@@ -97,7 +97,8 @@ def handlers(pg):
                 os.path.join(ROOT, "bodies_log.runs.jsonl")):
             ui.notify("No planet or moon search yet", type="warning")
             return
-        await run_process(PYSYZYGOS + ["report", "bodies_log.csv", "-o", "bodies_report.html", "--layout", "bodies"],
+        await run_process(PYSYZYGOS + ["report", "bodies_log.csv", "-o", "bodies_report.html", "--layout", "bodies"]
+                          + dist_args(),
                           pg.log)
         pg.b_frame.props(f"src=/out/bodies_report.html?t={int(time.time())}")
     pg.build_bodies_report = build_bodies_report

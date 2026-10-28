@@ -6,6 +6,20 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- **Shadow distance on the ground** (default in Results and Favorites): the site's distance from the shadow's center
+  line across the track on the ground, the shadow cylinder's footprint stretched by up to 1 / sin(star altitude)
+  (FP.3; within 7 m of the drawn center line at 100 km). Hover shows both distances; **System** tab "Shadow distance
+  in Results and Favorites" switches back to the fundamental plane (`pysyzygos report --distance plane`). Record
+  fields `ground_dist_km`, `ground_margin_km`, `ground_scale`; SQL column `ground_dist`. The chance stays in the
+  plane, as its uncertainty.
+
+### Fixed
+- **Map limit lines are the true path limits**: the shadow edges, 1- and 3-sigma and satellite lines were offset across
+  the shadow's geocentric motion; a site on them passes closer, as the ground turns with the Earth (Phaethon: 0.9 m
+  at the 3 km edge, 306 m at 500 km; ~0.7 % of the offset for slow shadows). Now across the motion relative to each
+  ground point (within 2 cm). Maps take ~0.1 s more per hit.
+
 ### Changed
 - **Results and favorites pages: the explanations below the table can be folded away** ("Columns and marks
   explained"; open by default, the browser remembers the last choice for all these pages).

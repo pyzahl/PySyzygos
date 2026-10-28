@@ -384,6 +384,8 @@ def main():
     import threading                                            # error ellipses (Horizons, one Gaia job): may be slow
     threading.Thread(target=favorites.backfill_errors, daemon=True).start()
     favorites.write_csv()
+    from pysyzygos import report as _report                     # the shadow distance shown (System tab)
+    _report.DISTANCE = load_ui_state().get("shadow_distance") or "ground"
     favorites.write_page()                                      # with this version's page code (filter bar, sorting)
     app.add_static_files("/fav", os.path.join(ROOT, favorites.DIR), max_cache_age=0)
 

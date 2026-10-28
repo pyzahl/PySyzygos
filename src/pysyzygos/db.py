@@ -73,7 +73,9 @@ HITS = [
     ("moon_sep", "moon_sep_deg", "num", "deg", "Moon's distance from the star"),
     ("moon_illum", "moon_illum_pct", "num", "%", "Moon illuminated"),
     ("chance", "p_site", "pct", "%", "chance that the shadow covers the site, 0-100"),
-    ("distance", "min_distance", "num", "km", "site's distance from the shadow center line"),
+    ("distance", "min_distance", "num", "km", "site's distance from the shadow center line in the fundamental plane"),
+    ("ground_dist", "ground_dist_km", "num", "km", "site's distance from the shadow center line on the ground, across "
+     "the track (from 1.4.1; up to 1 / sin(star altitude) x distance)"),
     ("radius", "r_km", "num", "km", "asteroid radius (shadow half-width)"),
     ("sigma", "path_sigma1_km", "num", "km", "path uncertainty, 1 sigma"),
     ("star_sigma", "star_sigma_km", "num", "km", "the star's own position uncertainty, 1 sigma"),

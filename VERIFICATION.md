@@ -541,9 +541,36 @@ supplement); |time - OWC| median 0.70 s and 0.45 s, the same as with 1.1.0. The 
 -0.32 to +0.18 s and their paths' distance from the site by up to 0.38 km, below what separates PySyzygos from OWC
 anyway (other orbits; OWC times to 0.1 s).
 
+**Update 2026-10-27: the plane's axes (Steve Preston, from Occult's internals).** The remaining differences between
+the two programs' plane coordinates come from how the X and Y axes are oriented within the same plane. In both, Z
+points to the star. Occult uses the Besselian fundamental-plane coordinates: X along the line where the plane meets
+the **true equator of date**. PySyzygos takes X along the line where the plane meets the **GCRS (ICRF, J2000)
+equator** (slide FP.1: the pole e3 = (0, 0, 1)), and its observer's plane is the same frame moved from the Earth's
+center to the observer. The two (X, Y) pairs therefore differ by a rotation within the plane (precession and
+nutation since J2000), and are not directly comparable; with the standard conversion from GCRS to the true equator
+and equinox of date (TETE: precession + nutation) they match. Positions on the ground do not depend on how the axes
+are turned, so the paths agree as found above; the obs-check against the observation archive uses axes of date for
+the same reason (section 4, `obscheck.date_axes`).
+Checked with SPICE on (4209) Briggs / HIP 16880, 2026-10-20 (both on JPL #74), against OccultWatcher Cloud's
+Besselian elements (axes of date): a SPICE dynamic frame (family TRUE_EQUATOR_AND_EQUINOX_OF_DATE, IAU 1976/1980;
+`pxform('J2000', ...)`) turns our axes by 0.187 deg; OWC's dX, dY then agree within 0.0003 / 0.0005 Earth radii
+per hour (0.01 %; in our J2000 axes 0.011 / 0.017). ERFA's IAU 2006/2000A rotation gives the same to all digits
+shown (77 mas apart). The x, y at the closest approach differ by 0.05 km across the track; the rest is along it
+(about 70 ms; OWC lists the time to the second).
+
 ---
 
 ## 4. Internal and geometric checks
+
+- **Path limit lines are the true limits** (2026-10-27, `owc_refs/occult_paths/consistency/check.py` part 1b): a site on
+  a limit line must have its closest approach (its own solve, minimum over time) exactly the line's offset away. Up to
+  1.4.0 the lines were offset across the shadow's geocentric motion; a site there passes closer, because its closest
+  approach is across the motion relative to the turning ground: Phaethon 2019, -0.9 m at the 3 km shadow edge, -28 m
+  at 100 km, -306 m at 500 km (about 0.7 % of the offset for slow shadows). Now across the relative motion (PD.3):
+  within 2 cm at all offsets; `tests/test_paths.py` with a 1 km/s shadow within 0.01 mm.
+- **Ground distance** (FP.3): the site's distance from the center line on the ground, k x the plane distance with k
+  halfway to the center line, against the measured distance to the drawn center line: within 2 m at 33 km and 7 m at
+  100 km (Phaethon, star 17-66° high; k at the site alone: 0.45 % off at 100 km); a real hit at 285 km: 0.12 km (0.04 %).
 
 - **Corridor search vs the old windows search** (23 asteroids, 20 days, 200 km reach): all 40 old hits with G <= 18
   found, within 1.4 ms and 0.8 m (after the solver fix of 2026-10-01); 10 more real hits. The other old hits were on
