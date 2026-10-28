@@ -95,7 +95,7 @@ print("ORBIT CACHE TESTS PASSED")
 W = {"WARNINGS", "OLD_ORBITS", "NOTED", "NOTE_TEXT", "run_note", "run_warnings", "SKIPPED"}
 wcode = [n for n in tree.body if getattr(n, "name", None) in W
          or isinstance(n, ast.Assign) and any(getattr(t, "id", None) in W for t in n.targets)]
-wn = dict(sys=sys)
+wn = dict(sys=sys, EARTH_PCK={})                                   # set at start-up (kernels)
 exec(compile(ast.Module(wcode, []), SRC, "exec"), wn)
 assert wn["run_warnings"]() == []                                                  # a clean run: no line
 wn["WARNINGS"]["horizons"] = "JPL Horizons answered with a server error (wldini() ...)"
@@ -109,4 +109,6 @@ assert "2 orbit(s) from older cached files (downloaded 2026-10-20 to 2026-10-25)
 assert "1 asteroid(s) skipped without an orbit: 204890" in w, w
 assert any(x.startswith("1 target(s) with size data from an older cache") and x.endswith(": 63") for x in w), w
 assert any(x.startswith("1 target(s) skipped without size data") for x in w), w
+wn["EARTH_PCK"]["long_term"] = "Earth orientation after 2027-01-20 from the long-term prediction x.bpc"
+assert wn["run_warnings"]()[1].startswith("Earth orientation after 2027-01-20"), wn["run_warnings"]()
 print("RUN WARNINGS TESTS PASSED")

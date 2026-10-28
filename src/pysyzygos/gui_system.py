@@ -40,6 +40,11 @@ def panel(pg):
             ui.button("Setup status", on_click=lambda: pg.sys_status()).props("outline dense").tooltip(
                 "pysyzygos setup --status (in the log below): kernels, Earth orientation, catalogs, supplement, "
                 "the site's height")
+            ui.button("Refresh Earth orientation", on_click=lambda: pg.sys_earth()).props("outline dense").tooltip(
+                "Download earth_latest_high_prec.bpc again now (pysyzygos setup --refresh-earth): it predicts the "
+                "Earth's rotation ~3 months ahead and is otherwise refreshed after earth_pck_max_age days. Searches "
+                "past its end use NAIF's long-term prediction (up to a year after its last measurement) and say so "
+                "in the Warnings line")
         with ui.row().classes("gap-2 items-center"):
             ui.label("Shadow distance in Results and Favorites:").classes("text-sm")
             pg.sys_dist = ui.select({"ground": "on the ground (default)", "plane": "in the fundamental plane"},
@@ -142,6 +147,11 @@ def handlers(pg):
     async def sys_status():
         await run_process(PYSYZYGOS + ["setup", "--status"], pg.log)
     pg.sys_status = sys_status
+
+    async def sys_earth():
+        await run_process(PYSYZYGOS + ["setup", "--refresh-earth"], pg.log)
+        await pg.sys_info_refresh()
+    pg.sys_earth = sys_earth
 
     async def sys_copy():
         from pysyzygos import offline

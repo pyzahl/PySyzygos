@@ -618,6 +618,9 @@ def main():
                     help="also download NAIF's historic Earth orientation file (earth_1962_*_combined.bpc, ~31 MB) "
                          "for search windows before 2000 (earth_latest_high_prec.bpc starts 2000-01-01); a search "
                          "before 2000 fetches it by itself when online")
+    ap.add_argument("--refresh-earth", action="store_true",
+                    help="download earth_latest_high_prec.bpc again now, whatever its age (it predicts ~3 months "
+                         "ahead; NAIF updates it a few times a week), and the newest long-term file if one is here")
     ap.add_argument("--home", metavar="FOLDER", help="use FOLDER as the data folder from now on (saved as a setting; "
                                                      "files are not moved)")
     ap.add_argument("--geoid", action="store_true",
@@ -633,6 +636,9 @@ def main():
             print(f"  {name:28s} ele {s['ele']:g} m, {ref} {s['geoid_m']:+.1f} m -> {s['ele'] + s['geoid_m']:.1f} m above WGS84")
         print("saved sites.py")
         sys.exit(0)
+    if a.refresh_earth:
+        from pysyzygos import kernels as KK
+        sys.exit(0 if KK.refresh_earth_pck(".") else 1)
     if a.status:
         show_status(catalog_target(a.gmax, a.dir)[0] if (a.gmax is not None or a.dir) else None)
         sys.exit(0)

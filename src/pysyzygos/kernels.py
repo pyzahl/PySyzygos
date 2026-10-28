@@ -161,6 +161,60 @@ def download_historic_earth_pck(folder="."):
     return dst
 
 
+def refresh_earth_pck(folder="."):
+    """Download earth_latest_high_prec.bpc again now, whatever its age (System tab, setup --refresh-earth), and
+    NAIF's newest long-term file (earth_1962_*_combined.bpc) if one is used here. True when the high-precision file
+    was replaced; on a failure the old copy stays."""
+    dst = os.path.join(folder, EARTH_PCK)
+    part = dst + ".part"
+    old = pck_comment_dates(dst)
+    print(f"Downloading {EARTH_PCK} via system curl (forced refresh)...")
+    try:
+        subprocess.run(["curl", "-f", "-L", "-A", "Mozilla/5.0", U.URL_NAIF_EARTH_PCK, "-o", part], check=True)
+        os.replace(part, dst)
+    except (subprocess.CalledProcessError, OSError) as e:
+        if os.path.exists(part):
+            os.remove(part)
+        print(f"🚨 download of {EARTH_PCK} failed ({e}): the existing copy stays")
+        return False
+    new = pck_comment_dates(dst)
+    print(f"  {EARTH_PCK}: created {new['created'] or '?'}, measured to {new['last_datum'] or '?'} "
+          f"(before: created {old['created'] or '?'}, measured to {old['last_datum'] or '?'})")
+    if historic_earth_pck(folder):                     # a newer long-term prediction too (the name has its date)
+        h = download_historic_earth_pck(folder)
+        if h:
+            print(f"  long-term file: {os.path.basename(h)}, measured to {pck_comment_dates(h)['last_datum'] or '?'}")
+    return True
+
+
+LONG_TERM_MAX_DAYS = 365     # the long-term prediction is used at most this long after its last measured value
+
+
+def long_term_check(spice, folder, et1):
+    """A window ending at et1 against the Earth orientation predictions (LSK loaded). (True, None): EARTH_PCK covers
+    it. (True, warning): after EARTH_PCK's end (~3 months ahead) the long-term prediction of the combined file
+    covers it, up to LONG_TERM_MAX_DAYS after that file's last measured value; the warning goes to the run's
+    Warnings. (False, reason): neither."""
+    stop = pck_span(spice, os.path.join(folder, EARTH_PCK))[1]
+    if et1 <= stop:
+        return True, None
+    day = lambda et: spice.et2utc(et, "ISOC", 0)[:10]
+    h = historic_earth_pck(folder)
+    if not h:
+        return False, (f"the window ends {day(et1)}, after {EARTH_PCK} ({day(stop)}), and there is no long-term "
+                       f"file ({EARTH_HISTORIC_GLOB}: pysyzygos setup --historic-earth when online)")
+    last = pck_comment_dates(h)["last_datum"]
+    end = pck_span(spice, h)[1]
+    if last:
+        end = min(end, spice.str2et(last) + LONG_TERM_MAX_DAYS * 86400.0)
+    if et1 > end:
+        return False, (f"the window ends {day(et1)}, after {EARTH_PCK} ({day(stop)}) and after the long-term "
+                       f"prediction's limit ({day(end)}: {LONG_TERM_MAX_DAYS} days after its last measured value "
+                       f"{last or '?'}, {os.path.basename(h)})")
+    return True, (f"Earth orientation after {day(stop)} from the long-term prediction {os.path.basename(h)} "
+                  f"(measured to {last or '?'}; {EARTH_PCK} ends {day(stop)})")
+
+
 def pck_span(spice, path, frame=3000):
     """(start_et, stop_et) of an Earth orientation PCK (frame 3000 = ITRF93)."""
     cover = spice.cell_double(2000) if hasattr(spice, "cell_double") else spice.stypes.SPICEDOUBLE_CELL(2000)

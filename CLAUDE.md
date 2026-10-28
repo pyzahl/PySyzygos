@@ -74,7 +74,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `targets_source = "auto"` uses the newest saved pick of its site covering the search window; an explicit
   `targets` override sets `"list"`). Engine `pysyzygos/screen.py` (site solve, OWC observability formula), orbits `pysyzygos/orbits.py` (SBDB full-precision
   elements + planets, RK4, ~0.01" vs Horizons), stars `BrightIndex` (G <= index_gmax(cam_limit) = max(15, ceil(limit)), cells sorted by G; a missing one is
-  built by `run_screen` in the parent before the workers start, low-memory via a memmap). Worker processes.
+  built by `run_screen` in the parent before the workers start, low-memory via a memmap). Worker processes; chunk
+  size and workers from the free memory (`prescreen.plan_chunks`, MEM_FRAC 0.6; 2026-10-27: a fixed 2000 took ~8 GB
+  per worker for 100 days and the OOM killer broke the pool).
 - Asteroid groups (2026-10-25, user + a colleague's request for high-value targets): `picks.GROUPS` / GROUP_NAMES
   (main MBA/IMB/OMB, trojan TJN, marscross MCA, neo APO/AMO/ATE/IEO, tno TNO, other = any other class), `group_of`,
   `parse_groups` (in the light picks.py: describe() names them; pick.py imports them). SBDB_FIELDS + pha, sats
@@ -713,7 +715,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   pck/ listing, `download_historic_earth_pck`, URL_NAIF_PCK_DIR), loaded BEFORE earth_latest_high_prec.bpc
   (`earth_kernels`, screen.load_kernels; SPICE: last loaded wins, so the latest rules from 2000 on: identical, checked).
   search.py start-up: window start before the latest's start -> fetch it; `window_coverage(spans, et0, et1)` checks
-  the whole window (start, gaps); the end check stays on the latest file only (no silent century predictions).
+  the whole window (start, gaps). End (2026-10-27, user's decision): past the latest's prediction (~3 months)
+  `kernels.long_term_check` allows the combined file's long-term prediction up to LONG_TERM_MAX_DAYS 365 after its last
+  measured value (UT1 ~0.01 s at 6 months: ~4 m), fetched when missing, with a run Warning (search EARTH_PCK
+  'long_term' -> run_warnings; pick WARNINGS); beyond: exit. Forced refresh: `kernels.refresh_earth_pck`, setup
+  `--refresh-earth`, System tab button (`pg.sys_earth`).
   pick: same fetch. setup `--historic-earth`, status line, cleanup pattern. tests/test_kernels_coverage.py.
 - Leap seconds (2026-10-16): `kernels.lsk_file(folder)` = newest local naifNNNN.tls (use it, never the literal
   name); `refresh_lsk` checks URL_NAIF_LSK_DIR at most every earth_pck_max_age days (marker .lsk_checked, gitignored),

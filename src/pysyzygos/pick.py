@@ -163,17 +163,32 @@ def single_thread_workers():
         os.environ.setdefault(k, "1")
 
 
-def run_screen(rows, et0, et1, opt, site_args, workers, chunk=2000, mp_start="spawn"):
+MEM_FRAC = 0.6                     # share of the available memory the workers' chunks may use
+
+
+def run_screen(rows, et0, et1, opt, site_args, workers, chunk=None, mp_start="spawn"):
     """Screen rows in worker processes. Workers are started with "spawn": each loads its own SPICE kernels with its
     own file handles. With "fork" (the Linux default before Python 3.14) they would inherit the parent's open kernel
     files and share their read position, so parallel reads of de440.bsp collide (SPICE(RECORDNOTFOUND),
-    SPICE(INVALIDRADIUS), corrupted DAF), more often the more workers run."""
+    SPICE(INVALIDRADIUS), corrupted DAF), more often the more workers run.
+    Without chunk, chunk size and workers follow the free memory (the pre-screen's model): screen() holds ~12
+    (n, T, 3) float64 arrays per chunk, so a fixed 2000 asteroids took ~8 GB per worker for 100 days (10-min steps)
+    and the system killed a worker (BrokenProcessPool)."""
     import multiprocessing
-    from pysyzygos import gaia_local as L
+    from pysyzygos import gaia_local as L, prescreen as PS
     folder = HOME                                          # kernels and catalogs (workers start there)
     # build a missing bright-star index here, once: workers only open it (before, each worker built it at the same
     # time, reading the whole catalog into memory: swap and a stalled system with a star limit above G 15)
     L.open_index(site_args[0], L.index_gmax(site_args[1]))
+    if not chunk:
+        steps = int(round((et1 - et0) / 600.0)) + 2        # screen()'s 10-min grid
+        avail, total, swap = PS.mem_status()
+        budget = avail * MEM_FRAC if avail else 4e9
+        asked = workers
+        workers, chunk = PS.plan_chunks(len(rows), steps, workers, budget)
+        print(f"memory: available {PS._gb(avail)} of {PS._gb(total)}, swap used {PS._gb(swap)}; {workers} worker(s)"
+              f"{f' (of {asked} asked, memory)' if workers < asked else ''} x chunk {chunk} = "
+              f"~{PS._gb(workers * (PS.WORKER_BASE + PS.chunk_bytes(chunk, steps)))} peak", file=sys.stderr, flush=True)
     jobs = [(rows[i:i + chunk], et0, et1, opt) for i in range(0, len(rows), chunk)]
     events, done, t0 = [], 0, time.time()
     single_thread_workers()
@@ -306,12 +321,21 @@ def main(argv=None):
     et0 = spice.str2et(a.start + "T00:00:00")
     et1 = et0 + a.days * 86400.0
     from pysyzygos import kernels as K
-    if et0 < K.pck_span(spice, os.path.join(HOME, K.EARTH_PCK))[0] and not K.historic_earth_pck(HOME):
-        print("window before 2000: getting the historic Earth orientation file", file=sys.stderr)
+    span = K.pck_span(spice, os.path.join(HOME, K.EARTH_PCK))
+    if (et0 < span[0] or et1 > span[1]) and not K.historic_earth_pck(HOME):
+        print("window before 2000 or after the Earth orientation prediction: getting the historic/long-term Earth "
+              "orientation file", file=sys.stderr)
         if not K.download_historic_earth_pck(HOME):            # the workers load it (screen.load_kernels)
-            sys.exit("no Earth orientation before 2000: pysyzygos setup --historic-earth (when online)")
+            sys.exit("no Earth orientation for the whole window: pysyzygos setup --historic-earth (when online)")
         spice.kclear()
         SC.load_kernels(spice, HOME)                           # again, the historic file first
+    ok, why = K.long_term_check(spice, HOME, et1)
+    if not ok:
+        sys.exit(f"no Earth orientation for the whole window: {why}. Shorten the window (days) or refresh the Earth "
+                 f"orientation (System tab, or pysyzygos setup --refresh-earth)")
+    if why:
+        WARNINGS.append(why)                                   # pick_meta, targets.py header, the search's Warnings
+        print(f"WARNING: {why}", file=sys.stderr)
     opt = dict(reach_km=a.reach, min_alt=a.min_alt, max_sun_alt=a.max_sun_alt, min_drop=a.min_drop,
                min_dur=a.min_dur, cam_limit=a.cam_limit, aperture=a.aperture, frames=a.frames,
                mag_adjust=a.mag_adjust, extinction=a.extinction)

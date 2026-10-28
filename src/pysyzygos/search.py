@@ -78,6 +78,10 @@ if download_kernels(config.earth_pck_max_age):
             print(f"* Search window starts {spice.et2utc(_w0, 'ISOC', 0)[:10]}, before {K.EARTH_PCK} "
                   f"({spice.et2utc(_latest[0], 'ISOC', 0)[:10]}): getting the historic Earth orientation file")
             _hist = K.download_historic_earth_pck(".")
+        elif _w1 > _latest[1] and not _hist:                        # past the prediction: the long-term file
+            print(f"* Search window ends {spice.et2utc(_w1, 'ISOC', 0)[:10]}, after {K.EARTH_PCK} "
+                  f"({spice.et2utc(_latest[1], 'ISOC', 0)[:10]}): getting the long-term Earth orientation file")
+            _hist = K.download_historic_earth_pck(".")
         _spans = []
         if _hist:                                                   # loaded first: EARTH_PCK wins where both cover
             spice.furnsh(_hist)
@@ -101,9 +105,13 @@ if download_kernels(config.earth_pck_max_age):
                                                  for n_, a_, b_ in _spans)
                      + "). For dates before 2000: pysyzygos setup --historic-earth (downloads "
                        f"{K.EARTH_HISTORIC_GLOB}, ~31 MB)")
-        if _win_end > EARTH_PCK["stop"]:                            # future: only the high-precision file's prediction
-            sys.exit(f"Search window ends {_win_end[:10]}, after the Earth orientation file ({EARTH_PCK['stop'][:10]}): "
-                     f"shorten the window (days) or refresh earth_latest_high_prec.bpc (delete it, rerun)")
+        _ok, _why = K.long_term_check(spice, ".", _w1)              # future: the long-term prediction, capped
+        if not _ok:
+            sys.exit(f"Search window: no Earth orientation for all of it: {_why}. Shorten the window (days) or "
+                     f"refresh the Earth orientation (System tab, or pysyzygos setup --refresh-earth)")
+        if _why:                                                    # -> run_warnings (Warnings line of the report)
+            EARTH_PCK["long_term"] = _why
+            print(f"  WARNING: {_why}")
         print ('---------------------------------------------')
     
         print ('* Testing Compute Kernels *')
@@ -1510,6 +1518,8 @@ def run_warnings():
     broken, orbits from older cached files, skipped targets, stale size data, default path uncertainties, online
     checks not done. Every automatic fallback or skip belongs here (run_note / WARNINGS), not only in the log."""
     out = [WARNINGS["horizons"]] if "horizons" in WARNINGS else []
+    if EARTH_PCK.get("long_term"):                          # Earth orientation past the high-precision file
+        out.append(EARTH_PCK["long_term"])
     if OLD_ORBITS:
         days = sorted(OLD_ORBITS.values())
         out.append(f"{len(OLD_ORBITS)} orbit(s) from older cached files (downloaded "
