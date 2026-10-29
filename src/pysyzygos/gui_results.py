@@ -9,6 +9,7 @@ import csv, os, re, time
 from pysyzygos import db, exports, favorites
 from pysyzygos.home import HOME as ROOT
 from nicegui import run, ui
+from pysyzygos import server_mode
 from pysyzygos.gui_common import KSTARS_OPT, PYSYZYGOS, dist_args, load_ui_state, resizable_box, run_process, save_ui_state
 
 # the SQL filter's help: columns of the view hits, the run's site, and the functions (db.HITS, db.FUNCTIONS)
@@ -64,7 +65,8 @@ def panel(pg):
             ui.checkbox("KStars/Stellarium: set its location to the event site", value=KSTARS_OPT["set_location"],
                         on_change=lambda e: KSTARS_OPT.update(set_location=bool(e.value))).tooltip(
                 "The report's KStars buttons (Linux, KStars running) and Stellarium buttons (Remote Control "
-                "plugin). Off: they keep their location (KStars tells you if that is far from the site).")
+                "plugin). Off: they keep their location (KStars tells you if that is far from the site)."
+            ).set_visibility(not server_mode.MODE["server"])      # server mode: they would act on the server
         # SQL filter (advanced): a condition on the results database's view hits (db.HITS); the report is rebuilt
         # with only the matching events (report --where). The simple filter bar is in the report page itself.
         pg.sql_note = ui.label().classes("text-sm text-blue-800")

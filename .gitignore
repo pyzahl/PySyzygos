@@ -17,6 +17,7 @@ owc_refs/
 /pyoccult_config.py*
 /csv_exports.py
 /gui_state.json
+/server_auth.json
 run.sh
 # run outputs (results database: pysyzygos.db, its WAL files; owc_check.db)
 *.db

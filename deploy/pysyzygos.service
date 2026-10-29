@@ -1,0 +1,21 @@
+# PySyzygos GUI in server mode, as a systemd user service (runs as you, with your data folder). SERVER_MODE.md section 3.
+#   mkdir -p ~/.config/systemd/user && cp deploy/pysyzygos.service ~/.config/systemd/user/
+#   edit ExecStart (path of your checkout) and, if needed, PYSYZYGOS_HOME
+#   systemctl --user daemon-reload && systemctl --user enable --now pysyzygos
+#   sudo loginctl enable-linger $USER          # keep it running when you are logged out (and start at boot)
+#   journalctl --user -u pysyzygos -f          # its output
+# Behind a proxy on the same computer (deploy/Caddyfile) use --host 127.0.0.1 --server instead of --host 0.0.0.0.
+[Unit]
+Description=PySyzygos occultation predictor (web interface, server mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/PySyzygos-src/.venv/bin/pysyzygos gui --host 0.0.0.0 --port 8080
+# Environment=PYSYZYGOS_HOME=%h/PySyzygos
+Restart=on-failure
+RestartSec=5
+# the GUI's Restart button replaces the process in place (exec): systemd keeps tracking it
+
+[Install]
+WantedBy=default.target

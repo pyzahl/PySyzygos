@@ -1,0 +1,17 @@
+# HTTPS in front of PySyzygos (Caddy, https://caddyserver.com): the login and the pages are encrypted on the
+# network. PySyzygos then listens on this computer only:
+#   pysyzygos gui --host 127.0.0.1 --port 8080 --server
+# Caddy passes the WebSocket and the Host header through by itself.
+
+# A name on your home network (Caddy makes its own certificate authority; on each device trust it once,
+# or accept the browser's warning once):
+pysyzygos.lan {
+	tls internal
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Or a real domain pointing to this computer (Let's Encrypt certificate, automatic). Only with ports 80/443
+# reachable, so think twice: a VPN or Tailscale (SERVER_MODE.md section 5) keeps the server off the internet.
+# pysyzygos.example.org {
+# 	reverse_proxy 127.0.0.1:8080
+# }

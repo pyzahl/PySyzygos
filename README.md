@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.4.1 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.5.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -32,6 +32,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
   - [4. One-time data setup](#4-one-time-data-setup)
   - [5. Run it: the web interface](#5-run-it-the-web-interface)
     - [The core command-line tools](#the-core-command-line-tools)
+  - [From the observatory or your phone: server mode](#from-the-observatory-or-your-phone-server-mode)
   - [Quick Tips](#quick-tips)
 - [If something goes wrong: start over](#if-something-goes-wrong-start-over)
 - [Where your data and settings live](#where-your-data-and-settings-live)
@@ -49,6 +50,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Searching anywhere on Earth](#searching-anywhere-on-earth)
 - [Report: event list, maps and previews](#report-event-list-maps-and-previews)
 - [GUI step by step, with screenshots](GETTING_STARTED.md) (Getting started: from the install to a first prediction)
+- [Server mode](SERVER_MODE.md) (the GUI from the observatory computer or a phone; the favorites API for programs)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
@@ -630,6 +632,12 @@ sudo cp hits_report.html /var/www/html/hits_report.html
 
 To include the maps' KML links in the published page, also copy the `maps` folder (`sudo cp -r maps /var/www/html/`).
 
+### From the observatory or your phone: server mode
+
+The GUI can also run on a server at home, used from any browser on your network (the observatory computer, a
+phone, a tablet) with a login, and other programs (a camera or mount app) can read your favorites from it to point
+the telescope: [SERVER_MODE.md](SERVER_MODE.md). The local mode (`pysyzygos`, 127.0.0.1) is unchanged.
+
 ---
 
 ## Quick Tips
@@ -1205,7 +1213,7 @@ the ground the path itself is wider than that when the star is low.
   motion). That strip is only a coarse pre-filter before the exact solve for the site and does not change the result;
   the search's previews show it as dotted lines along the track ("search corridor").
 * Grazes and near misses are kept: anything within r_max + reach. The **Shadow dist** column says "inside" or how
-  many km outside the shadow edge your site is. It is the distance **on the ground**, across the track (from 1.4.1;
+  many km outside the shadow edge your site is. It is the distance **on the ground**, across the track (from 1.5.0;
   older results: in the fundamental plane): the plane perpendicular to the star is tilted against the ground, so the
   shadow's footprint is stretched where the star is low, up to 1 / sin(star altitude) (1.4x at 45°, 2.9x at 20°).
   Hover the distance for both values. **System** tab, "Shadow distance in Results and Favorites": *in the

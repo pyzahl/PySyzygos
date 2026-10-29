@@ -4,7 +4,8 @@ pick tool, follow the log, look at the results.
     pysyzygos                            # opens http://127.0.0.1:8080 in the browser (same as: pysyzygos gui)
     pysyzygos --port 8090 --no-browser
 
-It listens on this computer only (127.0.0.1), because it can start programs. Every run is its own process
+It listens on this computer only (127.0.0.1), because it can start programs. On a server (intranet, one user):
+`--set-password` once, then `--host 0.0.0.0`: server mode with a login (pysyzygos/server_mode.py; SERVER_MODE.md). Every run is its own process
 (`python -m pysyzygos run ...`, pysyzygos/runner.py), so SPICE stays out of the GUI; settings chosen here apply to that run only, pysyzygos_config.py is
 not changed. Saving a site rewrites sites.py (comments in it are not kept).
 
@@ -20,6 +21,7 @@ from pysyzygos.home import HOME as ROOT, PKG                      # ROOT: the da
 os.chdir(ROOT)
 from nicegui import app, ui
 from pysyzygos import geo
+from pysyzygos import server_mode                                # server mode (login, tokens) and the cross-site guard
 from pysyzygos import favorites
 from pysyzygos import exports
 from pysyzygos import starcat
@@ -59,7 +61,8 @@ def restart_app():
     def again():                                                # same port; no new browser tab: this one reconnects
         os.environ["PYSYZYGOS_HOME"] = ROOT
         os.execv(sys.executable, [sys.executable, "-m", "pysyzygos", "gui", "--port", str(GUI_ARGS.get("port", 8080)),
-                                  "--no-browser"])
+                                  "--no-browser", "--host", GUI_ARGS.get("host", "127.0.0.1")]
+                 + ["--server"] * bool(GUI_ARGS.get("server")) + ["--no-auth"] * bool(GUI_ARGS.get("no_auth")))
     asyncio.get_event_loop().call_later(1.0, again)
 
 
@@ -108,11 +111,14 @@ def index():
         with ui.dialog() as qd, ui.card().classes("max-w-md"):
             ui.label("Restart or quit PySyzygos?").classes("font-semibold")
             ui.label("Restart: the program starts again (with any update you installed) and this page reconnects "
-                     "by itself. Quit: the program ends; close this browser tab afterwards."
+                     "by itself. " + ("(Server mode: no Quit here; stop it on the server, e.g. systemctl --user stop pysyzygos.)"
+                                      if server_mode.MODE["server"] else
+                                      "Quit: the program ends; close this browser tab afterwards.")
                      + (" A run is still going: it is stopped." if busy else "")).classes("text-sm")
             with ui.row():
                 ui.button("Restart", on_click=lambda: (qd.close(), restart_app())).props("color=primary")
-                ui.button("Quit", on_click=lambda: (qd.close(), quit_app())).props("color=negative")
+                if not server_mode.MODE["server"]:
+                    ui.button("Quit", on_click=lambda: (qd.close(), quit_app())).props("color=negative")
                 ui.button("Cancel", on_click=qd.close).props("flat")
         qd.open()
     pg.quit_dialog = quit_dialog
@@ -364,8 +370,41 @@ def main():
     ap.add_argument("--version", action="version", version=f"PySyzygos {__version__}")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="address to listen on (default 127.0.0.1: this computer only); another one, e.g. 0.0.0.0 "
+                         "(all interfaces), turns on server mode with a login (SERVER_MODE.md)")
+    ap.add_argument("--server", action="store_true",
+                    help="server mode on 127.0.0.1 too (behind a proxy on the same computer)")
+    ap.add_argument("--set-password", action="store_true",
+                    help=f"set the server mode's user name and password ({server_mode.AUTH_FILE} in the data folder)")
+    ap.add_argument("--new-token", metavar="NAME",
+                    help="a read-only token for another program (e.g. PyStarLight) to read the favorites API "
+                         "/api/v1/ (pysyzygos/pointing.py); shown once")
+    ap.add_argument("--revoke-token", metavar="NAME", help="revoke a program's token")
+    ap.add_argument("--list-tokens", action="store_true", help="list the programs' tokens (names and dates)")
+    ap.add_argument("--no-auth", action="store_true",
+                    help="server mode without the built-in login: only behind a proxy that does the login itself")
     a = ap.parse_args()
-    GUI_ARGS.update(port=a.port)
+    auth_path = os.path.join(ROOT, server_mode.AUTH_FILE)
+    if a.set_password:
+        server_mode.set_password_interactive(auth_path)
+        return
+    if a.new_token or a.revoke_token or a.list_tokens:
+        server_mode.token_main(auth_path, a.new_token, a.revoke_token, a.list_tokens)
+        return
+    server_mode.MODE["server"] = a.server or a.no_auth or not server_mode.is_loopback(a.host)
+    GUI_ARGS.update(port=a.port, host=a.host, server=a.server, no_auth=a.no_auth)
+    auth = None
+    if server_mode.MODE["server"]:
+        auth = None if a.no_auth else server_mode.load_auth(auth_path)
+        if auth is None and not a.no_auth:
+            sys.exit(f"server mode needs a login: pysyzygos gui --set-password (writes {auth_path}), or --no-auth "
+                     f"behind a proxy that asks for one")
+        print(f"server mode on {a.host}:{a.port}: "
+              + ("NO built-in login (--no-auth: the proxy must ask for one)" if a.no_auth else
+                 f"login as {auth['user']}") + "; KStars, Stellarium and Quit are off")
+    app.add_middleware(server_mode.Guard, auth=auth, path=None if auth is None else auth_path)   # cross-site guard
+    # always, the login (browser) and tokens (programs) in server mode
     print(f"PySyzygos {__version__}, data folder: {home.describe()}")
     from pysyzygos import config
     os.makedirs(config.map_dir, exist_ok=True)
@@ -388,6 +427,37 @@ def main():
     _report.DISTANCE = load_ui_state().get("shadow_distance") or "ground"
     favorites.write_page()                                      # with this version's page code (filter bar, sorting)
     app.add_static_files("/fav", os.path.join(ROOT, favorites.DIR), max_cache_age=0)
+
+    from fastapi import HTTPException, Query
+    from pysyzygos import pointing                              # favorites for other programs (read-only, JSON)
+
+    @app.get("/api/v1/")
+    def api_index():
+        return pointing.index()
+
+    def api_select(frm, to, status, site, limit):
+        try:
+            return pointing.select(favorites.load(), frm, to, status, site, limit)
+        except ValueError as e:
+            raise HTTPException(400, f"bad time: {e}")
+
+    @app.get("/api/v1/favorites")
+    def api_favorites(frm: str = Query(None, alias="from"), to: str = None, status: str = None, site: str = None,
+                      limit: int = None):
+        return {"version": __version__, "favorites": [pointing.event(e) for e in
+                                                      api_select(frm, to, status, site, limit)]}
+
+    @app.get("/api/v1/favorites/next")
+    def api_next(frm: str = Query("now", alias="from"), status: str = None, site: str = None):
+        rows = api_select(frm, None, status, site, 1)
+        return {"version": __version__, "favorite": pointing.event(rows[0]) if rows else None}
+
+    @app.get("/api/v1/favorites/{key}")
+    def api_favorite(key: str):
+        e = next((x for x in favorites.load() if x.get("key") == key), None)
+        if e is None:
+            raise HTTPException(404, f"no favorite {key}")
+        return {"version": __version__, "favorite": pointing.event(e)}
 
     @app.get("/api/favorites/keys")
     def favorites_keys():
@@ -457,14 +527,22 @@ def main():
         save_ui_state(filters=sets)
         return {"ok": True, "msg": f"filter set {name} deleted"}
 
+    DESKTOP_OFF = "server mode: KStars and Stellarium would be moved on the server, not on your computer"
+
     @app.get("/api/kstars/status")
     def kstars_status():
-        ok, msg = kstars.available()
+        ok, msg = (False, DESKTOP_OFF) if server_mode.MODE["server"] else kstars.available()
         return {"ok": ok, "msg": msg}
+
+    @app.get("/api/stellarium/status")
+    def stellarium_status():                                # no probe: the buttons stay a blind try in local mode
+        return {"ok": not server_mode.MODE["server"], "msg": DESKTOP_OFF if server_mode.MODE["server"] else ""}
 
     @app.get("/api/kstars/show")
     def kstars_show(ra: float, dec: float, utc: str, fov: float = 2.0, lat: float = None, lon: float = None,
                     ele: float = 0.0, names: str = ""):
+        if server_mode.MODE["server"]:
+            return {"ok": False, "msg": DESKTOP_OFF}
         ok, msg = kstars.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"],
                               names=[n for n in names.split("|") if n])
         return {"ok": ok, "msg": msg}
@@ -472,6 +550,8 @@ def main():
     @app.get("/api/stellarium/show")
     def stellarium_show(ra: float, dec: float, utc: str, fov: float = 2.0, lat: float = None, lon: float = None,
                         ele: float = 0.0, names: str = ""):
+        if server_mode.MODE["server"]:
+            return {"ok": False, "msg": DESKTOP_OFF}
         tz = site_timezone(lat, lon) if KSTARS_OPT["set_location"] and lat is not None and lon is not None else None
         ok, msg = stellarium.show(ra, dec, utc, fov, lat, lon, ele, set_location=KSTARS_OPT["set_location"], tz=tz,
                                   names=[n for n in names.split("|") if n])
@@ -502,8 +582,8 @@ def main():
     # field carries lang="en" itself (so a browser translation or add-on cannot change it either)
     ui.add_head_html("<script>document.documentElement.lang = 'en';</script>", shared=True)
     ui.number.default_props("lang=en")
-    ui.run(host="127.0.0.1", port=a.port, title="PySyzygos", favicon=os.path.join(PKG, "pysyzygos_logo.svg"),
-           show=not a.no_browser, reload=False, reconnect_timeout=60, language="en-US")   # a busy browser keeps its page
+    ui.run(host=a.host, port=a.port, title="PySyzygos", favicon=os.path.join(PKG, "pysyzygos_logo.svg"),
+           show=not (a.no_browser or server_mode.MODE["server"]), reload=False, reconnect_timeout=60, language="en-US")   # a busy browser keeps its page
 
 
 if __name__ in {"__main__", "__mp_main__"}:

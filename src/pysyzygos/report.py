@@ -725,6 +725,7 @@ fetch('/api/kstars/status').then(function(r){return r.json();}).then(function(j)
    setTimeout(function(){b.textContent='KStars';},4000);})
   .catch(function(){b.textContent='KStars ✗';pyoToast('KStars: no answer from the GUI',true);});});});}).catch(function(){});})();
 (function(){var site=__SITE__,bs=document.querySelectorAll('.stbtn');if(!bs.length||location.protocol==='file:')return;
+fetch('/api/stellarium/status').then(function(r){return r.json();}).then(function(j){if(!j.ok)return;
  bs.forEach(function(b){b.hidden=false;b.addEventListener('click',function(){
   var q=new URLSearchParams({ra:b.dataset.ra,dec:b.dataset.dec,utc:b.dataset.utc,fov:b.dataset.fov});
   if(b.dataset.names)q.set('names',b.dataset.names);
@@ -734,7 +735,7 @@ fetch('/api/kstars/status').then(function(r){return r.json();}).then(function(j)
   fetch('/api/stellarium/show?'+q).then(function(r){return r.json();}).then(function(j){
    b.textContent=j.ok?'Stellarium ✓':'Stellarium ✗';b.title=j.msg;pyoToast(j.msg,!j.ok);
    setTimeout(function(){b.textContent='Stellarium';},4000);})
-  .catch(function(){b.textContent='Stellarium ✗';pyoToast('Stellarium: no answer from the GUI',true);});});});})();
+  .catch(function(){b.textContent='Stellarium ✗';pyoToast('Stellarium: no answer from the GUI',true);});});});}).catch(function(){});})();
 </script>"""
 
 PREVIEW_DIALOG = """<dialog id="prevdlg" aria-label="Event preview" style="width:auto;height:auto;max-width:96vw;max-height:96vh">

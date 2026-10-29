@@ -413,6 +413,28 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   parallel: own processes/SPICE, path-check output in favorites/<key>/pathcheck/run with its own db; it deletes only
   that asteroid's cached SPKs (picks/pre-screens do not use them; a main search of the same asteroid at that moment
   would download it again). `_stop_job` (quit/restart) stops both.
+- Server mode (2026-10-28, `pysyzygos/server_mode.py`, deploy/; one name everywhere: server mode, --server,
+  MODE["server"], server_auth.json; only systemd's own "service" stays): the GUI on a home server for the observatory computer
+  or a phone, one user. `gui --host 0.0.0.0` (non-loopback) or `--server` -> server_mode.MODE["server"]; login
+  `gui --set-password` -> HOME/server_auth.json (PBKDF2-SHA256, mode 600, cookie secret; gitignored, cleanup
+  SETTINGS); `server_mode.Guard` pure-ASGI middleware (app.add_middleware in gui.main, covers the mounted
+  /_nicegui_ws socket): HTTP Basic once -> signed cookie pysyzygos_session (30 d, SameSite=Strict, HttpOnly,
+  Secure over https / X-Forwarded-Proto), WebSocket by cookie; `--no-auth` only behind a login proxy. Cross-site
+  guard in BOTH modes (`cross_site_refused`: /api and WebSocket same-origin only; other paths allow only
+  navigation; Origin vs Host without Sec-Fetch): before, any page could GET /api/favorites/remove on 127.0.0.1.
+  Off in server mode: KStars/Stellarium (/api/*/status ok False, show refuses; report .stbtn now asks
+  /api/stellarium/status), the Results location checkbox, Quit (restart_app passes --host/--server/--no-auth),
+  the browser. User docs: `SERVER_MODE.md` (all of it: setup, systemd, HTTPS, Tailscale for phones outside, never
+  an open port; the API and its fields; security notes; keep in step), README only links it; deploy/ = the unit
+  file and Caddyfile (+ a short README listing them). Checked 2026-10-28 with curl on the LAN address: 401/200 + cookie, socket.io
+  polling and WebSocket 101 with cookie, 403 without/foreign origin. Not yet: several users, phone layout.
+  Favorites API for programs (2026-10-28, user's PyStarLight camera app pointing a telescope): `pysyzygos/pointing.py`
+  (`event(entry)` JSON: target, utc, shadow window, star name/ids, ra/dec_icrs = record star_ra/dec, ra/dec_app =
+  erfa atci13 - eo (= astropy TETE to 0.000"), alt/az, site, /fav files; `select` from/to/status/site/limit),
+  routes GET /api/v1/, /api/v1/favorites, /favorites/next, /favorites/{key} (gui.main, Query alias 'from'). Tokens:
+  `gui --new-token NAME|--revoke-token|--list-tokens` (auth file 'tokens', SHA-256, kept by --set-password),
+  Bearer, GET/HEAD on TOKEN_PATHS /api/v1/, /fav/ only, no cookie; Guard re-reads the file on (inode, mtime_ns)
+  change. Keep the v1 field names stable (an outside program reads them). tests/test_server_mode.py.
 - GUI header power button: `quit_dialog` -> `restart_app` (os.execv `python -m pysyzygos gui --port P --no-browser`,
   GUI_ARGS) / `quit_app` (app.shutdown); `_stop_job` first. Report: `alt_cell` + AZ_SWITCH/AZ_JS (checkbox in the
   Altitude header, its clicks do not sort; localStorage az_deg); `sigma_text`, chance column "33 % · 0.6σ", `chance_bar_svg` (favorites panel f_bar).

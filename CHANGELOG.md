@@ -6,7 +6,27 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.5.0] "Beyond Horizons" - 2026-10-28
+
 ### Added
+- **Server mode: the GUI from the observatory computer or a phone** ([SERVER_MODE.md](SERVER_MODE.md)). `pysyzygos gui --set-password` once, then
+  `pysyzygos gui --host 0.0.0.0`: the GUI on a home server, reachable from other devices on the network, with a
+  login (HTTP Basic once, then a 30-day session cookie; the password stored hashed in `server_auth.json` in the
+  data folder). KStars and Stellarium buttons and Quit are off there (they would act on the server). Running it as a
+  systemd service (`deploy/`), HTTPS with Caddy, and reaching it from outside through Tailscale or a VPN.
+  The local mode (127.0.0.1) is unchanged.
+- **Favorites API for other programs** (e.g. a camera app pointing the telescope): read-only JSON under `/api/v1/`
+  (`favorites`, `favorites/next`, `favorites/<key>`; filters from, to, status, site, limit) with the event time,
+  shadow window, the star's names and position for pointing (ICRS/J2000 at the event and the apparent place of date,
+  "JNow"), altitude and azimuth at the site. In server mode with a read-only token per program
+  (`pysyzygos gui --new-token NAME`, `--list-tokens`, `--revoke-token`).
+- **System tab "Refresh Earth orientation"** (`pysyzygos setup --refresh-earth`): downloads
+  earth_latest_high_prec.bpc again now, whatever its age, and the newest long-term file if one is used.
+- **Searches and picks beyond the Earth orientation prediction**: past the end of earth_latest_high_prec.bpc (~3
+  months ahead) NAIF's long-term prediction (earth_1962_*_combined.bpc, fetched when missing) is used, up to one
+  year after its last measured value (UT1 within ~0.01 s at 6 months: a few meters on the ground). The run then
+  says so in the orange Warnings line; the pick in its warnings. Before, the search stopped, and the pick used the
+  long-term file without saying so.
 - **Shadow distance on the ground** (default in Results and Favorites): the site's distance from the shadow's center
   line across the track on the ground, the shadow cylinder's footprint stretched by up to 1 / sin(star altitude)
   (FP.3; within 7 m of the drawn center line at 100 km). Hover shows both distances; **System** tab "Shadow distance
@@ -15,6 +35,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   plane, as its uncertainty.
 
 ### Fixed
+- **Long picks no longer crash for lack of memory** (`BrokenProcessPool`): chunk size and workers now follow the free
+  memory, as for pre-screen builds; a fixed 2000 asteroids per chunk took ~8 GB per worker for 100 days.
+- **Other web pages can no longer drive the GUI**: a page of another site open in the same browser could call the
+  GUI's interface on 127.0.0.1 (e.g. remove favorites); such requests are now refused, in both modes.
 - **Map limit lines are the true path limits**: the shadow edges, 1- and 3-sigma and satellite lines were offset across
   the shadow's geocentric motion; a site on them passes closer, as the ground turns with the Earth (Phaethon: 0.9 m
   at the 3 km edge, 306 m at 500 km; ~0.7 % of the offset for slow shadows). Now across the motion relative to each
@@ -1105,6 +1129,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
+[1.5.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.0
 [1.4.1]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...main
 [1.4.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.4.0
 [1.3.2]: https://github.com/pyzahl/PySyzygos/compare/v1.3.0...main
