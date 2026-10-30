@@ -99,8 +99,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   pick_a_min/max/exclude, `--a-exclude`; CSV a_au; header/meta/describe); bands table (rowClick -> range); live
   count `picks.count_index(cache json)` (numpy H/a/group of the cached SBDB list, once per file mtime, ~2 s) +
   `picks.count(...)` -> `pg.p_count` (count_update on every filter change). Counts (numbered): main 870,924, trojan 10,633,
-  marscross 9,196, neo 3,874, tno 1,049, other 234; unnumbered non-main ~74,000 (not usable yet: target ids are
-  numbers). Plan for later phases: memory file pick-groups-plan. tests/test_pick_groups.py.
+  marscross 9,196, neo 3,874, tno 1,049, other 234; unnumbered non-main ~74,000 (not in the pick yet: its bulk list is numbered only; the search takes them, below). Plan for later phases: memory file pick-groups-plan. tests/test_pick_groups.py.
 - `pysyzygos/prescreen.py` (0.16.0; FORMAT 3 since 2026-10-10: time grid +-PAD_S 12 h, candidates kept if
   tc +- half touches the window, `numbers` +- HALF_MAX_S; region test via shadowtrack.ground_track; FORMAT 1 builds
   missed ~21 % of a 500 km region's asteroids through 41-sample gaps and axis-only sky tests): pre-screens = per region/window the asteroids with possible events (build:
@@ -706,6 +705,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - Never name a real body by a numeric string in SPICE calls ("EARTH", "SUN", "JUPITER BARYCENTER", "SATURN
   BARYCENTER", "MOON"; astrometry.DEFLECTORS; radii with bodvcd(code)): body_alias makes asteroid numbers names, so
   "5", "6", "10", "399" meant asteroids 5, 6, 10, 399 once they were targets (fixed 2026-10-23, found by obs-check).
+- Unnumbered targets (2026-10-30, first: TNO 2026 ED138): the provisional designation is the target id ('2026 ED138',
+  with the space). `sbdb.is_designation`, `sbdb.split_targets` (GUI Search list, comma separated, user's wish: commas are hard
+  boundaries, spaces trimmed; within an item a year + designation token is one target, '2026 218001' stays two;
+  '2026_ED138'/'2026ED138' -> '2026 ED138'); search `horizons_command` -> "'DES=2026 ED138;'"
+  (quoted, else Horizons: 'missing COMMAND content'), SPK object = JPL's SPK id (54667839); get_asteroid_name,
+  sbdb.get_full and favorites.backfill_phys accept designations; owc.lookup skips them (number only); file names
+  keep the space (report URLs are quoted). Not in the pick/pre-screens (SBDB bulk list: numbered). tests/test_designations.py.
 - Target ids are strings of the asteroid number ('218001'); `fetch_target_orbit` makes it a SPICE name of the SPK's
   object with `kernels.body_alias` (kernel pool NAIF_BODY_NAME/CODE). Never `spice.boddef` for names: CSPICE N0067
   holds 853 name/code pairs, ~692 built in, so boddef fails after ~161 (SPICE(TOOMANYPAIRS); a 400-target search on

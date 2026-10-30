@@ -7,6 +7,7 @@ import json
 
 from nicegui import ui
 from pysyzygos.gui_common import PYSYZYGOS, run_process, stop_process, today_utc
+from pysyzygos.sbdb import split_targets
 
 
 def panel(pg):
@@ -31,7 +32,7 @@ def panel(pg):
             "Uses the newest saved pick of the selected site whose window covers the search window; "
             "without one, targets.py or the list in pysyzygos_config.py")
         pg.targets_warn_s = ui.label().classes("text-sm w-full")
-        pg.s_targets = ui.textarea("Targets (asteroid numbers, comma or space separated)",
+        pg.s_targets = ui.textarea("Targets, comma separated: asteroid numbers or designations of unnumbered ones (3200, 2026 ED138, ...)",
                                    value=", ".join(pg.config.targets)).classes("w-full")
         with ui.row():
             pg.s_fresh = ui.checkbox("Start a fresh results list", value=True).tooltip(
@@ -70,7 +71,7 @@ def handlers(pg):
                     gaia_online_check=bool(pg.s_dbl.value))
         earth = pg.s_scope.value == "earth"
         if not pg.s_use_file.value or earth:
-            over["targets"] = [t for t in pg.s_targets.value.replace(",", " ").split() if t]
+            over["targets"] = split_targets(pg.s_targets.value)     # '2026 ED138': one (unnumbered) target
             if earth and not over["targets"]:
                 ui.notify("Anywhere on Earth: list the asteroids below", type="warning")
                 return

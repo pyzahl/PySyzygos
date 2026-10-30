@@ -35,9 +35,10 @@ from pysyzygos.gui_common import (HOOKS, Job, KSTARS_OPT, RESIZE_JS, SUPPLEMENT,
 GUI_ARGS = {}                                                    # the options this GUI was started with (restart)
 
 
-def _stop_job():
+def _stop_job(why):
     for p in (Job.proc, Job.fav):
         if p is not None and p.returncode is None:
+            p.stopped_by = why                                   # named in the run's end line (run_process)
             try:
                 p.terminate()
             except ProcessLookupError:
@@ -47,7 +48,7 @@ def _stop_job():
 def quit_app():
     """End the program (GUI 'Quit'): stop a running job, then shut the server down."""
     ui.notify("PySyzygos is quitting: you can close this tab", type="warning", timeout=4000)
-    _stop_job()
+    _stop_job("Quit")
     asyncio.get_event_loop().call_later(1.0, app.shutdown)
 
 
@@ -56,7 +57,7 @@ def restart_app():
     the listening socket is closed on exec (Python sockets are not inherited), so the new server takes the port and
     the open page reconnects by itself."""
     ui.notify("PySyzygos restarts: this page reconnects in a few seconds", type="info", timeout=6000)
-    _stop_job()
+    _stop_job("Restart")
 
     def again():                                                # same port; no new browser tab: this one reconnects
         os.environ["PYSYZYGOS_HOME"] = ROOT

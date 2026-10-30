@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'pysyzygos', 'search.py')
 tree = ast.parse(open(SRC, encoding="utf-8").read())
-WANT = {"_spk_file", "_spk_stale", "_fresh_spk", "horizons_up", "HORIZONS", "HORIZONS_FAULTS", "_horizons_spk",
+WANT = {"_spk_file", "_spk_stale", "_fresh_spk", "horizons_up", "HORIZONS", "HORIZONS_FAULTS", "_horizons_spk", "horizons_command",
         "WARNINGS", "OLD_ORBITS"}
 code = [n for n in tree.body if getattr(n, "name", None) in WANT
         or isinstance(n, ast.Assign) and any(getattr(t, "id", None) in WANT for t in n.targets)]

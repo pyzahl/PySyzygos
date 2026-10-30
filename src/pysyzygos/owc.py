@@ -74,6 +74,8 @@ def summary(detail, match):
 
 def lookup(record):
     """The OWC event for a hit_log record (target_id, best_utc, star): summary(...) or None (not on OWC)."""
+    if not str(record["target_id"]).strip().isdigit():          # OWC searches by asteroid number only
+        return None
     when = _utc(record["best_utc"])
     found = search(record["target_id"], when.strftime("%Y-%m-%d"), 1)
     cands = []

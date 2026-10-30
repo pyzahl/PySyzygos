@@ -12,7 +12,40 @@ Standard library only (the pick tool must not need SPICE/astropy).
 """
 from pysyzygos.version import __version__
 from pysyzygos import net                      # https with certifi's certificate authorities
-import json, os, shutil, tempfile, time
+import json, os, re, shutil, tempfile, time
+
+# provisional designation of an unnumbered minor planet: year, half-month letter, order letter, cycle ('2026 ED138')
+DESIGNATION = re.compile(r"^(1[89]|20)\d\d [A-HJ-Y][A-HJ-Z]\d*$")
+
+
+def is_designation(target_id):
+    """True for a provisional designation ('2026 ED138'): an unnumbered asteroid, known to SBDB and Horizons by it."""
+    return bool(DESIGNATION.match(str(target_id).strip()))
+
+
+def _designation(w):
+    """'2026_ED138' / '2026ED138' -> '2026 ED138'; anything else unchanged."""
+    m = re.match(r"^(\d{4})[ _]?([A-Z]{2}\d*)$", w.strip())
+    return f"{m.group(1)} {m.group(2)}" if m else w.strip()
+
+
+def split_targets(text):
+    """Target list from free text, comma separated: '3200, 2026 ED138, P:Jupiter' (spaces trimmed). Numbers,
+    planet/moon names and provisional designations ('2026 ED138', '2026_ED138' or '2026ED138' -> '2026 ED138').
+    Commas are hard boundaries; within an item (or a list without commas, as older ones) spaces separate, but a year
+    followed by a designation token stays one target: '2026 ED138' is not the asteroids 2026 and 'ED138'."""
+    out = []
+    for item in str(text).split(","):
+        words = item.split()
+        i = 0
+        while i < len(words):
+            w = _designation(words[i])
+            if i + 1 < len(words) and re.match(r"^\d{4}$", w) and is_designation(f"{w} {words[i + 1]}"):
+                w, i = f"{w} {words[i + 1]}", i + 1
+            out.append(w)
+            i += 1
+    return out
+
 
 FILE = "PySyzygos_sbdb_phys.json"
 BULK_FIELDS = ["diameter", "diameter_sigma", "extent", "albedo", "H", "G"]     # needed in the pick tool's bulk query
@@ -114,7 +147,7 @@ def get_full(number, cache_path=None, timeout=15):
     import urllib.parse, urllib.request
     from pysyzygos import urls as U
     n = str(number).strip()
-    if not n.isdigit():                                           # a planet or moon (bodies.py): not in SBDB
+    if not (n.isdigit() or is_designation(n)):                    # a planet or moon (bodies.py): not in SBDB
         return None
     e, fresh = get(n, cache_path)
     if e and fresh and e.get("source") == "sbdb.api" and "orbit" in (e.get("phys") or {}):

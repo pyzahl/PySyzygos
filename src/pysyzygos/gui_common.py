@@ -178,8 +178,12 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
             continue
         push(text)
     rc = await proc.wait()
-    push(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s" + (f"; log saved: {rel}" if rel else ""))
-    keep(f"--- finished with exit code {rc} in {time.time() - t0:.0f} s")
+    # stopped on purpose (Stop, quit, restart): say so; its exit code (-15 = SIGTERM, or the run's own code when it
+    # handles the signal, as pre-screen builds do) looked like a failure
+    end = (f"--- stopped after {time.time() - t0:.0f} s ({getattr(proc, 'stopped_by')}, exit code {rc})"
+           if getattr(proc, "stopped_by", None) else f"--- finished with exit code {rc} in {time.time() - t0:.0f} s")
+    push(end + (f"; log saved: {rel}" if rel else ""))
+    keep(end)
     if flog:
         flog.close()
     if on_done:
@@ -190,11 +194,12 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
     return rc
 
 
-def stop_process(log, slot="proc"):
+def stop_process(log, slot="proc", why="Stop button"):
     p = getattr(Job, slot)
     if p and p.returncode is None:
+        p.stopped_by = why                                       # run_process names it in the end line
         p.terminate()
-        log.push("--- stopped")
+        log.push("--- stopping ...")
 
 
 # ---------------------------------------------------------------- resizable list boxes

@@ -14,6 +14,7 @@ Used by gui.py (report star buttons, Favorites tab). Standard library only.
 """
 from pysyzygos.version import __version__
 from pysyzygos import urls as U
+from pysyzygos.sbdb import is_designation
 import glob, json, math, os, shutil, sys, tempfile
 from datetime import datetime, timezone
 
@@ -295,7 +296,7 @@ def backfill_phys(lookup, folder=DIR):
     items, n = load(folder), 0
     for e in items:
         tid = str(e["record"].get("target_id", "")).strip()
-        if not tid.isdigit() or (e.get("phys_src") == "sbdb.api" and "orbit" in (e.get("phys") or {})):
+        if not (tid.isdigit() or is_designation(tid)) or (e.get("phys_src") == "sbdb.api" and "orbit" in (e.get("phys") or {})):
             continue                                              # (the orbit solution: added 0.14.x)
         entry = lookup(str(e["record"].get("target_id", "")).strip())
         if not entry:

@@ -4,6 +4,21 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [Unreleased]
+
+### Added
+- **Unnumbered asteroids as search targets** by their provisional designation, e.g. the newly found TNO **2026 ED138**:
+  type `2026 ED138` (or `2026_ED138`, `2026ED138`) in the Search tab's target list, or in `targets` of the config.
+  Orbit from JPL Horizons and size from SBDB as for numbered ones; maps, previews, globes and the report work. The
+  pick still covers numbered asteroids only (SBDB's bulk list), and OWC is not asked for them (it searches by number).
+
+### Fixed
+- Globe plot of an asteroid whose full name has no number ("(2026 ED138)"): it failed with "list index out of range".
+
+### Changed
+- **A stopped run says so**: its last log line reads "--- stopped after 107 s (Stop button, exit code -15)" (or Quit,
+  Restart) instead of "finished with exit code -15", which looked like a failure.
+
 ## [1.5.1] "Beyond Horizons" - 2026-10-30
 
 The first release since 1.4.0: it includes all of 1.5.0 below (1.5.0 was not released on its own).

@@ -773,8 +773,8 @@ def globe_data(spice, record, target, star_dir, paths, sigma3_km, site=None, sta
                      stars=list(zip(np.ravel(xi).tolist(), np.ravel(eta).tolist(), np.ravel(g).tolist())), track=track)
     system = None
     if page != "square":
-        short = name.split("(")[0].strip()
-        short = " ".join(short.split()[1:]) if short.split()[0].isdigit() and len(short.split()) > 1 else short
+        short = name.split("(")[0].strip()                  # "(2026 ED138)" (unnumbered): empty, then the name
+        short = " ".join(short.split()[1:]) if len(short.split()) > 1 and short.split()[0].isdigit() else short
         system = system_data(spice, et, target, star_dir, short or name, star_name)
     return dict(R=R, basis=basis, sun_dir=sun / np.linalg.norm(sun), paths=paths, axis=axis, site=site, style=style,
                 title=title, columns=(left, mid, right), inset=inset, page=page, system=system,

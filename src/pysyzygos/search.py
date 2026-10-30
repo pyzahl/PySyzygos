@@ -263,9 +263,13 @@ def CoordinateDistance(parallax_mas):
 
 def get_asteroid_name(spk_id):
     """Full name ("218001 (2001 XQ72)") from the SBDB size cache (fetched and cached if missing); the number if SBDB
-    cannot be reached. Accepts the asteroid number or its SPK id (20000000 + number); a major body: its name."""
+    cannot be reached. Accepts the asteroid number or its SPK id (20000000 + number), an unnumbered one's provisional
+    designation ('2026 ED138'); a major body: its name."""
     if bodies.is_body(spk_id):
         return bodies.name(spk_id)
+    if not str(spk_id).strip().isdigit():
+        n = str(spk_id).strip()
+        return ((sbdb_phys(n) or {}).get("_fullname") or "").strip() or f"({n})"
     n = int(spk_id)
     n = n - 20000000 if n >= 20000000 else n
     phys = sbdb_phys(n)
@@ -357,6 +361,13 @@ def horizons_up(connect_s=10):
     return HORIZONS["up"]
 
 
+def horizons_command(target_id):
+    """Horizons COMMAND for a small body: the number ('218001;') or, unnumbered, the provisional designation, quoted
+    for its space ("'DES=2026 ED138;'"; unquoted Horizons answers 'missing COMMAND content')."""
+    t = str(target_id).strip()
+    return t + ";" if t.isdigit() else f"'DES={t};'"
+
+
 def _horizons_spk(target_id, epochs, timeout=60):
     """The asteroid's SPK from JPL Horizons as bytes (network only, no SPICE: safe in threads). Raises
     requests.RequestException (network) or RuntimeError (no such object, no SPK). A connection that fails, or an
@@ -365,7 +376,7 @@ def _horizons_spk(target_id, epochs, timeout=60):
     for k in range(3):                                        # Horizons answers 503 to too many requests at once
         try:
             resp = requests.get(U.URL_JPL_HORIZONS_API,
-                                params={'format': 'json', 'COMMAND': str(target_id) + ';', 'EPHEM_TYPE': 'SPK',
+                                params={'format': 'json', 'COMMAND': horizons_command(target_id), 'EPHEM_TYPE': 'SPK',
                                         'MAKE_EPHEM': 'YES', 'START_TIME': epochs['start'],
                                         'STOP_TIME': epochs['stop'], 'OBJ_DATA': 'NO'},
                                 timeout=(10, timeout))         # connect within 10 s, the answer within timeout
