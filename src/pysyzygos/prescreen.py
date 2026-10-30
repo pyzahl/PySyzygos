@@ -926,6 +926,12 @@ def publish(path, dest=SHARE_DIR, log=print, remote=None):
     if there is None:
         log(f"   no mirror answered: the list is this folder's only ({len((local or {}).get('prescreens', []))} "
             f"other pre-screen(s)); merge it with the mirror's later: pysyzygos prescreen merge")
+    else:
+        # the mirror's list is the truth: withdrawn ones (archive deleted there) leave it, and of this folder's list
+        # only the pre-screens packed here and not uploaded yet (archive in this folder) are added
+        there = on_mirror(there, m, log)
+        local = dict(prescreens=[e for e in (local or {}).get("prescreens", [])
+                                 if os.path.isfile(os.path.join(dest, e["archive"]))])
     man = merge_manifests([there, local, dict(prescreens=[entry])])
     write_manifest(man, mp)
     log(f"{mp}: {len(man['prescreens'])} pre-screen(s) ({', '.join(e['name'] for e in man['prescreens'])}). Upload "
@@ -984,6 +990,14 @@ def check_archives(man, mirror, log=print):
         if not ok:
             missing.append(e["name"])
     return missing
+
+
+def on_mirror(man, mirror, log=print):
+    """The mirror's list without the pre-screens whose archive is not on the mirror (deleted there)."""
+    gone = set(check_archives(man, mirror, log=lambda *a: None))
+    for name in sorted(gone):
+        log(f"   {name}: listed on the mirror, archive not there: left out")
+    return dict(man, prescreens=[e for e in man.get("prescreens", []) if e["name"] not in gone])
 
 
 def mirrors():
@@ -1175,6 +1189,9 @@ def main(argv=None):
                     "%(default)s): upload it to the mirror as " + MANIFEST)
     mg.add_argument("--no-mirror", action="store_true", help="leave the mirror's current list out")
     mg.add_argument("--check", action="store_true", help="check that every listed archive is on the mirror")
+    mg.add_argument("--drop", action="append", default=[], metavar="NAME",
+                    help="leave this pre-screen out (withdrawn; repeatable): every list is merged, so a deleted "
+                         "archive's entry comes back from the mirror's list otherwise")
     sub.add_parser("remote", help="the shared pre-screens on the mirror")
     fe = sub.add_parser("fetch", help="download a shared pre-screen from the mirror into prescreen/")
     fe.add_argument("name", nargs="?", default="latest", help="its name (see remote), default: the latest")
@@ -1184,7 +1201,9 @@ def main(argv=None):
         return 0
     if a.cmd == "merge":
         mirror, there = (None, None) if a.no_mirror else remote_list()
-        srcs = [("mirror " + MANIFEST, there)] if there is not None else []
+        if there is not None:
+            there = on_mirror(there, mirror)
+        srcs =[("mirror " + MANIFEST, there)] if there is not None else []
         for x in a.lists:
             src = x if ("://" in x or os.path.exists(x) or not mirror) else mirror + x
             man = load_manifest(src)
@@ -1194,6 +1213,11 @@ def main(argv=None):
         if not srcs:
             sys.exit("nothing to merge (no mirror answered, no lists given)")
         merged = merge_manifests([m for _, m in srcs])
+        drop = {d[:-len(".tar.xz")] if d.endswith(".tar.xz") else d for d in a.drop}
+        unknown = drop - {e["name"] for e in merged["prescreens"]}
+        if unknown:
+            sys.exit(f"not in the lists: {', '.join(sorted(unknown))}")
+        merged = merge_manifests([dict(prescreens=[e for e in merged["prescreens"] if e["name"] not in drop])])
         for src, m in srcs:
             print(f"{src}: {', '.join(e['name'] for e in m.get('prescreens', [])) or '(empty)'}")
         write_manifest(merged, a.output)

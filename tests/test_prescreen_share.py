@@ -108,6 +108,15 @@ share_b = tempfile.mkdtemp()
 PS.publish(b, share_b, log=quiet, remote=["file://" + mirror_a + "/"])   # machine B: the 70-day one
 names = [x["name"] for x in json.load(open(os.path.join(share_b, PS.MANIFEST)))["prescreens"]]
 assert names == ["global__2026-10-01_40d_G16", "global__2026-11-01_40d_G16"], names
+assert PS.check_archives(json.load(open(os.path.join(mirror_a, PS.MANIFEST))), "file://" + mirror_a + "/", log=quiet) == []
+# withdrawn: A's archive deleted on the mirror (its list still names it): the next publish on B leaves it out, also
+# from B's own older list (its archive is not in B's folder); B's archive is in B's folder: kept until uploaded
+os.remove(os.path.join(mirror_a, "global__2026-10-01_40d_G16.tar.xz"))
+PS.publish(b, share_b, log=quiet, remote=["file://" + mirror_a + "/"])
+names = [x["name"] for x in json.load(open(os.path.join(share_b, PS.MANIFEST)))["prescreens"]]
+assert names == ["global__2026-11-01_40d_G16"], names
+gone = PS.on_mirror(json.load(open(os.path.join(mirror_a, PS.MANIFEST))), "file://" + mirror_a + "/", log=quiet)
+assert gone["prescreens"] == [], gone
 # merge without repacking: two separate lists into one; a name listed twice: the later publication wins
 only_b = dict(prescreens=[dict(name="x", start="2026-11-01", published="2026-10-22T10:00:00", archive="x.tar.xz"),
                           dict(name="y", start="2026-10-01", published="2026-10-20T10:00:00", archive="y.tar.xz")])
@@ -118,5 +127,4 @@ assert m["updated"] == "2026-10-22T10:00:00"
 PS.write_manifest(m, os.path.join(share_b, "merged.json"))
 assert PS.load_manifest(os.path.join(share_b, "merged.json")) == m and PS.load_manifest("/nonexistent.json") is None
 assert PS.check_archives(m, "file://" + mirror_a + "/", log=quiet) == ["y", "x"]              # neither archive there
-assert PS.check_archives(json.load(open(os.path.join(mirror_a, PS.MANIFEST))), "file://" + mirror_a + "/", log=quiet) == []
 print("PRESCREEN SHARE TESTS PASSED")

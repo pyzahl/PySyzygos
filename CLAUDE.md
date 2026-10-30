@@ -152,7 +152,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   "auto" used it at a newly added site, then search).
   Several build machines (2026-10-22): `publish(..., remote=None)` merges the mirror's current prescreens.json
   (`remote_list`) + the share folder's + the new entry (`merge_manifests`: each name once, the later `published`
-  wins; `--no-mirror`); CLI `prescreen merge [lists] [-o] [--check]` (lists: files, URLs, or names on the mirror;
+  wins; `--no-mirror`). Withdrawing (2026-10-30): the mirror's list is the truth: `on_mirror` drops its entries
+  whose archive is not on the mirror (publish and merge), and publish keeps of the share folder's list only entries
+  whose archive is in that folder (packed, not uploaded yet); CLI `prescreen merge [lists] [-o] [--check] [--drop
+  NAME]` (lists: files, URLs, or names on the mirror; --drop leaves a name out by hand;
   `check_archives` = one-byte GET per archive). The mirror's folder cannot be listed anonymously (Nextcloud
   WebDAV needs login), single files can be read. First use: the 40 d (2026-10-01) + 70 d (2026-10-21) lists merged.
   Tests: publish(remote=[]) (no network), two-machine case via file:// in test_prescreen_share.py.
