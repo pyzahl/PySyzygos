@@ -275,7 +275,7 @@ def handlers(pg):
         pg.f_bar.set_visibility(bar is not None)
         from pysyzygos import weather
         w = weather.info(site.get("lat"), site.get("lon"), r.get("best_utc"), weather.load(ROOT))
-        pg.f_wx.content = (f'<div style="font-size:.9rem">{weather.text(w)}</div>' + weather.strip_html(
+        pg.f_wx.content = (f'<div style="font-size:.9rem">{weather.text(w, site.get("tz"))}</div>' + weather.strip_html(
             w, site.get("tz"))) if w else ""
         pg.f_wx.set_visibility(w is not None)
         pano = pg.fav_pano(e)

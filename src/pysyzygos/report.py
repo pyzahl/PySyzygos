@@ -696,7 +696,8 @@ upd();
 // (tsel, not sel: sel() above is the selection helper, a var of the same name in this function would replace it)
 var cells=[].slice.call(document.querySelectorAll('td.evtime')),tsel=document.getElementById('favtime'),
     head=document.getElementById('evtimehead'),M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-cells.forEach(function(c){c.dataset.ut=c.textContent;});
+cells.forEach(function(c){var w=c.querySelector('span.sub');if(w)c.removeChild(w);   // the cloud badge
+  c.dataset.ut=c.textContent;c._wx=w;if(w)c.appendChild(w);});                          // (weather_line) is kept
 function zoned(c,tz){var o={year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',
   second:'2-digit',hour12:false,timeZoneName:'short'};if(tz)o.timeZone=tz;var p={};
   try{new Intl.DateTimeFormat('en-US',o).formatToParts(new Date(c.dataset.utc)).forEach(function(x){p[x.type]=x.value;});}
@@ -704,7 +705,8 @@ function zoned(c,tz){var o={year:'numeric',month:'numeric',day:'numeric',hour:'2
   return [p.year+'-'+M[+p.month-1]+'-'+('0'+p.day).slice(-2)+' '+(p.hour==='24'?'00':p.hour)+':'+p.minute+':'+p.second,
     p.timeZoneName||''];}
 function put(c,v){c.textContent=v[0];if(v[1]){c.appendChild(document.createElement('br'));   // the zone below: narrower
-  var z=document.createElement('span');z.className='tz';z.textContent=v[1];c.appendChild(z);}}
+  var z=document.createElement('span');z.className='tz';z.textContent=v[1];c.appendChild(z);}
+  if(c._wx)c.appendChild(c._wx);}
 function show(mode){cells.forEach(function(c){put(c,mode==='local'?zoned(c,null):
   mode==='site'?(c.dataset.tz?(function(v){return [v[0],v[1]+' ('+c.dataset.tz.split('/').pop().replace(/_/g,' ')+')'];})(
   zoned(c,c.dataset.tz)):[c.dataset.ut,'UT (site zone unknown)']):[c.dataset.ut,'']);});
@@ -958,7 +960,7 @@ def weather_line(e):
     w = weather.info(site.get("lat"), site.get("lon"), e["utc"], _WX["data"])
     if not w:
         return ""
-    return (f'<span class="sub"><span class="wx wx-{weather.level(w["total"])}" title="{esc(weather.text(w))}">'
+    return (f'<span class="sub"><span class="wx wx-{weather.level(w["total"])}" title="{esc(weather.text(w, site.get("tz")))}">'
             f'{esc(weather.short(w))}</span></span>')
 
 

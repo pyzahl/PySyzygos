@@ -113,7 +113,7 @@ def _at(fc, field, t):
 
 
 def info(lat, lon, utc, cache):
-    """The forecast at the event: dict(total, low, mid, high, rain, vis_km, fetched, strip [(hour unix, total, low,
+    """The forecast at the event: dict(t (unix s), total, low, mid, high, rain, vis_km, fetched, strip [(hour unix, total, low,
     mid, high, rain)]) or None (no forecast for this site and time)."""
     if lat is None or lon is None or not utc:
         return None
@@ -132,7 +132,7 @@ def info(lat, lon, utc, cache):
         if hh in fc["time"]:
             i = fc["time"].index(hh)
             strip.append((hh, *(fc[f][i] for f in FIELDS[:5])))
-    return dict(total=tot, low=_at(fc, "cloud_cover_low", t), mid=_at(fc, "cloud_cover_mid", t),
+    return dict(t=t, total=tot, low=_at(fc, "cloud_cover_low", t), mid=_at(fc, "cloud_cover_mid", t),
                 high=_at(fc, "cloud_cover_high", t), rain=_at(fc, "precipitation_probability", t),
                 vis_km=None if vis is None else vis / 1000.0, fetched=fc.get("fetched", ""), strip=strip)
 
@@ -158,37 +158,65 @@ def short(w):
     return f"{symbol(w['total'])} {w['total']:.0f} %" if w else ""
 
 
-def text(w):
-    """One line for the hover and the panel."""
+def _zone(tz):
+    """ZoneInfo of an IANA name, or None (no name, unknown name, no tz database)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(tz) if tz else None
+    except Exception:
+        return None
+
+
+def _when(unix, z, fmt="%H:%M"):
+    """'20:09 EST / 01:09 UTC' with a zone, else '01:09 UTC'."""
+    d = datetime.fromtimestamp(unix, timezone.utc)
+    return f"{d.astimezone(z).strftime(fmt)} {d.astimezone(z):%Z} / {d:%H:%M} UTC" if z else f"{d.strftime(fmt)} UTC"
+
+
+def text(w, tz=None):
+    """One line for the hover and the panel; times in the site's zone (tz: IANA name) with UTC, else UTC."""
     if not w:
         return ""
-    out = (f"Cloud cover at the event {_pct(w['total'])} (low {_pct(w['low'])}, mid {_pct(w['mid'])}, high "
+    z = _zone(tz)
+    at = f", {_when(w['t'], z)}" if w.get("t") is not None else ""
+    out = (f"Cloud cover at the event{at}: {_pct(w['total'])} (low {_pct(w['low'])}, mid {_pct(w['mid'])}, high "
            f"{_pct(w['high'])})")
     if w.get("rain") is not None:
         out += f", rain chance {_pct(w['rain'])}"
     if w.get("vis_km") is not None:
         out += f", visibility {w['vis_km']:.0f} km"
-    return out + f". Open-Meteo forecast of {w['fetched'][:16].replace('T', ' ')} UTC"
+    try:
+        made = _when(_unix(w["fetched"]), z, "%Y-%m-%d %H:%M")
+    except (KeyError, ValueError):
+        made = "?"
+    return out + f". Open-Meteo forecast of {made}"
 
 
 def strip_html(w, tz=None):
-    """The hours around the event as a small HTML table (UTC hours, local in the hover when tz is given)."""
+    """The hours around the event as a small HTML table: the site's local hours (tz: IANA name) with UTC below,
+    else UTC only; the event's hour framed."""
     if not w or not w.get("strip"):
         return ""
-    try:
-        from zoneinfo import ZoneInfo
-        z = ZoneInfo(tz) if tz else None
-    except Exception:
-        z = None
-    head, row = [], []
+    z = _zone(tz)
+    h0 = int(w["t"] // 3600) * 3600 if w.get("t") is not None else None
+    loc, utc, row = [], [], []
+    cell = "padding:0 6px;text-align:center"
     for hh, tot, lo, mid, hi, rain in w["strip"]:
         d = datetime.fromtimestamp(hh, timezone.utc)
-        loc = f" ({d.astimezone(z):%H:%M %Z})" if z else ""
-        tip = f"{d:%Y-%m-%d %H:%M} UTC{loc}: low {_pct(lo)}, mid {_pct(mid)}, high {_pct(hi)}, rain {_pct(rain)}"
+        frame = ";outline:1px solid currentColor;border-radius:4px" if hh == h0 else ""
+        when = f"{d.astimezone(z):%Y-%m-%d %H:%M %Z} / {d:%H:%M} UTC" if z else f"{d:%Y-%m-%d %H:%M} UTC"
+        tip = f"{when}: low {_pct(lo)}, mid {_pct(mid)}, high {_pct(hi)}, rain {_pct(rain)}"
         col = "#15803d" if tot is not None and tot <= 20 else "#b45309" if tot is not None and tot <= 60 else "#64748b"
-        head.append(f'<th style="padding:0 6px;font-weight:500">{d:%H}h</th>')
-        row.append(f'<td title="{tip}" style="padding:0 6px;text-align:center;color:{col}">{symbol(tot)}<br>'
+        if z:
+            loc.append(f'<th style="{cell};font-weight:600">{d.astimezone(z):%H}h</th>')
+        utc.append(f'<td style="{cell};color:#94a3b8">{d:%H}h</td>' if z else
+                   f'<th style="{cell};font-weight:600">{d:%H}h</th>')
+        row.append(f'<td title="{tip}" style="{cell};color:{col}{frame}">{symbol(tot)}<br>'
                    f'{"–" if tot is None else f"{tot:.0f}"}</td>')
-    return ('<table style="font-size:.8rem;border-collapse:collapse"><tr><th style="text-align:left;'
-            'font-weight:500;padding-right:6px">UTC</th>' + "".join(head) + '</tr><tr><td style="padding-right:6px">'
-            'clouds %</td>' + "".join(row) + "</tr></table>")
+    lab = 'style="text-align:left;padding-right:6px;font-weight:500"'
+    zname = datetime.fromtimestamp(w["strip"][0][0], timezone.utc).astimezone(z).strftime("%Z") if z else ""
+    rows = ([f"<tr><th {lab}>{zname}</th>" + "".join(loc) + "</tr>",
+             f'<tr><td {lab.replace("font-weight:500", "color:#94a3b8")}>UTC</td>' + "".join(utc) + "</tr>"] if z else
+            [f"<tr><th {lab}>UTC</th>" + "".join(utc) + "</tr>"])
+    return ('<table style="font-size:.8rem;border-collapse:collapse">' + "".join(rows)
+            + f'<tr><td {lab.replace("font-weight:500", "")}>clouds %</td>' + "".join(row) + "</tr></table>")

@@ -34,7 +34,11 @@ with tempfile.TemporaryDirectory() as d:
     assert len(w["strip"]) == 7 and w["strip"][3][0] == T0, w["strip"]
     assert weather.short(w) == "⛅ 50 %" and weather.level(w["total"]) == "part"
     assert "rain" not in weather.text(w) and "low 0 %" in weather.text(w), weather.text(w)
-    assert "UTC" in weather.strip_html(w, "America/New_York") and "EST" in weather.strip_html(w, "America/New_York")
+    html = weather.strip_html(w, "America/New_York")
+    assert ">EST</th>" in html and ">19h</th>" in html and ">00h</td>" in html and html.count("outline:") == 1, html
+    assert ">00h</th>" in weather.strip_html(w) and "EST" not in weather.strip_html(w)        # no zone: UTC only
+    assert "event, 19:30 EST / 00:30 UTC: 50 %" in weather.text(w, "America/New_York"), weather.text(w, "America/New_York")
+    assert "event, 00:30 UTC: 50 %" in weather.text(w)
     assert weather.info(40.95497, -72.92809, "2026-12-30T00:00:00", cache) is None      # outside the forecast
     assert weather.info(10.0, 10.0, "2026-11-02T00:30:00", cache) is None               # no forecast there
     assert weather.symbol(5) == "🌙" and weather.symbol(95) == "☁" and weather.level(95) == "cloudy"
