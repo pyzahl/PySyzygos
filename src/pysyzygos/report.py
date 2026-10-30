@@ -534,6 +534,10 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 a{color:var(--accent)}
 a.owc{display:inline-block;margin-top:2px;padding:0 6px;border-radius:6px;font-size:.78rem;text-decoration:none;
  background:color-mix(in srgb,#2563eb 14%,transparent);color:var(--accent)}
+span.wx{display:inline-block;margin-top:2px;padding:0 6px;border-radius:6px;font-size:.78rem;white-space:nowrap}
+span.wx-clear{background:color-mix(in srgb,#15803d 16%,transparent);color:#15803d}
+span.wx-part{background:color-mix(in srgb,#d97706 16%,transparent);color:#b45309}
+span.wx-cloudy{background:color-mix(in srgb,#64748b 18%,transparent);color:var(--muted)}
 .badge.kind{background:color-mix(in srgb,#7c3aed 14%,transparent);color:#6d28d9;font-size:.72rem}
 sup.bin{color:#0891b2;font-weight:600;margin-left:3px;cursor:help;white-space:nowrap}
 span.dbl{color:#b26a00;font-weight:600;cursor:help;white-space:nowrap}
@@ -936,6 +940,28 @@ def owc_line(e):
             f'title="{esc(tip)}">{esc(label)}</a></span>')
 
 
+_WX = {}
+
+
+def weather_line(e):
+    """'<span class="sub"><span class="wx wx-clear">🌙 12 %</span></span>' under a favorite's time: the cloud forecast
+    at its site and time (weather.py; cache weather_cache.json in the data folder = the working folder, filled by the
+    GUI's "Cloud forecast" button), details on hover. Empty without a forecast."""
+    from pysyzygos import weather
+    site = e.get("site") or {}
+    try:
+        m = os.path.getmtime(weather.CACHE)
+    except OSError:
+        return ""
+    if _WX.get("m") != m:
+        _WX.update(m=m, data=weather.load("."))
+    w = weather.info(site.get("lat"), site.get("lon"), e["utc"], _WX["data"])
+    if not w:
+        return ""
+    return (f'<span class="sub"><span class="wx wx-{weather.level(w["total"])}" title="{esc(weather.text(w))}">'
+            f'{esc(weather.short(w))}</span></span>')
+
+
 def binary_mark(tid):
     """'<sup class=bin>+moon</sup>' after the asteroid when it has known satellites (binaries.py), with details on
     hover; empty otherwise."""
@@ -1201,7 +1227,7 @@ def html_row(e):
         f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (closest approach to the observer){esc(start_end_text(e))}"'
         + (f' class="evtime" data-utc="{(e["when"] + timedelta(milliseconds=500)).strftime("%Y-%m-%dT%H:%M:%SZ")}" '
            f'data-tz="{esc((e.get("site") or {}).get("tz") or "")}"' if f else "")
-        + f'>{esc(fmt_time(e["when"]))}</td>'
+        + f'>{esc(fmt_time(e["when"]))}' + (weather_line(e) if f else '') + '</td>'
         f'<td class="num mag" data-s="{s(e["mag"])}" title="{mag_tip}">'
         + (f'<a href="{esc(VIZIER_GAIA)}{urllib.parse.quote(str(e["star"]))}" target="_blank" rel="noopener" '
            f'title="{esc(e.get("star_name") or "Gaia DR3 " + str(e["star"]))}'

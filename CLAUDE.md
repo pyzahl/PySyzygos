@@ -319,6 +319,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   login: not used). Match by Gaia id (`gaia.id`) else time (10 min); 1 s pause, User-Agent PySyzygos; on click only
   (GUI "Check OWC Feeds" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
   under the asteroid (tags, station count, hover: observer, signed distance km, commitment).
+- `pysyzygos/weather.py` (2026-10-29, user's wish: "will it be clear?"): Open-Meteo forecast (URL_OPEN_METEO, no key,
+  hourly cloud_cover + low/mid/high, precipitation_probability, visibility; 16 days, model best_match) per site
+  (`site_key` = lat/lon to 0.01 deg) -> <data folder>/weather_cache.json (gitignored, cleanup DOWNLOADS); `check(favs)`
+  only for events from PAST_H 6 h ago to 16 d ahead, one request per site, on click (GUI Favorites "Cloud forecast",
+  `pg.fav_weather`, errors to fav_log); `info(lat, lon, utc, cache)` linear between hours + strip +-STRIP_H 3 h;
+  `symbol` (🌙 <= 20, ⛅ <= 50, 🌥 <= 80, ☁), `level`, `short`, `text`, `strip_html`. report `weather_line(e)` under
+  the time in favorites rows (span.wx wx-clear/part/cloudy); panel `pg.f_wx`. tests/test_weather.py.
 - `pysyzygos/binaries.py`: known asteroid satellites, `data/binaries.json` from Johnston's PDS compilation V3.0
   (fixed-width `binarytable.tab`, layout read from its PDS4 label) + SAT_* columns of the occultations archive's
   `Asteroid_*.psv` (separation in mas). `short()` "+moon"/"+moon?" (report label, Markdown), `text()` (favorites

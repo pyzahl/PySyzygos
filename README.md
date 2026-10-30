@@ -106,6 +106,7 @@ everything: `pysyzygos` (the web interface) or `pysyzygos <command>`, e.g. `pysy
 | `pysyzygos/kstars.py` | points a running KStars at an event (Linux, D-Bus); used by the report's KStars button in the GUI |
 | `pysyzygos/stellarium.py` | points a running Stellarium at an event (Remote Control plugin, HTTP); the report's Stellarium button |
 | `pysyzygos/favorites.py` | the favorites list (`favorites/`, private): events starred in the report, with copies of map and preview; `list` |
+| `pysyzygos/weather.py` | cloud forecast for the favorites' sites and times (Open-Meteo; GUI Favorites "Cloud forecast") |
 | `pysyzygos/pathcheck.py` | path verification: a favorite's geodetic path, fresh, compared with Occult's path listing (`pysyzygos path-check`; GUI Favorites) |
 | `pysyzygos/setup.py` | one-time setup: SPICE kernels, the star catalog (download or build, its parts, the upgrade of an old one) |
 | `pysyzygos/starcat.py` | the star catalog (since 1.3.0): build from ESA's files, Zenodo download, parts, lookups (`pysyzygos catalog`) |
@@ -534,7 +535,12 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    rotation where SBDB knows them (axes, rotation period, pole, taxonomic type; fetched once per favorite from the
    SBDB API, as the pick tool's bulk data holds only the size), and to edit its note. **CSV** downloads the favorites
    table (`favorites_<date>.csv`; columns: see "CSV downloads" below); `favorites/favorites.csv`, with all fields,
-   is rewritten with every change, for use in other tools or sharing. Drag the bottom-right corner of the table to resize it (remembered
+   is rewritten with every change, for use in other tools or sharing. **Cloud forecast** fetches the forecast
+   from [Open-Meteo](https://open-meteo.com) (free, worldwide, the best weather model for each place; one request per
+   site) for every favorite in the next 16 days: the total cloud cover at the event under its time (🌙 clear, ⛅
+   partly, 🌥 mostly cloudy, ☁ overcast; hover for low/mid/high cloud, rain chance, visibility) and, in the panel,
+   the hours around it. Kept in `weather_cache.json`; click again for a newer forecast (trust the last 1-3 days
+   only). Drag the bottom-right corner of the table to resize it (remembered
    in your browser; the Results report and the Pick table have the same corner).
    **Path verification** (checkbox at the top, off by default): compare a favorite's geodetic path with Occult's
    path listing for the same event, as in VERIFICATION.md section 3. These tasks run beside a search, pick or

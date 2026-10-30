@@ -155,6 +155,10 @@ In the **Favorites** tab, **click a row**. Below the table you get:
 * the asteroid's size, shape and rotation where known, and earlier occultations by it;
 * a **status** (planned, observed, cancelled, clouded) and a **note** to keep.
 
+**Will it be clear?** The **Cloud forecast** button at the top of the Favorites tab fetches the weather forecast for
+every favorite in the next 16 days: a symbol with the cloud cover under each event's time (🌙 clear ... ☁ overcast),
+and the hours around the event in the panel. Click it again closer to the night: only the last 1-3 days are reliable.
+
 Each favorite keeps its own copy of map and preview, so later searches do not change them.
 
 <img width="2338" height="2043" alt="image" src="https://github.com/user-attachments/assets/a87d10bc-e415-4cf6-9a1d-20facc6dc75a" />

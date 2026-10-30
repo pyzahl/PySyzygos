@@ -59,6 +59,9 @@ URL_JOHNSTON_ASTEROID_MOONS = "https://www.johnstonsarchive.net/astro/asteroidmo
 URL_OWC_API = "https://www.occultwatcher.net/api2/v1/owc"                     # + events/?astNo=&dt=&bf=, event/<id>
 URL_OWC_EVENT_PAGE = "https://cloud.occultwatcher.net/event/"                  # + event id (web page)
 
+# --- Open-Meteo weather forecast (pysyzygos/weather.py, GUI Favorites "Cloud forecast"; free, no key)
+URL_OPEN_METEO = "https://api.open-meteo.com/v1/forecast"                    # + ?latitude=&longitude=&hourly=...
+
 # --- Minor Planet Center (geo.py, GUI Site tab)
 URL_MPC_OBSCODES = "https://minorplanetcenter.net/iau/lists/ObsCodes.html"      # observatory codes
 

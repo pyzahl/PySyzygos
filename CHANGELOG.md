@@ -6,6 +6,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- **Cloud forecast for the favorites** (Favorites tab, "Cloud forecast"): Open-Meteo's hourly forecast (free,
+  worldwide, the best model for each place, e.g. HRRR in the US, ICON-D2 in central Europe; 16 days) for every
+  favorite's site and time. The table shows a sky symbol with the total cloud cover under the event time, hover for
+  low/mid/high cloud, rain chance and visibility; the panel shows the hours around the event (UTC, local time on
+  hover). One request per site, on click only; kept in `weather_cache.json` (`pysyzygos/weather.py`).
+
 ## [1.5.1] - 2026-10-29
 
 ### Fixed

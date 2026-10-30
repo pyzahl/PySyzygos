@@ -62,6 +62,7 @@ data/ObsCodes.html
 # private reading and notes (not in git)
 private-docs/
 owc_cache.json
+weather_cache.json
 /offline/
 /occult_data/
 /logs/

@@ -31,6 +31,11 @@ def panel(pg):
                 ui.button("Check OWC Feeds", on_click=lambda: pg.owc_check("favorites")).props("outline dense").tooltip(
                     "Look the favorites up in OccultWatcher Cloud: prediction feeds (tags) and signed-up stations "
                     "(one request per second)")
+            ui.button("Cloud forecast", on_click=lambda: pg.fav_weather()).props("outline dense").tooltip(
+                "Fetch the cloud forecast (Open-Meteo, free, worldwide: the best weather model for each place) for "
+                "every favorite in the next 16 days, one request per site. Shown under the event time (total "
+                "cloud cover) and in the panel (the hours around the event, low/mid/high cloud). Clouds are hard to "
+                "forecast: trust the last 1-3 days only")
         ui.label("Add events with the ☆ button in the Results report (opened from this GUI). Each favorite keeps "
                  "its own copy of map and preview, so later searches do not change it. Click a row for its preview, "
                  "map and note below; check rows for the actions above the table. Drag the table's bottom-right corner to make "
@@ -56,6 +61,7 @@ def panel(pg):
                     "Across the path at your site: green the shadow, orange out to 1 sigma beyond its edges "
                     "(the path's uncertainty: orbit and star), black the 3-sigma limits; the blue mark is your "
                     "site, with its distance from the centre line and the chance that the shadow covers it")
+                pg.f_wx = ui.html("").classes("w-full")                 # cloud forecast (weather.py)
                 pg.f_pano = ui.html("").classes("w-full").tooltip(
                     "Your site's 360° photo (Site tab, Horizon): the star at the event time (red ring), the "
                     "horizon line (white) and the margin (dashed)")
@@ -197,6 +203,22 @@ def handlers(pg):
         pg.show_fav()
     pg.load_favs = load_favs
 
+    async def fav_weather():
+        """Fetch the cloud forecast for the favorites' sites (weather.py), then show the table again."""
+        from pysyzygos import weather
+        items = favorites.load()
+        sites, n, errors = await run.io_bound(weather.check, items, ROOT)
+        for err in errors:
+            pg.fav_log.push(f"Cloud forecast failed: {err}")
+        if not n:
+            ui.notify("No favorite within the forecast range (the next 16 days)", type="warning")
+            return
+        ui.notify(f"Cloud forecast for {n} event(s) at {sites} site(s)"
+                  + (f"; {len(errors)} failed: details in the Favorites log" if errors else ""),
+                  type="warning" if errors else "positive")
+        pg.load_favs(pg.fav_cur["key"])
+    pg.fav_weather = fav_weather
+
     def current_fav():
         return next((e for e in favorites.load() if e["key"] == pg.fav_cur["key"]), None)
     pg.current_fav = current_fav
@@ -251,6 +273,11 @@ def handlers(pg):
         bar = R_.chance_bar_svg(num_("min_distance"), num_("r_km"), num_("path_sigma1_km"), num_("p_site"))
         pg.f_bar.content = bar or ""
         pg.f_bar.set_visibility(bar is not None)
+        from pysyzygos import weather
+        w = weather.info(site.get("lat"), site.get("lon"), r.get("best_utc"), weather.load(ROOT))
+        pg.f_wx.content = (f'<div style="font-size:.9rem">{weather.text(w)}</div>' + weather.strip_html(
+            w, site.get("tz"))) if w else ""
+        pg.f_wx.set_visibility(w is not None)
         pano = pg.fav_pano(e)
         pg.f_pano.content = pano or ""
         pg.f_pano.set_visibility(pano is not None)
