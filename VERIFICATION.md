@@ -2,7 +2,7 @@
 
 How PySyzygos's predictions were checked: against OccultWatcher Cloud (OWC) search results and Occult's (occult.exe)
 event plots, against its own older code paths, and with independent geometry. What is computed and how: `ABOUT.md`;
-open items: `ABOUT.md`, Part 6. Updated 2026-10-16 (version 1.1.1). The observing sites are named Test site 1, 2, 3
+open items: `ABOUT.md`, Part 6. Updated 2026-10-30 (version 1.5.1). The observing sites are named Test site 1, 2, 3
 (real sites, not named here).
 
 Contents:
@@ -580,6 +580,40 @@ shown (77 mas apart). The x, y at the closest approach differ by 0.05 km across 
 - **Pick screen** (blind, 465k asteroids, Oct 1 + 8 d, 20 km reach): all 13 OWC reference events with H < 17 among its
   39 events; the 14th (819762, H 18.45) with `--all`; times within 5 s, drops and durations as the search.
 - **Orbits of the pick** (integrated from SBDB elements): 102 asteroids against JPL Horizons, worst 0.01".
+  - **Small perihelion distances** (1.5.1, 2026-10-29; slide AS): the fixed 0.5-day RK4 step and the missing
+    relativistic term let orbits through a close perihelion drift. (3200) Phaethon (q 0.14 AU, perihelion 2026-09)
+    was 9,200 km off at its 2026-11-02 events, so the pick and the pre-screens missed them while a search of 3200
+    found them. Now the step is halved down to 0.5 d x (q / 1 AU)^1.5 (AS.2; against a 0.01-day reference: no change
+    for q > 0.55 AU) and the Sun's 1PN term is included (AS.3): Phaethon 104 km -> 1 km at the site against the
+    search's Horizons orbit.
+  - **How much the 1PN term matters, per orbit class** (2026-10-30, `docs/verification/gr_effect.py`): 300 numbered
+    asteroids per class, each from its SBDB epoch through 2026-10-30 + 120 d, largest geocentric position difference
+    with / without the term, km:
+
+    | Class | median | 90 % | max | worst case |
+    |---|---:|---:|---:|---|
+    | q < 0.3 AU (any class) | 63 | 226 | 2,254 | 66391 Moshup (q 0.20) |
+    | Atira (IEO; 9 in the list) | 85 | 181 | 251 | 163693 Atira (q 0.50) |
+    | Aten (ATE) | 53 | 220 | 2,254 | 66391 Moshup |
+    | Apollo (APO) | 13 | 51 | 225 | 3200 Phaethon (q 0.14) |
+    | Amor (AMO) | 7 | 24 | 48 | |
+    | Mars-crosser (MCA) | 6 | 11 | 19 | |
+    | Inner main belt (IMB) | 8 | 10 | 11 | |
+    | Main belt (MBA) | 2.7 | 5.4 | 9.2 | |
+    | Outer main belt (OMB) | 1.3 | 1.9 | 4.1 | |
+    | Jupiter Trojans (TJN) | 0.3 | 0.4 | 0.4 | |
+    | Centaurs (CEN) | 0.01 | 0.17 | 2.5 | |
+    | TNOs | 0.00 | 0.00 | (Pluto, see below) | |
+
+    The term's strength relative to the Sun's gravity is about GM/(c^2 r) (1e-8 at 1 AU), growing with 1/r and the
+    speed squared at perihelion (Phaethon 109 km/s); short periods add a passage each orbit, and the error grows
+    with the time since the element epoch. For NEOs with small q it was a real miss risk. In the main belt it is
+    3-10 km, at the level of the 0.01" found before (10 km at 1.5 AU), well inside the pick's margins (Earth radius
+    + size + reach). Trojans and beyond: negligible. The search uses Horizons orbits and is not affected.
+  - **Pluto (134340) open**: 15,400 km in the run above is not relativity. The forces include the Pluto system's
+    barycenter (planet-system barycenter 9), ~2,000 km from Pluto, so the screen integrates Pluto under its own
+    system's gravity; pick and pre-screens place its events wrongly. The fix: leave out the barycenter of the
+    target's own system. The search (Horizons; `P:Pluto` through the planets path) is not affected.
 - **Pre-screens** (0.16.0, 2026-10-10; `ABOUT.md` 3.7), all at Test site 2 unless stated:
   - Region pre-screen (500 km around the site, Oct 10 + 20 d, built with the first version): the pick with it found
     38 of the full pick's 39 events, identical in star and time (0.0 s), screening 10273 of 464740 asteroids in
