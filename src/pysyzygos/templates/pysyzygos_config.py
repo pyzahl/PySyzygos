@@ -86,7 +86,7 @@ pick_aperture_cm = site.get("aperture_cm", 25.0)   # telescope aperture, cm
 pick_frames = site.get("frames", 4)                # detection frames
 pick_mag_adjust = site.get("mag_adjust", 0.0)      # OWC MagAdjust, mag
 pick_extinction = site.get("extinction", atm_extinction)   # mag per airmass (see atm_extinction above)
-pick_min_dur_s = site.get("min_dur_s", 0.4)        # hard limit: shortest event, s
+pick_min_dur_s = site.get("min_dur_s", 0.4)        # shortest event, s (recorded only: the pick keeps any short dip)
 pick_max_exp_s = site.get("max_exp_s", 0.64)       # longest usable exposure, s (25 cm: G 15.0, as OWC)
 _lim = (5 * __import__("math").log10(pick_aperture_cm) + 2.5 * __import__("math").log10(pick_max_exp_s)
         + 8.5 + pick_mag_adjust)

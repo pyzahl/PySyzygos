@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.5.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.5.1 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -762,7 +762,7 @@ can also describe its view and its equipment; keys it leaves out take the defaul
 | `frames` | 4 | detection frames: video frames the event must cover |
 | `mag_adjust` | 0 | OWC's MagAdjust: + for better conditions (dark sky, sensitive camera), - for worse |
 | `extinction` | `atm_extinction` (0, off) | atmospheric extinction, mag per airmass (~0.2): low stars count as fainter |
-| `min_dur_s` | 0.4 | hard limit: shortest event, s |
+| `min_dur_s` | 0.4 | shortest event, s (recorded; since 1.5.1 the pick keeps any short dip) |
 | `max_exp_s` | 0.64 | longest usable exposure, s; sets the faintest star searched |
 | `mag_limit` | from the above | faintest star searched (Gaia G), if you want to set it directly |
 | `focal_mm` | 100 x `aperture_cm` (f/10) | focal length, mm: with `sensor_mm` gives the camera field of the event preview |
@@ -1029,7 +1029,7 @@ uses the current JPL Horizons orbit for the final prediction anyway).
   (the site's `reach_km`, else `max_shadow_dist`).
 * Detection follows OWC's General Observability Criterion with the site's equipment (see "Observing sites"):
   `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust`, optionally less the extinction
-  at the star's altitude, plus the hard limits `min_dur_s` and `min_mag_drop`. Bright stars therefore allow short
+  at the star's altitude, plus the hard limit `min_mag_drop` (since 1.5.1 no minimum duration: any short dip is kept). Bright stars therefore allow short
   events (a G 5.6 star with a 0.25 s event counts), faint stars need long ones. For asteroids whose size is only
   estimated from H, the duration uses the upper size bound, so they are not dismissed too early.
 

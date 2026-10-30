@@ -6,6 +6,23 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-29
+
+### Fixed
+- **Pick and pre-screens missed events of asteroids with small perihelion distances.** Their own orbit integration
+  (fixed 0.5-day steps, no relativity) drifted through a close perihelion: (3200) Phaethon (q 0.14 AU, perihelion
+  2026-09) was 9,200 km off at its 2026-11-02 events, so the pick dropped them while a search of 3200 found them.
+  The step now shrinks with the perihelion distance (unchanged for q > 1 AU; 59 numbered asteroids have q < 0.5
+  AU), and the Sun's relativistic term is included (Phaethon: 104 km -> 1 km at the site, now as the search).
+  Pre-screens built before this miss such events: rebuild them for NEOs (or the whole list).
+
+### Changed
+- **The pick no longer rejects short events** (minimum duration): any short dip is kept; `--min-dur` and the site's
+  `min_dur_s` are only recorded. The OWC observability criterion (star brightness vs duration, aperture, frames)
+  still applies.
+- **`pick --prescreen all`** (also `none`) runs the full screen of all asteroids and ignores existing pre-screens
+  (they are kept); before, only leaving out the option did. GUI Pick "Asteroids" label says so.
+
 ## [1.5.0] "Beyond Horizons" - 2026-10-28
 
 ### Added

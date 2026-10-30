@@ -7,7 +7,8 @@ Pipeline
   3. events    : actual Gaia stars (local catalog, bright-star index) along the path, solved for your site
                  (screen); only while the asteroid is up and the Sun is down
   4. detection : OWC's General Observability Criterion, StarMag < 5 log10(aperture_cm) + 2.5 log10(duration/frames)
-                 + 8.5 + MagAdjust (optionally with atmospheric extinction), plus --min-dur and --min-drop.
+                 + 8.5 + MagAdjust (optionally with atmospheric extinction), plus --min-drop. No minimum duration
+                 here: any short dip is kept (--min-dur is recorded only; the search computes the exact duration).
                  Durations for this use the upper size bound, so H-only sizes are not dismissed too early.
   5. output    : pick_events.csv (all events), a ranked table, and targets.py with the asteroids of the best events.
                  Their size data goes to the shared size cache, so search.py needs no SBDB lookups for them.
@@ -280,7 +281,8 @@ def main(argv=None):
     ap.add_argument("--extinction", type=float, default=c("extinction", 0.0),
                     help="atmospheric extinction, mag per airmass (0 = off, ~0.2 typical)")
     ap.add_argument("--frames", type=int, default=c("frames", 4), help="exposures the event must last (detection frames)")
-    ap.add_argument("--min-dur", type=float, default=c("min_dur", 0.4), help="shortest event, s")
+    ap.add_argument("--min-dur", type=float, default=c("min_dur", 0.4),
+                    help="recorded only: the pick keeps any short dip")
     ap.add_argument("--sort", choices=sorted(SORT_KEYS), default="mag", help="ranking (default: brightest star first)")
     ap.add_argument("--top", type=int, default=40, help="asteroids written to targets.py (best events first)")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2), help="parallel processes")
@@ -289,10 +291,11 @@ def main(argv=None):
                          "and breaks parallel reads, for diagnosis only)")
     ap.add_argument("--catalog", default=c("catalog", "gaia_dr3_g16"), help="local Gaia catalog folder")
     ap.add_argument("--sbdb-cache", help="SBDB download cache (default: <config cache_path>/PySyzygos_sbdb_cache.json)")
-    ap.add_argument("--prescreen", metavar="FILE|auto",
+    ap.add_argument("--prescreen", metavar="FILE|auto|all",
                     help="screen only the asteroids of this pre-screen (pysyzygos prescreen build): faster, the same "
                          "events if the pre-screen covers the window and the site and its limits are as loose; "
-                         "'auto': the newest fitting one in prescreen/, else all asteroids")
+                         "'auto': the newest fitting one in prescreen/, else all asteroids; 'all' (or none, the "
+                         "default): the full screen of all asteroids, pre-screens ignored (they are kept)")
     ap.add_argument("-o", "--output", default="pick_events.csv")
     ap.add_argument("--targets-file", default="targets.py", help="importable targets list ('' to skip)")
     ap.add_argument("--picks-dir", default=c("picks_dir", "picks"),
@@ -344,6 +347,8 @@ def main(argv=None):
     from pysyzygos.picks import selection as _selection         # a pre-screen of some groups only fits this selection
     opt_ps = dict(hmax=hmax, hmax_all=a.all, supplement=sup,
                   selection=_selection(a.group_set, a.a_min, a.a_max, a.a_exclude))
+    if a.prescreen in ("all", "none"):                  # the full screen, pre-screens ignored
+        a.prescreen = None
     if a.prescreen == "auto":                           # the newest fitting pre-screen, else the full screen
         from pysyzygos import prescreen as PS
         path, _, other = PS.best_fit(et0, et1, a.lat, a.lon, dict(opt, **opt_ps))

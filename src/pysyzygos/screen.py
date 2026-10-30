@@ -132,7 +132,7 @@ def solve_site(spice, site, g_of_t, sdir, t0, half_bracket, iters=6, dt=5.0):
 # Math: CO.1-CO.4 (slide CO), the pick of slide PS: own orbits, corridor scan, site solve.
 def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, progress=None):
     """rows: list of dicts with number, name, H, G, D_km, D_max_km, a, e, i, om, w, ma, epoch (JD TDB).
-    opt: reach_km, min_alt, max_sun_alt, min_drop, min_dur, cam_limit, aperture, frames, mag_adjust, extinction. Returns a list of event dicts (one per asteroid/star/time)."""
+    opt: reach_km, min_alt, max_sun_alt, min_drop, cam_limit, aperture, frames, mag_adjust, extinction. Returns a list of event dicts (one per asteroid/star/time)."""
     ets = np.arange(et0, et1 + step_s, step_s)
     obs, up = site.at(ets)
     sun = np.asarray(spice.spkpos("SUN", ets, "J2000", "LT+S", "EARTH")[0])
@@ -167,9 +167,8 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             m_ast = hg_mag(row["H"], row["G"], rh[k], delta[k] / AU_KM, cos_ph[k])
             # brightest-star rules on the visible part: drop, exposure (with the slowest relative speed ~ v - 0.5).
             # Detectability uses the upper size bound (an H-only size is uncertain by ~1.7x): "can be detectable".
+            # No minimum duration here (user, 2026-10-29): any short dip is kept; the final search applies min_dur.
             dur_max = row["D_max_km"] / np.maximum(speed[k][vis] - 0.5, 0.3)
-            if dur_max.max() < opt["min_dur"]:
-                continue
             cap = min(opt["cam_limit"], float(m_ast[vis].max()) + dm_drop, float(owc_limit(dur_max.max(), opt)))
             if cap < 0:
                 continue
@@ -221,7 +220,7 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
                 dur = row["D_km"] / max(vrel[q], 1e-6)                                # nominal size
                 dur_hi = row["D_max_km"] / max(vrel[q], 1e-6)                         # upper size bound
                 margin = float(owc_limit(dur_hi, opt)) - m_s - float(extinction_loss(star_alt, opt))
-                if drop < opt["min_drop"] or dur_hi < opt["min_dur"] or margin <= 0:
+                if drop < opt["min_drop"] or margin <= 0:
                     continue
                 events.append(dict(number=row["number"], spkid=row.get("spkid"), name=row["name"], H=row["H"], et=float(t[q]),
                                    star=int(sdf.source_id.iloc[cands.star.iloc[q]]), star_mag=m_s, star_ra=float(ra[q]),

@@ -5,9 +5,10 @@ months, far more than a shadow corridor (~5"). This integrates the elements with
 (DE440 via SPICE), thousands of asteroids at once, and returns astrometric geocentric directions (same 'CN' convention
 as the solver). Final predictions still use the exact Horizons SPK (search.py).
 
-Model: barycentric equations of motion, Sun + planet-system barycentres 1-9 (Earth-Moon as EMB), RK4 with a fixed step,
-Hermite interpolation between steps, one-step light-time correction. No asteroid perturbers, no relativity, no
-non-gravitational forces. Not for close Earth approaches (flagged).
+Model: barycentric equations of motion, Sun + planet-system barycentres 1-9 (Earth-Moon as EMB), RK4 with a fixed step
+(shorter for small perihelion distances: `step_for`), Hermite interpolation between steps, one-step light-time
+correction, the Sun's relativistic term (Phaethon, q 0.14 AU: 104 km at the site without it). No asteroid
+perturbers, no non-gravitational forces. Not for close Earth approaches (flagged).
 
 Needs spiceypy with an LSK and de440.bsp loaded (call serially: SPICE is not thread-safe).
 """
@@ -57,20 +58,46 @@ def _bodies(spice, et):
     return pos, np.array([GM_SUN] + list(GM_BODIES.values()))
 
 
-def _accel(r, bp, gm):
-    """r (N,3) barycentric AU; bp (B,3); gm (B,) -> (N,3) AU/day^2."""
+C_AU_DAY = 299792.458 * DAY / AU_KM                     # speed of light, AU/day
+
+
+def _accel(r, bp, gm, v=None):
+    """r (N,3) barycentric AU; bp (B,3), bp[0] = Sun; gm (B,) -> (N,3) AU/day^2. With v (N,3) AU/day: + the Sun's
+    relativistic term (1PN, Schwarzschild, heliocentric r and v; the Sun's own velocity ~0.01 km/s is neglected)."""
     d = r[:, None, :] - bp[None, :, :]
-    return -np.einsum("b,nbk->nk", gm, d / np.linalg.norm(d, axis=2, keepdims=True) ** 3)
+    a = -np.einsum("b,nbk->nk", gm, d / np.linalg.norm(d, axis=2, keepdims=True) ** 3)
+    if v is None:
+        return a
+    rs = d[:, 0]
+    rn = np.linalg.norm(rs, axis=1, keepdims=True)
+    mu = gm[0]
+    return a + mu / (C_AU_DAY ** 2 * rn ** 3) * ((4 * mu / rn - np.sum(v * v, 1, keepdims=True)) * rs
+                                                 + 4 * np.sum(rs * v, 1, keepdims=True) * v)
+
+
+Q_REF_AU = 1.0       # perihelion distance from which on the base step is used
+
+
+def step_for(a, e, step_days=0.5):
+    """RK4 step (days) per asteroid: the base step, halved until it is <= step_days x (q / Q_REF_AU)^1.5 (the orbital
+    time scale at perihelion). With 0.5 d for all, an orbit through a perihelion inside ~0.5 AU drifted: Phaethon
+    (q 0.14 AU, perihelion 2026-09) 9,200 km off at its 2026-11-02 events, so pick and pre-screens missed them; at
+    q 0.17 18,500 km after 120 days. Measured with 0.01 d as reference: no change for q > 0.55 AU."""
+    q = np.asarray(a, float) * (1 - np.asarray(e, float))
+    ratio = np.clip(q / Q_REF_AU, 1e-3, 1.0) ** 1.5
+    return step_days / 2.0 ** np.ceil(np.maximum(-np.log2(ratio), 0.0))
 
 
 def propagate(spice, el, et_out, step_days=0.5):
     """Barycentric states at the times et_out (s, sorted) for N asteroids with elements el (dict of arrays a, e, i, om,
-    w, ma, epoch [JD TDB]). Asteroids are grouped by epoch. Returns r, v: (N, T, 3) in AU and AU/day."""
+    w, ma, epoch [JD TDB]). Asteroids are grouped by epoch and step (`step_for`: step_days, shorter for small
+    perihelion distances). Returns r, v: (N, T, 3) in AU and AU/day."""
     et_out = np.asarray(et_out, float)
     N, T = len(el["a"]), len(et_out)
     r_out, v_out = np.empty((N, T, 3)), np.empty((N, T, 3))
-    for ep in np.unique(el["epoch"]):
-        sel = np.where(el["epoch"] == ep)[0]
+    steps = step_for(el["a"], el["e"], step_days)
+    for ep, step_days in sorted({(float(x), float(h)) for x, h in zip(el["epoch"], steps)}):
+        sel = np.where((el["epoch"] == ep) & (steps == step_days))[0]
         rh, vh = elements_to_state(*(el[k][sel] for k in ("a", "e", "i", "om", "w", "ma")), ep)
         et0 = jd_to_et(ep)
         sun = np.asarray(spice.spkezr("SUN", et0, "J2000", "NONE", "0")[0]) / AU_KM
@@ -91,18 +118,18 @@ def propagate(spice, el, et_out, step_days=0.5):
         bp_m, _ = _bodies(spice, mids)
         R, V = [r], [v]
         for k in range(n_steps):                                                     # classic RK4
-            a1 = _accel(r, bp_g[k], gm)
+            a1 = _accel(r, bp_g[k], gm, v)
             r2, v2 = r + 0.5 * h * v, v + 0.5 * h * a1
-            a2 = _accel(r2, bp_m[k], gm)
+            a2 = _accel(r2, bp_m[k], gm, v2)
             r3, v3 = r + 0.5 * h * v2, v + 0.5 * h * a2
-            a3 = _accel(r3, bp_m[k], gm)
+            a3 = _accel(r3, bp_m[k], gm, v3)
             r4, v4 = r + h * v3, v + h * a3
-            a4 = _accel(r4, bp_g[k + 1], gm)
+            a4 = _accel(r4, bp_g[k + 1], gm, v4)
             r = r + h / 6 * (v + 2 * v2 + 2 * v3 + v4)
             v = v + h / 6 * (a1 + 2 * a2 + 2 * a3 + a4)
             R.append(r); V.append(v)
         R, V = np.stack(R, 1), np.stack(V, 1)                                        # (n, steps+1, 3)
-        acc = np.stack([_accel(R[:, k], bp_g[k], gm) for k in range(len(grid))], 1)
+        acc = np.stack([_accel(R[:, k], bp_g[k], gm, V[:, k]) for k in range(len(grid))], 1)
         rr, vv = hermite(grid, R, V, acc, et_out)
         r_out[sel], v_out[sel] = rr, vv
     return r_out, v_out

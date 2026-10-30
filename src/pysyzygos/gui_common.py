@@ -227,7 +227,7 @@ def resizable_box(key, default_vh, scroll=False):
         f"overflow: {'auto' if scroll else 'hidden'}; border: 1px solid #ddd; background: #f1f5f9")
 
 
-PRE_FIXED = {"auto": "auto: a fitting pre-screen, else all", "all": "all asteroids (any place and time; slower)"}
+PRE_FIXED = {"auto": "auto: a fitting pre-screen, else all", "all": "all asteroids: full screen, pre-screens ignored (slower)"}
 
 
 def prescreen_regions():

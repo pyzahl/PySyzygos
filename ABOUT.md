@@ -450,7 +450,7 @@ Stars are moved linearly by proper motion (no parallax), and stars faster than 1
 OWC's General Observability Criterion (video recording, aperture and detection frames): an event is observable if
 `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + MagAdjust`. With extinction enabled (site
 key `extinction`, mag per airmass), the star counts as fainter by `extinction x (airmass - 1)` at its altitude (Kasten &
-Young airmass). Hard limits: `min_dur_s` and `min_mag_drop`; OWC also found the drop itself has no significant effect.
+Young airmass). Hard limit: `min_mag_drop` (since 1.5.1 no minimum duration, `min_dur_s` is only recorded); OWC also found the drop itself has no significant effect.
 All OWC reference events pass at 25 cm, 4 frames, MagAdjust 0 (and some would not if the aperture were in inches).
 The site's star limit `MAG_MIN` is the magnitude that passes at the longest usable exposure `max_exp_s` (0.64 s gives
 G 15.0 at 25 cm, as in the OWC search). For sizes estimated from H (uncertain by ~1.7x) the duration test uses the
