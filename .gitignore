@@ -80,3 +80,4 @@ weather_cache.json
 /docs/math/*.vrb
 /docs/math/pysyzygos_math.pdf
 /docs/math/xref_table.tex.tmp
+/docs/math/version.tex

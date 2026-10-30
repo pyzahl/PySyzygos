@@ -4,7 +4,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
-## [Unreleased]
+## [1.5.1] "Beyond Horizons" - 2026-10-30
+
+The first release since 1.4.0: it includes all of 1.5.0 below (1.5.0 was not released on its own).
 
 ### Added
 - **Cloud forecast for the favorites** (Favorites tab, "Cloud forecast"): Open-Meteo's hourly forecast (free,
@@ -13,9 +15,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   low/mid/high cloud, rain chance and visibility; the panel shows the hours around the event (UTC, local time on
   hover). One request per site, on click only; kept in `weather_cache.json` (`pysyzygos/weather.py`).
 
-## [1.5.1] - 2026-10-29
-
 ### Fixed
+- **Shared pre-screens: a deleted one stayed in the list** (`prescreens.json`). `pysyzygos prescreen publish` and
+  `merge` now start from the mirror's list, leave out every pre-screen whose archive is no longer on the mirror,
+  and add only those packed locally and not uploaded yet; before, every list was merged, so a withdrawn pre-screen
+  came back each time. `prescreen merge --drop NAME` leaves one out by hand.
 - **Pick and pre-screens missed events of asteroids with small perihelion distances.** Their own orbit integration
   (fixed 0.5-day steps, no relativity) drifted through a close perihelion: (3200) Phaethon (q 0.14 AU, perihelion
   2026-09) was 9,200 km off at its 2026-11-02 events, so the pick dropped them while a search of 3200 found them.
@@ -1153,7 +1157,8 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
-[1.5.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.0
+[1.5.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.1
+[1.5.0]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...v1.5.1
 [1.4.1]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...main
 [1.4.0]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.4.0
 [1.3.2]: https://github.com/pyzahl/PySyzygos/compare/v1.3.0...main

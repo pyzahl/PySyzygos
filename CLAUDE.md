@@ -39,6 +39,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   v1.0.0 (first as PySyzygos) = 10.5281/zenodo.23381498; Zenodo followed the GitHub rename by itself.
   v1.1.0 = 10.5281/zenodo.23407110 (2026-10-16; the webhook timed out while Zenodo was down, archived later).
   v1.2.0 was released as tag `v1.2.01` (2026-10-16; tag v1.2.0 points one commit too early, at 1.1.1 code).
+  v1.5.0 was never tagged: v1.5.1 (2026-10-30) is the release after v1.4.0 and carries 1.5.0 (CHANGELOG
+  [1.5.0] links the compare v1.4.0...v1.5.1).
   Each 1.x.0 GitHub release also carries docs/math/pysyzygos_math.pdf as an asset (`make` in docs/math: formula
   check + build; the PDF is not in git, decided 2026-10-20: a committed PDF goes stale).
   GitHub releases (tag -> Zenodo DOI) only for 1.x.0 (user's rule, 2026-10-19: not too often); patch versions

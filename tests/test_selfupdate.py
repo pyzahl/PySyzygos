@@ -27,11 +27,12 @@ run("git", "clone", "-q", "remote.git", "inst")
 inst = os.path.join(T, "inst")
 s = S.status(repo=inst, release=False)
 assert s["kind"] == "git" and s["behind"] == 0 and not s["possible"] and s["reason"] == "up to date", s
-write(dev, "1.5.0", "## [1.5.0] \"B\" - 2026-11-01\n- new feature\n\n")
-run("git", "add", "-A", cwd=dev); run("git", *env_git, "commit", "-qm", "1.5.0: new feature", cwd=dev); run("git", "push", "-q", "origin", "main", cwd=dev)
+# far above any real version: the CHANGELOG lines newer than the running one
+write(dev, "99.0.0", "## [99.0.0] \"B\" - 2026-11-01\n- new feature\n\n")
+run("git", "add", "-A", cwd=dev); run("git", *env_git, "commit", "-qm", "99.0.0: new feature", cwd=dev); run("git", "push", "-q", "origin", "main", cwd=dev)
 s = S.status(repo=inst, release=False)
-assert s["behind"] == 1 and s["possible"] and s["remote_version"] == "1.5.0" and "new feature" in s["changelog"], s
-assert s["commits"][0][1] == "1.5.0: new feature"
+assert s["behind"] == 1 and s["possible"] and s["remote_version"] == "99.0.0" and "new feature" in s["changelog"], s
+assert s["commits"][0][1] == "99.0.0: new feature"
 # local change to a tracked file: refused, untouched
 open(os.path.join(inst, "CHANGELOG.md"), "a").write("my note\n")
 s = S.status(repo=inst, release=False)
@@ -41,7 +42,7 @@ run("git", "checkout", "--", "CHANGELOG.md", cwd=inst)
 open(os.path.join(inst, "sites.py"), "w").write("private = 1\n")              # untracked files do not block
 msgs = []
 assert S.update(msgs.append, repo=inst, deps=False) == 0, msgs
-assert '1.5.0' in open(os.path.join(inst, "src", "pysyzygos", "version.py")).read() and os.path.isfile(os.path.join(inst, "sites.py"))
+assert '99.0.0' in open(os.path.join(inst, "src", "pysyzygos", "version.py")).read() and os.path.isfile(os.path.join(inst, "sites.py"))
 assert S.status(repo=inst, release=False)["behind"] == 0
 # diverged: a local commit plus a new remote one: refused
 write(dev, "1.6.0", "## [1.6.0]\n- more\n\n")

@@ -61,6 +61,7 @@ def _bodies(spice, et):
 C_AU_DAY = 299792.458 * DAY / AU_KM                     # speed of light, AU/day
 
 
+# Math: AS.3 (slide AS): the Sun's 1PN (Schwarzschild) acceleration added to the Newtonian sum.
 def _accel(r, bp, gm, v=None):
     """r (N,3) barycentric AU; bp (B,3), bp[0] = Sun; gm (B,) -> (N,3) AU/day^2. With v (N,3) AU/day: + the Sun's
     relativistic term (1PN, Schwarzschild, heliocentric r and v; the Sun's own velocity ~0.01 km/s is neglected)."""
@@ -78,6 +79,7 @@ def _accel(r, bp, gm, v=None):
 Q_REF_AU = 1.0       # perihelion distance from which on the base step is used
 
 
+# Math: AS.2 (slide AS): the RK4 step, halved down to step_days x (q / 1 AU)^1.5.
 def step_for(a, e, step_days=0.5):
     """RK4 step (days) per asteroid: the base step, halved until it is <= step_days x (q / Q_REF_AU)^1.5 (the orbital
     time scale at perihelion). With 0.5 d for all, an orbit through a perihelion inside ~0.5 AU drifted: Phaethon

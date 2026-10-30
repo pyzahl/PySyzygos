@@ -103,12 +103,13 @@
 \ifdefined\TalkCorridor\input{\TalkCorridor}\else
 \begin{frame}{The search corridor}\slideid{CO}
   \begin{columns}[c]
-    \begin{column}{0.47\textwidth}
+    \begin{column}{0.44\textwidth}
       \centering
       \corridorfigure
     \end{column}
-    \begin{column}{0.53\textwidth}
-      \footnotesize
+    \begin{column}{0.56\textwidth}
+      \footnotesize\tightdisplays
+      \setlength{\jot}{1pt}
       \vspace*{-1ex}
       \begin{gather*}
         \tcbhighmath{\mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach}} \tag{CO.1}\\
@@ -374,6 +375,7 @@
   \begin{itemize}
     \item \OWN\ \textbf{Screening} (pick, pre-screens: all asteroids at once): SBDB osculating elements
           (full precision), own RK4 with Sun + planets (\SP\ DE440): $\approx 0.01''$ vs.\ Horizons
+          (step rule, relativity and the precision factors: slides after next)
     \item \SP\ \textbf{Exact prediction}: JPL Horizons orbit per asteroid as an SPK file
           (JPL's integration), refreshed after a week, kept for offline use
   \end{itemize}
@@ -400,6 +402,43 @@
     \item \textbf{Uncertainty}: Horizons 3-$\sigma$ error ellipse (RSS) $\to$ path $\sigma$,
           combined with the star's position error
   \end{itemize}
+\end{frame}
+
+% As in orbits.py: elements_to_state, propagate, step_for (AS.2), _accel (AS.3), hermite, astrometric.
+\begin{frame}{Astrometry: the asteroid in the screen (own orbits)}\slideid{AS}
+  \footnotesize
+  \OWN\ RK4 with a fixed step per asteroid, shorter for a small perihelion distance $q = a(1-e)$:
+  \[
+    \tcbhighmath{h = h_0 / 2^{k},\quad k \text{ smallest with } h \le h_0\,(q / \SI{1}{AU})^{3/2}}
+    \tag{AS.2}
+  \]
+  {\scriptsize $h_0$ = \SI{0.5}{d}, kept for $q \ge \SI{1}{AU}$; Phaethon ($q$ 0.14 AU): $h_0/32$. Before 1.5.1:
+  \SI{0.5}{d} for all, and Phaethon was \SI{9200}{km} off after its 2026-09 perihelion: the pick missed its events.}
+  \bigskip
+
+  The Sun's relativistic term (1PN, Schwarzschild; heliocentric $\vv{r}$, $\vv{v}$, $r = |\vv{r}|$), added to the
+  Newtonian sum:
+  \[
+    \tcbhighmath{\vv{a}_{\mathrm{GR}} = \frac{GM_\odot}{c^2 r^3}\Bigl[\Bigl(\frac{4\,GM_\odot}{r} - v^2\Bigr)\vv{r}
+      + 4\,(\vv{r}\cdot\vv{v})\,\vv{v}\Bigr]}
+    \tag{AS.3}
+  \]
+  {\scriptsize Phaethon: \SI{104}{km} $\to$ \SI{1}{km} at the site, vs.\ the search's Horizons orbit.}
+\end{frame}
+
+\begin{frame}{Astrometry: the asteroid in the screen, precision factors}\slideid{AS}
+  {\footnotesize
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth} >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
+    Elements & SBDB osculating, \emph{full precision} (rounded ones: $\sim 40''$); ecliptic J2000 $\to$ ICRF (IAU 1976 obliquity) \\
+    Start state & Kepler at the elements' epoch (Newton for $E$, to $e \approx 0.98$); heliocentric $\to$ barycentric (Sun from DE440) \\
+    Forces & Sun + planet-system barycenters 1--9 (Earth--Moon as EMB): DE440 positions and GM; the Sun's 1PN term (AS.3) \\
+    Integrator & classic RK4, step AS.2, planets at the nodes and midpoints; between steps quintic Hermite ($\vv{r}, \vv{v}, \vv{a}$ at both nodes) \\
+    Light time & geocentric, iterated twice: $\vv{A}(t - \tau)$ ('CN', as the solver) \\
+    Not included & asteroid perturbers, non-gravitational forces (Yarkovsky, comet-like), aberration, light deflection,
+                   the site's own light time (the scans are geocentric with km margins) \\
+    Result & $\approx 0.01''$ vs.\ Horizons ($\sim$\SI{2}{km}); close Earth approaches flagged; the search then uses Horizons \\
+  \end{tabular}}
 \end{frame}
 
 % explicit inputs, intermediate variables and outputs of the astrometry slides (ST1, ST2, AS)
