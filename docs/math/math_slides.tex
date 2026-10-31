@@ -366,6 +366,37 @@
   \end{enumerate}
 \end{frame}
 
+% Where the asteroid's position comes from: orbits.propagate in screen.py/prescreen.py only; search.py (corridor scan,
+% solver, paths, maps), pathcheck, obscheck: Horizons SPK via search.fetch_target_orbit, read with spkpos/spkcpo.
+% Numbers: VERIFICATION.md section 4, docs/verification/horizons_check.py (2026-10-30).
+\begin{frame}{Sources for the asteroid path}\slideid{AS}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.05}
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.13\linewidth}
+                  >{\raggedright\arraybackslash}p{0.41\linewidth}
+                  >{\raggedright\arraybackslash}p{0.41\linewidth}@{}}
+    & \OWN\ \textbf{Screen}: pick, pre-screens & \SP\ \textbf{Search}: every prediction, path, map \\
+    \hline
+    Asteroids & all ($\sim$900{,}000) at once & the targets chosen by the screen or the user \\
+    Orbit & SBDB elements, \textbf{own} RK4 (AS.2) &
+            \textbf{JPL Horizons} SPK per asteroid \\
+    Forces & Sun + planets (DE440), Sun's 1PN (AS.3) &
+             JPL's model: 1PN, 16 large asteroids, non-grav.\ where fitted \\
+    Light time & geocentric & from the observer (LT.2, AS.1) \\
+    Accuracy & vs.\ Horizons: Phaethon $\le$ \SI{0.2}{km} in 300 d through perihelion; others 1--5 km
+               (start offset: SBDB's elements vs.\ Horizons' state) &
+               the reference; Horizons' 3-$\sigma$ ellipse $\to$ path $\sigma$ \\
+    Role & \textbf{select} candidates (margins: tens of km); an error can only \emph{miss} an event &
+           \textbf{predict}: times, paths, durations come only from here \\
+  \end{tabular}
+
+  \smallskip
+  Each candidate is computed again from its Horizons orbit: no screen number reaches a prediction.
+  Without 1PN the screen's Phaethon \emph{orbit} drifted \SI{234}{km} across the line of sight in 300 days
+  (day 120, closest to the Earth: \SI{88}{km} = \SI{0.33}{''}); the shadow moves as much in the fundamental
+  plane, on the ground $\times 1/\sin(\text{star altitude})$.
+\end{frame}
+
 % As in orbits.py (screen), search.fetch_target_orbit (Horizons SPK), besselian_offsets (spkcpo 'CN' from the site),
 % astrometry.corrected_star_dir (deflection star minus asteroid), paths.path_error (Horizons RSS 3-sigma).
 \begin{frame}{Astrometry: the asteroid}\slideid{AS}
@@ -437,7 +468,9 @@
     Light time & geocentric, iterated twice: $\vv{A}(t - \tau)$ ('CN', as the solver) \\
     Not included & asteroid perturbers, non-gravitational forces (Yarkovsky, comet-like), aberration, light deflection,
                    the site's own light time (the scans are geocentric with km margins) \\
-    Result & $\approx 0.01''$ vs.\ Horizons ($\sim$\SI{2}{km}); close Earth approaches flagged; the search then uses Horizons \\
+    Result & vs.\ Horizons (2026-10-30): Phaethon $\le$ \SI{0.2}{km} over 300 days; main belt, Trojans
+             $\sim$\SI{1}{km}, constant (start offset of SBDB's elements); close Earth approaches flagged; the search
+             then uses Horizons (slide ``Sources for the asteroid path'') \\
   \end{tabular}}
 \end{frame}
 

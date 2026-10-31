@@ -651,7 +651,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `owc_refs/event_checks/<asteroid>_<date>_<star>/` (2026-10-19): single published events compared in detail
   (compare.md + OWC event JSON with Besselian elements + our search output); OWC's x/y/dX/dY are in axes of date.
 - `docs/verification/` (2026-10-30, tracked): scripts behind VERIFICATION.md numbers that need no private data
-  (`gr_effect.py`: 1PN term per orbit class in orbits.propagate). Open from it: Pluto (134340) in the screen feels
+  (`gr_effect.py`: 1PN term per orbit class in orbits.propagate; `horizons_check.py`: orbits.propagate vs Horizons vectors, same solution, 300 d; slide "Sources for the asteroid path" = screen own orbits vs search Horizons SPK). Open from it: Pluto (134340) in the screen feels
   barycenter 9 (its own system, ~2,000 km away): leave out the target's own system barycenter in orbits.py.
 - `VERIFICATION.md` (2026-10-08): all validation (OWC sets, Occult star positions, internal/geometric checks, what the
   differences mean); ABOUT Part 5 is a summary with a link. New OWC reference sets: add the numbers there (sites

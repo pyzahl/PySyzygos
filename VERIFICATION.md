@@ -610,6 +610,28 @@ shown (77 mas apart). The x, y at the closest approach differ by 0.05 km across 
     with the time since the element epoch. For NEOs with small q it was a real miss risk. In the main belt it is
     3-10 km, at the level of the 0.01" found before (10 km at 1.5 AU), well inside the pick's margins (Earth radius
     + size + reach). Trojans and beyond: negligible. The search uses Horizons orbits and is not affected.
+  - **Against Horizons over 300 days** (2026-10-30, version 1.5.1, `docs/verification/horizons_check.py`):
+    `orbits.propagate` from SBDB's full-precision elements against Horizons' barycentric vectors of the same orbit
+    solution, from the element epoch (2026-06-08) on. "Across" = the part perpendicular to the Earth-asteroid line
+    (what moves the shadow), km:
+
+    | Asteroid | day 0 | day 90 | day 120 | day 145 | day 300 |
+    |---|---:|---:|---:|---:|---:|
+    | 3200 Phaethon (q 0.14, perihelion 2026-09-20), as used | 0.11 | 0.02 | 0.02 | 0.06 | 0.09 |
+    | the same, without the 1PN term | 0.11 | 15 | 88 | 104 | 234 |
+    | the same, before 1.5.1 (0.5 d step, no 1PN) | 0.11 | 1,025 | 7,609 | 8,109 | 29,053 |
+    | 66391 Moshup (q 0.20) | 4.5 | | 0.7 (day 100) | 0.4 (day 150) | 0.7 |
+    | 1000 Piazzia (main belt) | 1.0 | | 1.0 (day 100) | 1.0 (day 150) | 0.9 |
+    | 588 Achilles (Trojan) | 0.9 | | 1.0 (day 100) | 1.0 (day 150) | 1.1 |
+
+    Phaethon stays within 0.2 km (3D) through perihelion and closest approach (0.37 AU, 0.08 mas); a step of 0.005 d
+    changes it by <= 0.02 km, so the step has converged. Asteroid perturbers and non-gravitational forces (not in
+    the screen) do not show at this level. The others carry an offset that is already there at day 0, almost all
+    along the track (velocities agree to < 0.2 mm/s): SBDB's published elements and Horizons' state at the same
+    epoch differ (mean anomaly 0.7-4.6 mas, a up to 125 m; (1) Ceres 4.0 km). Converted with Horizons' own
+    osculating elements of that epoch, `elements_to_state` gives Horizons' state to 0.000 km. So the screen is good
+    to ~1-5 km for every class, against margins of tens of km. The search does not use these orbits: every
+    prediction is computed from the Horizons SPK (slide "Sources for the asteroid path").
   - **Pluto (134340) open**: 15,400 km in the run above is not relativity. The forces include the Pluto system's
     barycenter (planet-system barycenter 9), ~2,000 km from Pluto, so the screen integrates Pluto under its own
     system's gravity; pick and pre-screens place its events wrongly. The fix: leave out the barycenter of the
