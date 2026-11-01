@@ -10,7 +10,7 @@ base = dict(tid="99999999", utc="2026-11-01T01:02:03.456", body=False, mag=10.5,
 a = R.filter_attrs(base)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', a))
 assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00", az="",
-                    flags=""), vals
+                    flags="", cls=""), vals
 e = dict(base, sflag="RUWE 1.70", star_sigma=8.0, dhint="companion", sun=-8.0, hz=("near", 20.0, 3.0),
          size_src="H only, albedo assumed", ruwe=None, p_site=None)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', R.filter_attrs(e)))
@@ -42,4 +42,14 @@ assert "start \u2248 01:02:02.656, end \u2248 01:02:04.256" in t and "your site"
 t = R.start_end_text(dict(when=when, dur=2.0, rad=5.0, miss=8.0))
 assert "01:02:02.456" in t and "01:02:04.456" in t and "outside the shadow" in t, t
 assert R.start_end_text(dict(when=when, dur=None, rad=5.0, miss=1.0)) == ""
+# orbit class: rows carry the JPL code, the bar a choice of the pick's groups or one class, the SQL box the same
+assert R.class_code({"ast_class": "apo"}) == "APO" and R.class_code({"ast_class": "nan"}) == "" and R.class_code({}) == ""
+assert 'data-fcls="TJN"' in R.filter_attrs(dict(base, ccode="TJN")) and 'data-s="cls"' in bar
+assert 'value="g:neo"' in bar and 'value="g:other"' in bar and 'value="IEO"' in bar
+assert '"neo": ["APO", "AMO", "ATE", "IEO"]' in R.FILTER_JS and "__GROUPS__" not in R.FILTER_JS
+from pysyzygos import db
+assert db.filter_to_sql({"cls": "g:neo"}) == "(class IS NULL OR class IN ('APO', 'AMO', 'ATE', 'IEO'))"
+assert db.filter_to_sql({"cls": "TJN", "mag": 12}) == "mag <= 12 AND (class IS NULL OR class = 'TJN')"
+assert db.filter_to_sql({"cls": "g:other"}).startswith("(class IS NULL OR class NOT IN ('MBA'")
+assert db.filter_to_sql({"cls": "x'; DROP"}) == ""                      # only known groups or a 3-letter code
 print("REPORT FILTER TESTS PASSED")

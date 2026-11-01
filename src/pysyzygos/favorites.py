@@ -308,6 +308,24 @@ def backfill_phys(lookup, folder=DIR):
     return n
 
 
+def backfill_class(lookup, folder=DIR):
+    """Give favorites added before records carried the JPL orbit class (search.asteroid_class, 2026-10-26) its fields
+    ast_class / ast_class_name, for the report's class filter: lookup(target_id) -> size-cache entry or None
+    (sbdb.get_full; its phys '_class'). Entries without it are tried again next time. Returns the number updated."""
+    items, n = load(folder), 0
+    for e in items:
+        r = e["record"]
+        tid = str(r.get("target_id", "")).strip()
+        if str(r.get("ast_class") or "").strip() not in ("", "nan") or not (tid.isdigit() or is_designation(tid)):
+            continue
+        c = ((lookup(tid) or {}).get("phys") or {}).get("_class") or {}
+        if c.get("value"):
+            r["ast_class"], r["ast_class_name"], n = c["value"], c.get("title") or "", n + 1
+    if n:
+        _save(items, folder)
+    return n
+
+
 def backfill_doubles(check, folder=DIR):
     """Give favorites added before the close/double-star check (doubles.py) its fields: check(record) -> dict of
     fields, or None when it cannot be done now (no catalog). Done once per favorite (the record then has

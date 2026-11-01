@@ -198,7 +198,7 @@ FILTER_HIDE_SQL = {"sup": "star_flag = ''", "unc": "(star_sigma IS NULL OR star_
 
 
 def filter_to_sql(spec):
-    """The filter bar's settings ({'mag': 12.5, ..., 'hide': [...], 'only': [...]}) as an SQL condition, every
+    """The filter bar's settings ({'mag': 12.5, ..., 'cls': 'g:neo', 'hide': [...], 'only': [...]}) as an SQL condition, every
     part joined with AND; '' for no filter. 'only +moon' has no column: kept as a comment."""
     parts = []
     for k, op, tail in (("from", ">=", ""), ("to", "<=", ":59.999")):    # time window: ISO text compares in order
@@ -209,6 +209,16 @@ def filter_to_sql(spec):
         v = (spec or {}).get(k)
         if isinstance(v, (int, float)):
             parts.append(tpl.format(v=f"{v:g}"))
+    v = str((spec or {}).get("cls") or "").strip()                # orbit class: a group 'g:neo' or one code
+    if v:
+        from pysyzygos.picks import GROUPS
+        if v.startswith("g:") and v[2:] == "other":
+            codes = ", ".join(f"'{c}'" for g in GROUPS.values() for c in g)
+            parts.append(f"(class IS NULL OR class NOT IN ({codes}))")
+        elif v.startswith("g:") and v[2:] in GROUPS:
+            parts.append(f"(class IS NULL OR class IN ({', '.join(repr(c) for c in GROUPS[v[2:]])}))")
+        elif re.fullmatch(r"[A-Z]{3}", v):
+            parts.append(f"(class IS NULL OR class = '{v}')")
     v = (spec or {}).get("hzc")                                   # clear of the site's horizon by at least v deg
     if isinstance(v, (int, float)):
         parts.append(f"(horizon_alt(star_az, site) IS NULL OR star_alt - horizon_alt(star_az, site) >= {v:g})")

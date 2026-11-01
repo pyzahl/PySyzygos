@@ -416,6 +416,7 @@ def main():
     os.makedirs(os.path.join(ROOT, favorites.DIR), exist_ok=True)
     from pysyzygos import sbdb                                        # full SBDB data (shape, rotation) for older favorites
     favorites.backfill_phys(lambda t: sbdb.get_full(t, config.cache_path))
+    favorites.backfill_class(lambda t: sbdb.get_full(t, config.cache_path))   # orbit class (report's class filter)
     favorites.backfill_globes(config.map_dir)                   # globe plots of later searches for older favorites
     favorites.backfill_doubles(local_double_check(config))      # close/double stars for favorites added before
     favorites.backfill_names(local_star_names(config))          # UCAC4 / TYC / HIP names (catalog part xref)

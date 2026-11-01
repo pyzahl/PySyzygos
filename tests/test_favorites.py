@@ -122,6 +122,14 @@ assert e["record"]["gaia_ruwe"] is None and F.double_text(e).endswith("with its 
 e["record"]["double_hint"] = ""
 assert F.double_text(e) == "none known (local catalog)"
 assert F.backfill_doubles(lambda r: None, fav) == 0
+# orbit class for favorites added before records carried it (report's class filter), from the SBDB entry's '_class'
+for e in F.load(fav):
+    assert not str(e["record"].get("ast_class") or "").strip()
+seen = []
+look = lambda t: seen.append(t) or dict(phys={"_class": dict(value="TJN", title="Jupiter Trojan")})
+assert F.backfill_class(lambda t: None, fav) == 0 and F.backfill_class(lambda t: {"phys": {}}, fav) == 0
+assert F.backfill_class(look, fav) == n0 and F.backfill_class(look, fav) == 0 and len(seen) == n0, "once per favorite"
+assert F.load(fav)[0]["record"]["ast_class"] == "TJN" and F.load(fav)[0]["record"]["ast_class_name"] == "Jupiter Trojan"
 # OWC-style event summary: from the record (new fields of search.event_context) and, for older favorites, a
 # one-time lookup (Horizons stand-in) plus From/To from the KML's minute marks
 rec2 = dict(target_id="369152", target_name="369152 (2008 SJ52)", best_utc="2026-10-12T04:58:57.081", star="3160985089639151616",

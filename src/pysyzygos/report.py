@@ -168,6 +168,12 @@ def parse_utc(text):
     return t + timedelta(seconds=float("0." + frac)) if frac else t
 
 
+def class_code(r):
+    """The record's JPL orbit class code ('APO', 'MBA', ...), '' if not known (older records, planets and moons)."""
+    code = str(r.get("ast_class") or "").strip().upper()
+    return "" if code in ("", "NAN") else code
+
+
 def class_text(r):
     """'Jupiter Trojan (TJN)' from the record's JPL orbit class (ast_class / ast_class_name); '' if not known."""
     code = str(r.get("ast_class") or "").strip()
@@ -400,7 +406,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
     body = ":" in tid                                            # a planet or moon (bodies.py: P:Jupiter, M:Io)
     label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else asteroid_label(tid, r.get("target_name"))
     return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body,
-                cls=class_text(r), kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
+                cls=class_text(r), ccode=class_code(r), kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
                 contact_dur=num(r.get("duration_s")) if (r.get("d_utc") or "").strip() else None,
                 star=r.get("star", "").strip(), star_name=star_label(r)[0], star_tip=star_label(r)[1], sky_names=sky_names(r),
@@ -1344,7 +1350,7 @@ def event_key(target_id, utc):
 
 def filter_attrs(e):
     """The row's filter values: event time (Unix s, UTC), star mag, duration (s), drop, star and Sun altitude, RUWE,
-    chance (%), flags."""
+    chance (%), flags, orbit class."""
     from pysyzygos import binaries
     flags = [k for k, ok in (
         ("sup", bool(e.get("sflag"))), ("unc", bool(star_uncertain(e) or star_noted(e))), ("dbl", bool(e.get("dhint"))),
@@ -1359,6 +1365,7 @@ def filter_attrs(e):
             f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
             f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
+            f' data-fcls="{esc(e.get("ccode") or "")}"'
             + (f' data-fsite="{esc((e.get("site") or {}).get("name") or "")}"' if e.get("site") else ""))
 
 
@@ -1373,6 +1380,20 @@ def horizon_js(events, meta):
         hz = {}
     data = json.dumps(hz).replace("</", "<\\/")
     return (f"<script>window.PYO_HZ={data};window.PYO_HZSITE={json.dumps(meta.get('site_name') or '')};</script>")
+
+
+def class_select():
+    """The bar's orbit class choice: any, a group as in the pick ('g:neo' = APO AMO ATE IEO; 'g:other' = any class
+    outside the groups) or one JPL class code."""
+    from pysyzygos.picks import GROUPS, GROUP_NAMES, CLASS_NAMES
+    opt = lambda v, t: f'<option value="{esc(v)}">{esc(t)}</option>'
+    groups = "".join(opt("g:" + k, f"{n} ({', '.join(GROUPS[k])})" if k in GROUPS else n)
+                     for k, n in GROUP_NAMES.items())
+    classes = "".join(opt(c, f"{c}: {n}") for c, n in CLASS_NAMES.items())
+    return ('<label title="JPL orbit class of the asteroid (the pick\'s groups or one class); events without a known '
+            'class (older results, planets and moons) pass">class <select data-s="cls">' + opt("", "any")
+            + f'<optgroup label="Groups">{groups}</optgroup><optgroup label="Classes">{classes}</optgroup>'
+            '</select></label>')
 
 
 def filter_bar():
@@ -1394,6 +1415,7 @@ def filter_bar():
             + num("chance", "chance ≥", " %", "1", "chance that the shadow covers the site")
             + num("hzc", "clear of horizon ≥", "°", "1", "star at least this high above your site's horizon "
                   "(sites.py horizon); sites without a horizon pass")
+            + class_select()
             + '</div><div class="frow"><span class="flab">hide:</span>' + hide
             + '<span class="flab">only:</span><label><input type="checkbox" data-o="moon">+moon</label></div>'
             '<div class="frow"><select id="fset" aria-label="Saved filter sets"></select>'
@@ -1421,17 +1443,22 @@ FILTER_JS = """<script>
 (function(){var bar=document.getElementById('fbar');if(!bar)return;
 var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
 var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
-var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1};
+var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1},GRP=__GROUPS__;
+function clsOk(c,want){if(!c||!want)return true;if(want.slice(0,2)!=='g:')return c===want;want=want.slice(2);
+ if(want!=='other')return (GRP[want]||[]).indexOf(c)>=0;
+ for(var g in GRP)if(GRP[g].indexOf(c)>=0)return false;return true;}
 function tsec(v,end){var t=Date.parse(v+'Z');return isNaN(t)?NaN:t/1000+(end?59.999:0);}
 function spec(){var s={},h=[],o=[];
  bar.querySelectorAll('input[data-t]').forEach(function(i){if(i.value&&!isNaN(tsec(i.value)))s[i.dataset.t]=i.value;});
  bar.querySelectorAll('input[data-f]').forEach(function(i){if(i.value!==''&&!isNaN(parseFloat(i.value)))s[i.dataset.f]=parseFloat(i.value);});
+ bar.querySelectorAll('select[data-s]').forEach(function(i){if(i.value)s[i.dataset.s]=i.value;});
  bar.querySelectorAll('input[data-h]').forEach(function(i){if(i.checked)h.push(i.dataset.h);});
  bar.querySelectorAll('input[data-o]').forEach(function(i){if(i.checked)o.push(i.dataset.o);});
  if(h.length)s.hide=h;if(o.length)s.only=o;return s;}
 function setForm(s){s=s||{};
  bar.querySelectorAll('input[data-t]').forEach(function(i){i.value=s[i.dataset.t]||'';});
  bar.querySelectorAll('input[data-f]').forEach(function(i){i.value=(s[i.dataset.f]!==undefined)?s[i.dataset.f]:'';});
+ bar.querySelectorAll('select[data-s]').forEach(function(i){i.value=s[i.dataset.s]||'';});
  bar.querySelectorAll('input[data-h]').forEach(function(i){i.checked=(s.hide||[]).indexOf(i.dataset.h)>=0;});
  bar.querySelectorAll('input[data-o]').forEach(function(i){i.checked=(s.only||[]).indexOf(i.dataset.o)>=0;});}
 var HZ=window.PYO_HZ||{},HZ0=window.PYO_HZSITE||'';
@@ -1442,6 +1469,7 @@ function hzAlt(site,az){var p=HZ[site];if(!p||!p.length)return null;az=((az%360)
 function pass(r,s){var tm=parseFloat(r.dataset.ftime);
  if(s.hzc!==undefined){var az=parseFloat(r.dataset.faz),al=parseFloat(r.dataset.falt),h=hzAlt(r.dataset.fsite||HZ0,az);
   if(h!==null&&!isNaN(az)&&!isNaN(al)&&al-h<s.hzc)return false;}
+ if(!clsOk(r.dataset.fcls||'',s.cls))return false;
  if(!isNaN(tm)){if(s.from&&tm<tsec(s.from))return false;if(s.to&&tm>tsec(s.to,true))return false;}
  for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
   v=parseFloat(v);if(LIM[k]<0?v>s[k]:v<s[k])return false;}
@@ -1466,7 +1494,7 @@ function load(done){if(!served){local();done();return;}
 function store(url){if(!served){keepLocal();return;}
  fetch(url).then(function(r){return r.json();}).then(function(j){if(!j.ok)pyoToast(j.msg,true);})
  .catch(function(){keepLocal();});}
-bar.querySelectorAll('input').forEach(function(i){i.addEventListener('input',function(){sel.value='';apply();});
+bar.querySelectorAll('input,select[data-s]').forEach(function(i){i.addEventListener('input',function(){sel.value='';apply();});
  i.addEventListener('change',function(){sel.value='';apply();});});
 sel.addEventListener('change',function(){if(sel.value&&sets[sel.value])setForm(sets[sel.value]);apply();});
 document.getElementById('fclear').addEventListener('click',function(){setForm({});sel.value='';apply();});
@@ -1483,6 +1511,8 @@ var last={};try{last=JSON.parse(localStorage.getItem(PK)||'{}')||{};}catch(e){}
 setForm(last.spec);apply();if(last.spec&&Object.keys(last.spec).length)bar.open=true;
 load(function(){fill(last.name);});})();
 </script>"""
+from pysyzygos.picks import GROUPS as _GROUPS                   # the class filter's groups (picks.py: stdlib only)
+FILTER_JS = FILTER_JS.replace("__GROUPS__", json.dumps({k: list(v) for k, v in _GROUPS.items()}))
 
 
 def to_html(events, meta):

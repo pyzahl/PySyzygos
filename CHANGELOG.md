@@ -11,6 +11,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   type `2026 ED138` (or `2026_ED138`, `2026ED138`) in the Search tab's target list, or in `targets` of the config.
   Orbit from JPL Horizons and size from SBDB as for numbered ones; maps, previews, globes and the report work. The
   pick still covers numbered asteroids only (SBDB's bulk list), and OWC is not asked for them (it searches by number).
+- **Asteroid class in the results filter**: the filter bar of Results, Favorites and the other result pages has a
+  "class" choice: a group as in the pick (NEO, Main belt, Jupiter Trojans, Mars-crossers, TNO, everything else) or one
+  JPL orbit class (APO, TJN, ...). Saved filter sets keep it, and the SQL box takes it over ("(class IS NULL OR class
+  IN (...))"). Events without a known class (results from before 1.5.0, planets and moons) pass, as for every field
+  of the bar. Favorites added earlier get their class from SBDB once at the next GUI start.
 
 ### Fixed
 - Globe plot of an asteroid whose full name has no number ("(2026 ED138)"): it failed with "list index out of range".
