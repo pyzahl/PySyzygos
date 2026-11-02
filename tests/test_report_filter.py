@@ -57,4 +57,8 @@ assert db.filter_to_sql({"cls": "g:neo"}) == "(class IS NULL OR class IN ('APO',
 assert db.filter_to_sql({"cls": "TJN", "mag": 12}) == "mag <= 12 AND (class IS NULL OR class = 'TJN')"
 assert db.filter_to_sql({"cls": "g:other"}).startswith("(class IS NULL OR class NOT IN ('MBA'")
 assert db.filter_to_sql({"cls": "x'; DROP"}) == ""                      # only known groups or a 3-letter code
+# favorites' note: a flag under the status, the note in its hover bubble
+assert R.note_flag("") == "" and R.note_flag("  ") == ""
+c = R.note_flag("NEGATIVE: no event seen <b>")
+assert '<span class="nflag" tabindex="0"' in c and '<span class="nbub" role="tooltip">NEGATIVE: no event seen &lt;b&gt;</span>' in c, c
 print("REPORT FILTER TESTS PASSED")

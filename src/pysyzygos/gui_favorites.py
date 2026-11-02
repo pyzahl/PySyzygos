@@ -19,6 +19,13 @@ def panel(pg):
         with ui.row().classes("w-full items-center gap-4"):
             pg.fav_info = ui.label().classes("text-sm text-slate-600")
             ui.button("Reload", on_click=lambda: pg.load_favs()).props("flat dense")
+            ui.button("Lists", on_click=lambda: pg.fav_lists()).props("outline dense").tooltip(
+                "Save the current favorites as a named list (default: the date of the last added one), or load a "
+                "saved list again: replace the current favorites with it, or add its events to them. Each list keeps "
+                "its own copies of maps and previews (favorites/lists/)")
+            ui.button("Map of all", on_click=lambda: pg.fav_glance()).props("outline dense").tooltip(
+                "All the favorites' paths (center line, shadow and 1-sigma limits) on one map in a new tab, each "
+                "in its own color and labeled with target and date; the table's filter decides which")
             ui.link("Open in a new tab", "/fav/favorites.html", new_tab=True)
             pc_chk = ui.checkbox("Path verification", value=bool(load_ui_state().get("path_check", False))).tooltip(
                 "Show the tools to compare a favorite's geodetic path with Occult's path listing (pathcheck.py; "
@@ -165,6 +172,104 @@ def handlers(pg):
 
     pg.fav_cur = {"key": None}
 
+    async def fav_glance():
+        """All favorites' paths on one map (favorites.write_glance), those the table shows, in a new tab."""
+        keys = await pg.shown_keys(pg.f_frame)
+        _, n = await run.io_bound(favorites.write_glance, favorites.DIR, keys)
+        if not n:
+            ui.notify("No favorite with a map (KML) to show" + (" among those shown" if keys is not None else ""),
+                      type="warning")
+            return
+        ui.navigate.to(f"/fav/glance.html?t={time.time():.0f}", new_tab=True)
+        ui.notify(f"Map of {n} favorite path{'s' if n != 1 else ''}" + (" (as the table shows them)" if keys is not None
+                                                                       else ""))
+    pg.fav_glance = fav_glance
+
+    def fav_lists():
+        """Dialog: save the favorites as a named list, load (replace / add) or delete saved lists."""
+        def confirm(text, label, action):
+            with ui.dialog() as c, ui.card():
+                ui.label(text)
+                with ui.row().classes("w-full justify-end"):
+                    ui.button("Cancel", on_click=c.close).props("flat")
+                    ui.button(label, on_click=lambda: (c.close(), action())).props("color=primary")
+            c.open()
+
+        def done(ok_msg, reload=False):
+            ok, msg = ok_msg
+            ui.notify(msg, type="positive" if ok else "warning")
+            if reload:
+                pg.load_favs()
+            show.refresh()
+
+        def save():
+            name = (name_in.value or "").strip() or favorites.default_list_name(favorites.load())
+            if any(m["slug"] == favorites.list_slug(name) for m in favorites.lists()):
+                confirm(f"Replace the saved list \u201c{name}\u201d with the current favorites?", "Replace",
+                        lambda: done(favorites.save_list(name, overwrite=True)))
+            else:
+                done(favorites.save_list(name))
+
+        def load(m, mode):
+            n = len(favorites.load())
+            if mode == "add" or not n or favorites.saved_as():               # nothing unsaved is replaced
+                done(favorites.load_list(m["slug"], mode=mode), reload=True)
+            else:
+                confirm(f"The current {n} favorites are not saved as a list (new or changed since). Replace them with "
+                        f"\u201c{m['name']}\u201d ({m['n']})? They are kept as the list "
+                        f"\u201c{favorites.PREVIOUS}\u201d until the next load.", "Replace",
+                        lambda: done(favorites.load_list(m["slug"]), reload=True))
+
+        with ui.dialog() as dlg, ui.card().classes("w-[720px] max-w-full"):
+            ui.label("Favorites lists").classes("text-lg font-semibold")
+            with ui.row().classes("w-full items-end gap-2"):
+                name_in = ui.input("Save the current favorites as",
+                                   value=favorites.default_list_name(favorites.load())).classes("grow")
+                ui.button("Save", on_click=save).props("color=primary")
+            with ui.row().classes("w-full items-end gap-2"):
+                n_obs = len(favorites.past_observed())
+                obs_in = ui.input("Observed events go to the list",
+                                  value=load_ui_state().get("observed_list") or favorites.OBSERVED_LIST).classes(
+                    "grow").tooltip("Name of the list that collects your observed events (created if missing; "
+                                    "the name is remembered)")
+                ui.button(f"Move past observed ({n_obs})", on_click=lambda: archive()).props("outline").tooltip(
+                    "Put every past event marked 'observed' (any outcome) into that saved list (added to the "
+                    "events it holds; a newer copy replaces an older one)")
+                keep_chk = ui.checkbox("keep them in the favorites too", value=False).tooltip(
+                    "Unticked: they are moved (removed from the current favorites)")
+
+            def archive():
+                name = (obs_in.value or "").strip() or favorites.OBSERVED_LIST
+                if not favorites.past_observed():
+                    ui.notify("No past events marked observed", type="warning")
+                    return
+                save_ui_state(observed_list=name)
+                done(favorites.archive_observed(move=not keep_chk.value, name=name), reload=not keep_chk.value)
+
+            @ui.refreshable
+            def show():
+                ls = favorites.lists()
+                if not ls:
+                    ui.label("No saved lists yet.").classes("text-sm text-slate-500")
+                for m in ls:
+                    with ui.row().classes("w-full items-center gap-2 border-t pt-1 no-wrap"):
+                        with ui.column().classes("grow gap-0"):
+                            ui.label(m["name"]).classes("font-medium")
+                            ui.label(f"{m['n']} favorites \u00b7 events {m['span']} \u00b7 saved "
+                                     f"{m['saved'][:16].replace('T', ' ')} UTC").classes("text-xs text-slate-500")
+                        ui.button("Load", on_click=lambda m=m: load(m, "replace")).props("dense outline").tooltip(
+                            "Replace the current favorites with this list")
+                        ui.button("Add", on_click=lambda m=m: load(m, "add")).props("dense flat").tooltip(
+                            "Add this list's events to the current favorites")
+                        ui.button("Delete", on_click=lambda m=m: confirm(
+                            f"Delete the saved list \u201c{m['name']}\u201d?", "Delete",
+                            lambda: done(favorites.delete_list(m["slug"])))).props("dense flat color=negative")
+            show()
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Close", on_click=dlg.close).props("flat")
+        dlg.open()
+    pg.fav_lists = fav_lists
+
     async def fav_vizier():
         from pysyzygos import doubles as D_
         e = next((x for x in favorites.load() if x["key"] == pg.fav_cur["key"]), None)
@@ -297,7 +402,7 @@ def handlers(pg):
         pg.f_ocd.set_visibility(bool(ocd))
         from pysyzygos import doubles as D_
         pg.f_viz.text = "\n".join(D_.vizier_text(e.get("vizier")))
-        pg.f_added.text = f"added {e.get('added', '')[:16].replace('T', ' ')} UT"
+        pg.f_added.text = favorites.prediction_text(e)
         pg.f_status.value, pg.f_note.value = e.get("status", "planned"), e.get("note", "")
         pg.f_img.set_visibility("svg" in files)
         if "svg" in files:

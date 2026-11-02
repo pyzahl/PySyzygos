@@ -136,8 +136,9 @@ The **Results** tab lists every event, best first. For each one:
 Star the events you like.
 
 A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
-twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it) and "hide
-uncertain star". **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
+twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it), "hide
+uncertain star", the asteroid **class** (a group such as NEO, main belt, Jupiter Trojans, or one JPL orbit class) and
+"σ/path width ≤ 0.5" (the path's 1-sigma uncertainty in shadow widths, OccultWatcher's "SigPW"). **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
 exactly what the table shows. For anything else there is the **SQL filter** on the Results tab, e.g.
 `mag < 11 AND chance > 30`: it starts with your filter's settings, which you can then change.
 
@@ -153,13 +154,31 @@ In the **Favorites** tab, **click a row**. Below the table you get:
 * the uncertainty: ellipses for the asteroid's and the star's position, and how far the path may lie from its
   prediction, in km;
 * the asteroid's size, shape and rotation where known, and earlier occultations by it;
-* a **status** (planned, observed, cancelled, clouded) and a **note** to keep.
+* a **status** (planned, observed, cancelled, clouded) and a **note** to keep. In the table, a small amber **note**
+  flag under the status shows that a favorite has a note: hover it to read the note;
+* when the prediction was computed (the search run) and from which JPL orbit solution. An older prediction may be
+  out of date: search the event again before the night.
 
 **Will it be clear?** The **Cloud forecast** button at the top of the Favorites tab fetches the weather forecast for
 every favorite in the next 16 days: a symbol with the cloud cover under each event's time (🌙 clear ... ☁ overcast),
 and the hours around the event in the panel. Click it again closer to the night: only the last 1-3 days are reliable.
 
 Each favorite keeps its own copy of map and preview, so later searches do not change them.
+
+**All paths on one map:** **Map of all** at the top of the Favorites tab opens a map in a new tab with every
+favorite's path (center line, shadow and 1-sigma limits), each in its own color and labeled with asteroid and date.
+The table's filter decides which favorites are drawn. A list beside the map hides single events or zooms to them.
+
+**Keeping lists:** **Lists** at the top of the Favorites tab saves the current favorites under a name (the default
+is "favorites" and the date of the last one added) and loads a saved list again: **Load** replaces the current
+favorites, **Add** adds the list's events to them. It asks first only if the current favorites are not saved as a
+list; the ones replaced are kept as the list "before last load" until the next load. Each list keeps its own copies
+of maps and previews.
+
+**After the night:** set the event's status to **observed** (whatever the result; the note is the place for
+"positive", "negative" and your times). **Move past observed to list…** on the favorites page (next to "Remove past
+events"; also in the Lists dialog) moves every past observed event into a list of your own, e.g. "my observed
+events", which grows with each move. **Remove past events** deletes the favorites whose date has passed.
 
 <img width="2338" height="2043" alt="image" src="https://github.com/user-attachments/assets/a87d10bc-e415-4cf6-9a1d-20facc6dc75a" />
 

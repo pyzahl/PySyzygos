@@ -19,11 +19,27 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Path uncertainty in path widths (OWC's "SigPW") in the results filter**: "σ/path width ≤" keeps events whose
   1-sigma path uncertainty is at most that many shadow widths (1-sigma / (2 x radius); 0.5 = half a width). Events
   without a sigma pass; the SQL box gets "sigma <= v * 2 * radius".
+- **Favorites lists**: Favorites tab "Lists" saves the current favorites under a name (default: "favorites" and the
+  date of the last added one) and loads a saved list again, replacing the current favorites (which are kept as the
+  list "before last load") or adding its events to them. Replacing asks first only when the current favorites are
+  not saved as a list (new or changed since). Each list keeps its own copies of the maps and previews
+  (favorites/lists/). "Move past observed" moves every past event marked observed (any outcome) into a list of
+  your choice (default "observed", the name is remembered), added to the events it already holds (or copies them,
+  keeping them in the favorites). The same action is on the favorites page itself: "Move past observed to list…"
+  next to "Remove past events" asks for the list's name.
+- **Map of all favorites**: Favorites tab "Map of all" opens one map with every favorite's path (center line, shadow
+  and 1-sigma limits from its KML), each in its own color and labeled with target and date; a list beside it hides or
+  zooms to single events. The table's filter decides which favorites are drawn.
 
 ### Fixed
 - Globe plot of an asteroid whose full name has no number ("(2026 ED138)"): it failed with "list index out of range".
 
 ### Changed
+- **Favorites table without a Note column**: a favorite with a note shows a small amber "note" flag under its status;
+  hovering it (or tabbing to it) shows the whole note in a bubble. The note stays in the panel, the CSV and the lists.
+- **Favorites table without the "Added (UT)" column**. The detail panel now says when the prediction was computed
+  (the search run) and from which orbit: "predicted 2026-10-30 01:47 UT (search run), orbit JPL#1029 of 2026-10-28;
+  added ...". The added date stays in the CSV and the saved lists (list names default to the last added date).
 - **A stopped run says so**: its last log line reads "--- stopped after 107 s (Stop button, exit code -15)" (or Quit,
   Restart) instead of "finished with exit code -15", which looked like a failure.
 

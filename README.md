@@ -520,9 +520,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    events** of the IOTA / Occult archive (with the add-on below); the filter bar and the SQL filter work on each.
 6. **Favorites**: the events you starred, from any search and any site, each with its own copy of map and preview
    (later searches do not change them). The table is the Results table (same columns, sorting and tools: KStars,
-   Map, Preview, KML) plus a select box, the site, status, note and when it was added. Check rows to set their
-   status (planned / observed / cancelled / clouded) or remove them; **Remove past events** drops every favorite
-   whose event is before today (UTC); **times** switches the event times between UT, your computer's time zone (Local)
+   Map, Preview, KML) plus a select box, the site and the status (an amber **note** flag under it when the favorite
+   has a note: hover it to read the note). Check rows to set their status (planned / observed / cancelled / clouded)
+   or remove them; **Remove past events** drops every favorite whose event is before today (UTC); **Move past
+   observed to list…** moves every past event marked observed (any outcome) into a saved list of your choice (e.g.
+   "my observed events", added to what it holds); **times** switches the event times between UT, your computer's time zone (Local)
    and the time zone of each event's site (Site). Click a row to see its star-field preview and shadow path map side by side
    below the table, then an event summary laid out like OccultWatcher Cloud's event page (Prediction: computed when
    and by which version, orbit solution JPL#, path error in path widths and in time; Event: when the shadow is on
@@ -542,6 +544,14 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    the hours around it. Kept in `weather_cache.json`; click again for a newer forecast (trust the last 1-3 days
    only). Drag the bottom-right corner of the table to resize it (remembered
    in your browser; the Results report and the Pick table have the same corner).
+   **Lists** saves the current favorites under a name (default: "favorites" and the date of the last one added) and
+   loads a saved list again: **Load** replaces the current favorites (it asks only when they are not saved as a list;
+   the replaced ones are kept as "before last load" until the next load), **Add** adds the list's events, **Delete**
+   removes the list. Each list keeps its own copies of maps and previews (`favorites/lists/`). **Map of all** opens
+   one map with every favorite's path (center line, shadow and 1-sigma limits), each in its own color and labeled
+   with asteroid and date, the sites as pins, and a list to hide single events or zoom to them; the table's filter
+   decides which favorites are drawn (`favorites/glance.html`). The panel's small line under the event says when
+   the prediction was computed (the search run) and from which orbit solution, and when the favorite was added.
    **Path verification** (checkbox at the top, off by default): compare a favorite's geodetic path with Occult's
    path listing for the same event, as in VERIFICATION.md section 3. These tasks run beside a search, pick or
    pre-screen; their output goes to the Favorites tab's own log (that tab shows no other log). *Compute our path (fresh)* runs the search for
@@ -1284,7 +1294,9 @@ pysyzygos --port 8090 --no-browser
   **Filter** (the bar above the table): a time window (from / to, UTC), faintest star (G), shortest duration,
   smallest drop, lowest star altitude, how far the star must clear your site's horizon (also for searches run
   before the horizon was set: it uses the horizon in `sites.py` now and the star's direction stored per event),
-  highest Sun altitude, largest RUWE, smallest chance, and checkboxes that hide supplement stars, uncertain stars,
+  highest Sun altitude, largest RUWE, smallest chance, the largest path uncertainty in path widths ("σ/path width":
+  1-sigma / shadow width, as OccultWatcher's SigPW), the asteroid class (a group as in the pick, e.g. NEO or Jupiter
+  Trojans, or one JPL orbit class; events without a known class pass), and checkboxes that hide supplement stars, uncertain stars,
   close/double stars, twilight events, events near or behind your horizon and estimated sizes (or show only asteroids
   with a known satellite). It filters at once and says "showing n of m". **Save as...** keeps the settings under a
   name; the saved sets are shared by Results, Favorites and Planets & Moons (kept by the GUI in `gui_state.json`).

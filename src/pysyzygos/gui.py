@@ -483,6 +483,20 @@ def main():
         favorites.write_page()
         return {"ok": ok, "msg": msg}
 
+    @app.get("/api/favorites/observed_list")
+    def favorites_observed_list():
+        """The list that collects observed events (remembered name) and how many past observed events there are."""
+        return {"name": load_ui_state().get("observed_list") or favorites.OBSERVED_LIST,
+                "n": len(favorites.past_observed())}
+
+    @app.get("/api/favorites/archive")
+    def favorites_archive(name: str = ""):
+        name = name.strip() or load_ui_state().get("observed_list") or favorites.OBSERVED_LIST
+        save_ui_state(observed_list=name)
+        ok, msg = favorites.archive_observed(name=name)
+        favorites.write_page()
+        return {"ok": ok, "msg": msg}
+
     @app.get("/api/favorites/add")
     def favorites_add(tid: str, utc: str):
         from pysyzygos import config as cfg, report, db

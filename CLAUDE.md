@@ -627,6 +627,15 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   diameter_sigma, extent, albedo as (value, ref)) copied at add time (/dev/shm cache is volatile); GUI start
   backfills it for older entries. `favorites.csv` is rewritten by every `_save` (flat: key/status/note/added/site,
   all record columns, sbdb_*, file paths).
+  Saved lists (2026-11-02, user's wish): `save_list(name=None, overwrite)` -> favorites/lists/<list_slug>/ (list.json:
+  name, saved, version, n, span, entries; files/<key>/ copies without LIST_SKIP run/, *.bsp), `default_list_name`
+  ('favorites <last added date>'), `lists()`, `load_list(slug, mode replace|add)` (current ones first saved as PREVIOUS
+  "before last load"; PREVIOUS can load itself: copied to a temp folder first; replace deletes the folders of the
+  favorites not in the list), `delete_list`; `add_to_list(name, entries)` (merge by key, newer wins, sorted by event), `past_observed(now)` (status observed, event over), `archive_observed(move)` -> OBSERVED_LIST 'observed' (dialog: name field gui_state observed_list, button + 'keep them in the favorites too'; page favbar #favobs -> /api/favorites/observed_list (name, n) -> pyoAsk -> /api/favorites/archive?name=). Map of all (`glance_data(keys)`, `write_glance(keys)` ->
+  favorites/glance.html: Leaflet, GLANCE_LINES Centre/Shadow limit/1-sigma, GLANCE_COLORS per event, label = target +
+  date at the center point nearest the site, `declutter` hides overlapping labels on zoom). GUI Favorites buttons
+  "Lists" (`pg.fav_lists` dialog) and "Map of all" (`pg.fav_glance`: pg.shown_keys -> new tab /fav/glance.html).
+  tests/test_favorites_lists.py.
   Event summary (0.14.x): `favorites.event_info(entry)` -> [(group, [(label, value)])] like OWC's event page
   (Prediction/Event/Star/Object; astropy TETE for the apparent place, get_constellation), shown as a 4-column
   grid in the GUI panel. Record fields from `search.event_context` (end of the record); `backfill_event` (GUI start)

@@ -527,7 +527,7 @@ th,td{padding:8px 7px;text-align:left;white-space:nowrap;border-bottom:1px solid
 th{white-space:normal;vertical-align:bottom}
 td.tools{white-space:normal;min-width:9.5em} td.ast{white-space:normal;min-width:9em}
 td .sub{white-space:normal} .badge{white-space:nowrap}
-@media (max-width:1180px){.c-narrow{display:none}}   /* favorites on narrow windows: note and date are in the panel */ td.tools .mapbtn{margin:2px 0}
+td.tools .mapbtn{margin:2px 0}
 th{background:var(--head);font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);
 cursor:pointer;user-select:none;position:sticky;top:0}
 th.sorted-asc::after{content:" ▲"}th.sorted-desc::after{content:" ▼"}
@@ -668,7 +668,12 @@ FAVPAGE_JS = """<style>
 .favbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px;font-size:.9rem}
 .favbar select{font:inherit;padding:2px 4px}
 th,td{padding:8px 6px} tr.favrow{cursor:pointer} tr.favrow.cur td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
-td.note{max-width:12em;overflow:hidden;text-overflow:ellipsis}
+td.fstat{position:relative}td.fstat .nflag{display:inline-block;margin-top:3px;padding:0 6px;border-radius:4px;
+ font-size:.72rem;font-weight:600;line-height:1.5;background:#fde68a;color:#78350f;cursor:help}
+td.fstat .nbub{display:none;position:absolute;right:0;top:100%;z-index:20;width:max-content;
+ max-width:24em;white-space:pre-wrap;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+ color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.18);font-size:.85rem;line-height:1.35;text-align:left}
+td.fstat .nflag:hover+.nbub,td.fstat .nflag:focus+.nbub{display:block}
 tr.favrow td:last-child{white-space:normal;min-width:9.5em}
 </style><script>
 (function(){
@@ -693,6 +698,12 @@ document.getElementById('favdel').addEventListener('click',function(){var k=need
   call('/api/favorites/remove?'+new URLSearchParams({keys:k.join(',')}));});});
 document.getElementById('favpast').addEventListener('click',function(){
  pyoAsk('Remove every favorite whose event is before today (UTC)?','Remove',function(){call('/api/favorites/cleanup');});});
+document.getElementById('favobs').addEventListener('click',function(){
+ fetch('/api/favorites/observed_list').then(function(r){return r.json();}).then(function(j){
+  if(!j.n){pyoToast('No past events marked observed');return;}
+  pyoAsk('Move the '+j.n+' past event(s) marked observed into this list (added to what it holds):','Move',function(n){
+   call('/api/favorites/archive?'+new URLSearchParams({name:n||j.name}));},j.name);})
+ .catch(function(){pyoToast('Favorites: no answer from the GUI (open this page from the GUI)',true);});});
 document.querySelectorAll('tr.favrow').forEach(function(tr){tr.addEventListener('click',function(ev){
  if(ev.target.closest('input,button,a'))return;
  document.querySelectorAll('tr.favrow.cur').forEach(function(x){x.classList.remove('cur');});
@@ -1214,10 +1225,7 @@ def html_row(e):
                 f'value="{esc(f["key"])}" aria-label="Select {esc(e["label"])}"></td>')
         mid = f'<td data-s="{esc(site)}">{esc(site)}</td>'
         calc = ""
-        tail = (f'<td data-s="{esc(f["status"])}">{esc(f["status"])}</td>'
-                f'<td data-s="{esc(f["note"])}" class="note c-narrow" title="{esc(f["note"])}">{esc(f["note"][:40])}'
-                f'{"…" if len(f["note"]) > 40 else ""}</td>'
-                f'<td class="c-narrow" data-s="{esc(f["added"])}" title="{esc(f["added"])} UTC">{esc(f["added"][5:16].replace("T", " "))}</td>')
+        tail = (f'<td data-s="{esc(f["status"])}" class="fstat">{esc(f["status"])}{note_flag(f["note"])}</td>')
     else:
         lead, mid, tail = f"<tr{filter_attrs(e)}>", "", ""
         calc = ""                                                # calculation time: in hits_log.csv only
@@ -1346,6 +1354,16 @@ def event_key(target_id, utc):
     """An event's key in the pages and exports: 'target|YYYY-MM-DDTHH:MM:SS' (the CSV downloads keep the rows the
     page shows, exports.only_shown)."""
     return f"{str(target_id).strip()}|{str(utc).strip()[:19]}"
+
+
+def note_flag(note):
+    """A favorite's note in the table: a small flag under the status, the note in a bubble on hover or keyboard
+    focus; '' without a note."""
+    note = str(note or "").strip()
+    if not note:
+        return ""
+    return (f'<br><span class="nflag" tabindex="0" aria-label="Note: {esc(note)}">note</span>'
+            f'<span class="nbub" role="tooltip">{esc(note)}</span>')
 
 
 def filter_attrs(e):
@@ -1532,7 +1550,7 @@ def to_html(events, meta):
             '<th class="num" data-k title="Distance of the observer from the shadow centre line (' + DIST_HEAD[DISTANCE] + ')">Shadow dist</th>'
             '<th class="num" data-k title="Chance that the shadow covers your site, from the shadow distance, the shadow '
             'radius and the 1-sigma path uncertainty">Chance</th>'
-            + ('<th data-k>Status</th><th data-k class="c-narrow">Note</th><th data-k class="c-narrow">Added (UT)</th>'
+            + ('<th data-k title="Status; the note flag marks events with a note (hover it)">Status</th>'
                if fav else "")
             + '<th title="☆ favorites and KStars (when opened from the GUI), Map: shadow path, Preview: star field, '
             'KML: ground track for Google Earth">Tools</th>')
@@ -1573,6 +1591,9 @@ def to_html(events, meta):
                  f'<button class="mapbtn" id="favdel" type="button">Remove selected</button>'
                  f'<button class="mapbtn" id="favpast" type="button" title="Remove every favorite whose event is '
                  f'before today (UTC)">Remove past events</button>'
+                 f'<button class="mapbtn" id="favobs" type="button" title="Move every past event marked observed (any '
+                 f'outcome) into a saved list of your choice (Lists in the GUI: load it again any time)">Move past '
+                 f'observed to list…</button>'
                  f'<label title="Event times in UT, in this computer\'s time zone (Local), or in the time zone of each '
                  f'event\'s site (Site; looked up once per site), with daylight saving time">times '
                  f'<select id="favtime"><option value="ut">UT</option><option value="local">Local</option>'
