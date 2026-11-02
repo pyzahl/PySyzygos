@@ -16,6 +16,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   JPL orbit class (APO, TJN, ...). Saved filter sets keep it, and the SQL box takes it over ("(class IS NULL OR class
   IN (...))"). Events without a known class (results from before 1.5.0, planets and moons) pass, as for every field
   of the bar. Favorites added earlier get their class from SBDB once at the next GUI start.
+- **Path uncertainty in path widths (OWC's "SigPW") in the results filter**: "σ/path width ≤" keeps events whose
+  1-sigma path uncertainty is at most that many shadow widths (1-sigma / (2 x radius); 0.5 = half a width). Events
+  without a sigma pass; the SQL box gets "sigma <= v * 2 * radius".
 
 ### Fixed
 - Globe plot of an asteroid whose full name has no number ("(2026 ED138)"): it failed with "list index out of range".

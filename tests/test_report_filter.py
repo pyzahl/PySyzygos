@@ -4,13 +4,14 @@ in the page. No SPICE, no network."""
 import os, re, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import report as R
+from pysyzygos.db import filter_to_sql as db_sql
 
 base = dict(tid="99999999", utc="2026-11-01T01:02:03.456", body=False, mag=10.5, dur=1.25, drop=2.0, alt=35.0, sun=-25.0, ruwe=1.2, p_site=0.42,
             sflag="", star_sigma=None, rad=5.0, dhint="", hz=("", None, None), size_src="SBDB diameter")
 a = R.filter_attrs(base)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', a))
 assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00", az="",
-                    flags="", cls=""), vals
+                    flags="", cls="", sigpw=""), vals
 e = dict(base, sflag="RUWE 1.70", star_sigma=8.0, dhint="companion", sun=-8.0, hz=("near", 20.0, 3.0),
          size_src="H only, albedo assumed", ruwe=None, p_site=None)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', R.filter_attrs(e)))
@@ -42,6 +43,10 @@ assert "start \u2248 01:02:02.656, end \u2248 01:02:04.256" in t and "your site"
 t = R.start_end_text(dict(when=when, dur=2.0, rad=5.0, miss=8.0))
 assert "01:02:02.456" in t and "01:02:04.456" in t and "outside the shadow" in t, t
 assert R.start_end_text(dict(when=when, dur=None, rad=5.0, miss=1.0)) == ""
+# OWC's SigPW: path 1-sigma / path width (2 x radius); unknown sigma passes
+assert 'data-fsigpw="0.300"' in R.filter_attrs(dict(base, sigma1=3.0, rad=5.0)) and 'data-f="sigpw"' in bar
+assert "sigpw:-1" in R.FILTER_JS
+assert db_sql({"sigpw": 0.5}) == "(sigma IS NULL OR radius IS NULL OR radius = 0 OR sigma <= 0.5 * 2 * radius)"
 # orbit class: rows carry the JPL code, the bar a choice of the pick's groups or one class, the SQL box the same
 assert R.class_code({"ast_class": "apo"}) == "APO" and R.class_code({"ast_class": "nan"}) == "" and R.class_code({}) == ""
 assert 'data-fcls="TJN"' in R.filter_attrs(dict(base, ccode="TJN")) and 'data-s="cls"' in bar

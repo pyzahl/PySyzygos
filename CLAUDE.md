@@ -287,7 +287,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (+ page note .sqlnote); GUI Results "SQL filter (advanced)" (gui_results: sql_in, word suggestions sql_sugg,
   Fields table rowClick inserts, examples, saved conditions gui_state sql_queries, active sql_where used by every
   build_report; gui_results.connect). Report filter bar (all layouts): rows carry data-f* (`report.filter_attrs`:
-  mag dur drop alt sun ruwe chance% flags sup/unc/dbl/twi/hz/est/moon, cls (2026-10-31: `report.class_code` -> data-fcls; bar `class_select` select[data-s=cls]: '' any, 'g:<group>' picks.GROUPS ('g:other' = none of them) or one code; JS GRP from picks.GROUPS, unknown class passes; db.filter_to_sql 'cls'; favorites.backfill_class at GUI start from sbdb.get_full '_class'); data-ftime = Unix s UTC for the time window
+  mag dur drop alt sun ruwe chance% sigpw (2026-11-02, OWC's SigPW = sigma1 / (2 rad), FILTER_SQL sigpw) flags sup/unc/dbl/twi/hz/est/moon, cls (2026-10-31: `report.class_code` -> data-fcls; bar `class_select` select[data-s=cls]: '' any, 'g:<group>' picks.GROUPS ('g:other' = none of them) or one code; JS GRP from picks.GROUPS, unknown class passes; db.filter_to_sql 'cls'; favorites.backfill_class at GUI start from sbdb.get_full '_class'); data-ftime = Unix s UTC for the time window
   from/to (datetime-local inputs data-t, read as UTC; 'to' includes its minute; SQL utc >= 'from' / <= 'to:59.999')), `filter_bar`/FILTER_JS: instant filter,
   "showing n of m", named sets via GUI `/api/filters|save|delete` (gui_state filters; file:// -> localStorage),
   the page's last filter in localStorage pyo_filter:<path>; favorites select-all and mass actions only on shown

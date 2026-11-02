@@ -1350,7 +1350,7 @@ def event_key(target_id, utc):
 
 def filter_attrs(e):
     """The row's filter values: event time (Unix s, UTC), star mag, duration (s), drop, star and Sun altitude, RUWE,
-    chance (%), flags, orbit class."""
+    chance (%), path 1-sigma per path width (OWC's SigPW), flags, orbit class."""
     from pysyzygos import binaries
     flags = [k for k, ok in (
         ("sup", bool(e.get("sflag"))), ("unc", bool(star_uncertain(e) or star_noted(e))), ("dbl", bool(e.get("dhint"))),
@@ -1360,11 +1360,12 @@ def filter_attrs(e):
     v = lambda x, nd=3: "" if x is None else f"{x:.{nd}f}"
     dur = e.get("contact_dur") if e.get("body") and e.get("contact_dur") else e.get("dur")
     chance = None if e.get("p_site") is None else 100.0 * e["p_site"]
+    sigpw = e["sigma1"] / (2 * e["rad"]) if e.get("sigma1") is not None and e.get("rad") else None
     t = e["when"].timestamp() if e.get("when") is not None else None
     return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}" data-ftime="{v(t, 0)}"'
             f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
-            f' data-fchance="{v(chance, 2)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
+            f' data-fchance="{v(chance, 2)}" data-fsigpw="{v(sigpw)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
             f' data-fcls="{esc(e.get("ccode") or "")}"'
             + (f' data-fsite="{esc((e.get("site") or {}).get("name") or "")}"' if e.get("site") else ""))
 
@@ -1413,6 +1414,8 @@ def filter_bar():
             + num("sun", "Sun ≤", "°", "1", "highest Sun altitude (e.g. -12: no twilight)")
             + num("ruwe", "RUWE ≤", "", "0.1", "Gaia RUWE (stars without a value pass)")
             + num("chance", "chance ≥", " %", "1", "chance that the shadow covers the site")
+            + num("sigpw", "σ/path width ≤", "", "0.1", "path uncertainty (1 sigma) in path widths, as OWC's "
+                  "SigPW: 0.5 = the 1-sigma error is half the shadow's width (events without a sigma pass)")
             + num("hzc", "clear of horizon ≥", "°", "1", "star at least this high above your site's horizon "
                   "(sites.py horizon); sites without a horizon pass")
             + class_select()
@@ -1443,7 +1446,7 @@ FILTER_JS = """<script>
 (function(){var bar=document.getElementById('fbar');if(!bar)return;
 var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
 var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
-var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1},GRP=__GROUPS__;
+var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1,sigpw:-1},GRP=__GROUPS__;
 function clsOk(c,want){if(!c||!want)return true;if(want.slice(0,2)!=='g:')return c===want;want=want.slice(2);
  if(want!=='other')return (GRP[want]||[]).indexOf(c)>=0;
  for(var g in GRP)if(GRP[g].indexOf(c)>=0)return false;return true;}

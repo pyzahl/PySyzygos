@@ -191,7 +191,8 @@ def _horizon_functions(con, list_site):
 # fields often unknown keep the bar's rule "unknown values pass" (IS NULL OR ...)
 FILTER_SQL = {"mag": "mag <= {v}", "dur": "duration >= {v}", "drop": "(mag_drop IS NULL OR mag_drop >= {v})",
               "alt": "star_alt >= {v}", "sun": "sun_alt <= {v}", "ruwe": "(ruwe IS NULL OR ruwe <= {v})",
-              "chance": "(chance IS NULL OR chance >= {v})"}
+              "chance": "(chance IS NULL OR chance >= {v})",
+              "sigpw": "(sigma IS NULL OR radius IS NULL OR radius = 0 OR sigma <= {v} * 2 * radius)"}   # OWC's SigPW
 FILTER_HIDE_SQL = {"sup": "star_flag = ''", "unc": "(star_sigma IS NULL OR star_sigma <= 0.5 * radius)",
                    "dbl": "double_hint = ''", "twi": "sun_alt <= -12", "hz": "horizon NOT IN ('behind', 'near')",
                    "est": "size_source NOT LIKE 'H only%'"}
