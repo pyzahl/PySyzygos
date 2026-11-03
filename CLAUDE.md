@@ -323,6 +323,50 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   login: not used). Match by Gaia id (`gaia.id`) else time (10 min); 1 s pause, User-Agent PySyzygos; on click only
   (GUI "Check OWC Feeds" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
   under the asteroid (tags, station count, hover: observer, signed distance km, commitment).
+- Observation GUI (2026-11-02, user's wish: strictly separate from the search GUI): `pysyzygos/gui_observation.py`
+  (`pysyzygos gui-observation`, COMMANDS, port 8081, 127.0.0.1 only, server_mode.Guard without auth, own state
+  gui_observation_state.json (cleanup SETTINGS); `build_page`: tabs Status (`status_lines`, NOT_YET), Events
+  (`sources()`: fav (status observed) / favall / list:<slug> / archive (`archive_rows`: observations.db, read-only, by
+  number/name/date, ARCHIVE_LIMIT 300; observer select) / reports), Report (form from obsreport.FIELDS by section,
+  W widgets, `set_fields(only_known)` for imports, missing line, Find PyStarLight (roots: state pystarlight_dirs, else
+  ../PyStarLight beside the data folder), uploads .event.json / .txt, Save, IOTA-ES .txt download)). Reads
+  favorites/lists/archive only. `pysyzygos/obsreport.py` (stdlib): FIELDS (key, label, section, kind, choices) =
+  IOTA-ES report form 2.03 (DVTI+CAM template; codes DATUM/TELESCOPE/METHOD/TIME_SOURCE/D_CODES/R_CODES/TRANSPARENCY/
+  STABILITY as Occult's <Observer>), `from_favorite` (predicted D/R = best -+ chord/2, chord = dur sqrt(1-(d/r)^2);
+  site equipment from sites.py by name), `from_archive(rec, contacts, observer)`, `from_pystarlight` (event.json of
+  PyStarLight's viewer: step_fit.events[0] D_utc/R_utc, transitions sigma_s, SNR = step / first level's scatter, more
+  events -> extra_events), `find_pystarlight` (os.walk, links not followed: OTEVideo is a link to an external drive),
+  `to_iotaes` / `from_iotaes` (round trip; our extra fields PersonalEquationSec, GaiaDR3, TelescopeModel, MoreEvents),
+  `save` (observations/<event_key>/<station>.json, created/source kept), `saved`, `missing`. observations/ is in
+  cleanup NEVER and .gitignore. Never write into PyStarLight's data folders (read only). tests/test_obsreport.py.
+  Round 2 (2026-11-02, user: data must come authentically from the recording): from_pystarlight returns (fields,
+  note, origin {field: recording|analysis}); RECORDING_KEYS (metadata -> field, incl. proposed TELESCOPE-TYPE,
+  APERTURE-CM, FOCAL-LENGTH-CM, FOCAL-REDUCER (field reducer), MOUNT, DATUM, TIME-SOURCE, EXPOSURE-S, CAMERA-DELAY-S,
+  OBSERVER-2, STATION); GUI marks hints (from the recording / analysis / prediction; 'edited <origin>' with the
+  given value), saved in the report's origin; `header(sources)` '... 2.03 - PySyzygos <v>; data from PyStarLight <v>'
+  (provisional), `to_iotaes(f, extras, origin, sources)` (extras: TelescopeModel, FocalReducer, PersonalEquationSec,
+  GaiaDR3, MoreEvents, DataFrom; GUI checkbox, state extras). Inbox: `store_analysis`, `inbox`, `matching` (favorite
+  of the same asteroid and night); API (gui_observation.add_api): GET /api/obs/v1/, POST /api/obs/v1/analysis;
+  --host/--server/--no-auth with the search GUI's server_auth.json; server_mode.Guard(token_paths, token_post)
+  (search GUI default unchanged: read /api/v1/ and /fav/ only). Contract and checklist: docs/observation_interface.md.
+  Local handshake (2026-11-02): `obsreport.api_setup(url, inbox, data_folder)` writes home.config_dir()/API_FILE
+  observation_api.json at every local start (token 'pyobs_' made once, kept; mode 600; atomic), `api_key_ok` (hmac
+  compare); local POST needs it (401), GET status open; server mode: Guard tokens as before. Search GUI Favorites
+  button "Observations" (`pg.open_observations`, not in server mode): GET 127.0.0.1:GO.PORT/api/obs/v1/, else
+  Popen `-m pysyzygos gui-observation --no-browser` (start_new_session, PYSYZYGOS_HOME, log logs/observation_gui.log),
+  waits up to 20 s, refuses a port answering as another app, opens a new tab. Server mode too (user runs the search
+  GUI with --host 0.0.0.0): started with GUI_ARGS host/--server/--no-auth, asked with the connection file's key
+  (a 401 with realm PySyzygos also counts), opened by JS at location.hostname:8081 (the session cookie is per host,
+  not port: one login); Guard(local_key=...) accepts that key only from a loopback client (checked: 401 via the LAN
+  address); the connection file is written for 127.0.0.1 and 0.0.0.0 hosts. Port (2026-11-02, first default 8088 is
+  held by a root service on 127.0.0.1 here; default now 8081, user's choice): without --port `free_port(host)` = first of PORT..PORT+PORTS-1 that binds
+  (`port_free`; 0.0.0.0 conflicts with a 127.0.0.1 listener), explicit busy --port exits; the connection file's url
+  carries the port, the button reads it (waits for a file written after its start, gives up when the child exits,
+  log logs/observation_gui.log) and strips NICEGUI_* from the child's environment.
+  Own power button (Restart/Quit; no Quit in server mode): `restart_app` execs `-m pysyzygos gui-observation` with RUN's
+  port/host/--server/--no-auth (checked: same port, page reconnects); `port_free` sets SO_REUSEADDR (not on
+  Windows) so a restart's TIME_WAIT does not count as taken. The two apps restart independently. PyStarLight instructions (for the
+  user's PyStarLight session) were given as a scratch file, not in the repo.
 - `pysyzygos/weather.py` (2026-10-29, user's wish: "will it be clear?"): Open-Meteo forecast (URL_OPEN_METEO, no key,
   hourly cloud_cover + low/mid/high, precipitation_probability, visibility; 16 days, model best_match) per site
   (`site_key` = lat/lon to 0.01 deg) -> <data folder>/weather_cache.json (gitignored, cleanup DOWNLOADS); `check(favs)`

@@ -81,3 +81,5 @@ weather_cache.json
 /docs/math/pysyzygos_math.pdf
 /docs/math/xref_table.tex.tmp
 /docs/math/version.tex
+/observations/
+/gui_observation_state.json

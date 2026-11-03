@@ -27,7 +27,8 @@ if not os.path.isdir(DEFAULT) and os.path.isdir(LEGACY_DEFAULT):
 
 
 def config_dir(platform=sys.platform, environ=os.environ, name="PySyzygos"):
-    """The system's folder for PySyzygos's own settings (only the data-folder setting lives there)."""
+    """The system's folder for PySyzygos's own settings: the data-folder setting (POINTER) and the observation
+    GUI's connection file for PyStarLight (obsreport.API_FILE)."""
     if platform.startswith("win"):
         return os.path.join(environ.get("APPDATA") or os.path.expanduser("~\\AppData\\Roaming"), name)
     if platform == "darwin":

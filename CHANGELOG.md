@@ -7,6 +7,21 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.5.2] "Beyond Horizons" - 2026-11-02
 
 ### Added
+- **☆ Star all shown** on the Results page (below the filter bar): adds every event the table shows after the filter to the favorites, asked once, one after another, with a count at the end.
+- **Observation GUI** (`pysyzygos gui-observation`, port 8081; a separate app beside the search GUI): Status, Events
+  (favorites marked observed, saved lists, the Occult archive and its observers, saved reports) and Report: an
+  observation report with the fields of the IOTA-ES report form, prefilled from the event (asteroid, star, predicted
+  time and D/R at the site, site, prediction details), filled from a PyStarLight analysis (`<movie>.event.json`: D/R
+  times with errors, recording, camera, site) or an IOTA-ES report form, saved in `observations/` and written as
+  report form text for the submission. `obsreport.py`; tests/test_obsreport.py. Every field shows its origin (the
+  recording: GPS site and time, camera, telescope, observers; the analysis; the prediction; edited by hand), the
+  report form's first line names the PySyzygos and PyStarLight versions, and PySyzygos' own extra lines can be
+  switched off. PyStarLight can send its analyses over the network (`POST /api/obs/v1/analysis`, with a program
+  token from another computer); `docs/observation_interface.md` lists what the camera tool and PyStarLight provide.
+  On one computer the connection sets itself up: a connection file with address, inbox and a key made at the first
+  start (`observation_api.json` in the PySyzygos settings folder, mode 600), read by PyStarLight. The search GUI's
+  Favorites tab has an **Observations** button that starts the observation GUI if needed and opens it, also in
+  server mode (same address and login; the connection file's key then works from this computer only).
 - **Unnumbered asteroids as search targets** by their provisional designation, e.g. the newly found TNO **2026 ED138**:
   type `2026 ED138` (or `2026_ED138`, `2026ED138`) in the Search tab's target list, or in `targets` of the config.
   Orbit from JPL Horizons and size from SBDB as for numbered ones; maps, previews, globes and the report work. The

@@ -27,6 +27,10 @@ def panel(pg):
                 "All the favorites' paths (center line, shadow and 1-sigma limits) on one map in a new tab, each "
                 "in its own color and labeled with target and date; the table's filter decides which")
             ui.link("Open in a new tab", "/fav/favorites.html", new_tab=True)
+            ui.button("Observations", on_click=lambda: pg.open_observations()).props("outline dense").tooltip(
+                "The observation GUI (a separate app on port 8081 of this computer): reports of your observed events, "
+                "analyses from PyStarLight. Started in the background if it is not running yet, in the same mode as "
+                "this GUI (in server mode with the same login)")
             pc_chk = ui.checkbox("Path verification", value=bool(load_ui_state().get("path_check", False))).tooltip(
                 "Show the tools to compare a favorite's geodetic path with Occult's path listing (pathcheck.py; "
                 "method: VERIFICATION.md section 3)")
@@ -171,6 +175,69 @@ def handlers(pg):
     pg.fav_csv = fav_csv
 
     pg.fav_cur = {"key": None}
+
+    async def open_observations():
+        """Open the observation GUI (gui_observation; its port is in the connection file: 8081 or the next free one),
+        started in the background if it does not answer, in this GUI's mode (server mode: same host and login)."""
+        import asyncio, subprocess, sys, time as _t
+        from urllib.parse import urlparse
+        from pysyzygos import gui_observation as GO, obsreport, server_mode
+        from pysyzygos.gui import GUI_ARGS
+
+        def conn():
+            try:
+                return obsreport.load(obsreport.api_file())
+            except (OSError, ValueError):
+                return {}
+
+        def answer(c):
+            """The app's name at the connection file's address, '' if something else answers, None if nothing."""
+            import urllib.error, urllib.request
+            port = urlparse(c.get("url") or "").port
+            if not port:
+                return None
+            req = urllib.request.Request(f"http://127.0.0.1:{port}{GO.API}",
+                                         headers={"Authorization": f"Bearer {c['token']}"} if c.get("token") else {})
+            try:
+                with urllib.request.urlopen(req, timeout=2) as r:          # loopback: no certificates involved
+                    return json.load(r).get("app", "")
+            except urllib.error.HTTPError as ex:                           # e.g. 401: a login asked for
+                return "PySyzygos (login)" if "PySyzygos" in str(ex.headers.get("WWW-Authenticate", "")) else ""
+            except Exception:
+                return None
+        ours = lambda name: bool(name) and ("observation" in name.lower() or name == "PySyzygos (login)")
+        c = conn()
+        name = await run.io_bound(answer, c) if c else None
+        if not ours(name):
+            t0 = _t.time()
+            env = {k: v for k, v in os.environ.items() if not k.startswith("NICEGUI_")}   # not this GUI's settings
+            env.update(PYSYZYGOS_HOME=ROOT, PYTHONUTF8="1")
+            logdir = os.path.join(ROOT, "logs")
+            os.makedirs(logdir, exist_ok=True)
+            log = open(os.path.join(logdir, "observation_gui.log"), "a")
+            mode = (["--host", GUI_ARGS.get("host", "127.0.0.1")] + ["--server"] * bool(GUI_ARGS.get("server"))
+                    + ["--no-auth"] * bool(GUI_ARGS.get("no_auth"))) if server_mode.MODE["server"] else []
+            proc = subprocess.Popen([sys.executable, "-u", "-m", "pysyzygos", "gui-observation", "--no-browser"] + mode,
+                                    env=env, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            ui.notify("Starting the observation GUI ...")
+            for _ in range(60):
+                await asyncio.sleep(0.5)
+                if proc.poll() is not None:
+                    break                                                  # it stopped: see its log
+                c = conn()
+                if str(c.get("written", "")) < _t.strftime("%Y-%m-%dT%H:%M:%S", _t.gmtime(t0 - 2)):
+                    continue                                               # the file of an earlier start
+                name = await run.io_bound(answer, c)
+                if ours(name):
+                    break
+        if not ours(name):
+            ui.notify("The observation GUI did not start: see logs/observation_gui.log in the data folder, or start "
+                      "it by hand: pysyzygos gui-observation", type="warning", multi_line=True)
+            return
+        port = urlparse(c.get("url") or "").port or GO.PORT
+        # the address the browser uses for this GUI, with the observation GUI's port (this computer or the LAN)
+        ui.run_javascript(f"window.open(location.protocol + '//' + location.hostname + ':{port}/', '_blank')")
+    pg.open_observations = open_observations
 
     async def fav_glance():
         """All favorites' paths on one map (favorites.write_glance), those the table shows, in a new tab."""

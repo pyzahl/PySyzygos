@@ -1,6 +1,7 @@
 """pysyzygos - start the web interface or one of the tools.
 
     pysyzygos                         web interface (GUI); same as `pysyzygos gui`, options e.g. --port 8081 --no-browser
+    pysyzygos gui-observation         observation GUI (results and observation reports; separate app, port 8081)
     pysyzygos setup                   one-time setup: your site, SPICE kernels, local Gaia catalog (resumable)
     pysyzygos pick ...                event finder over all asteroids (targets for the search)
     pysyzygos search                  the prediction for the targets (settings: pysyzygos_config.py)
@@ -27,7 +28,7 @@ Every command runs in the data folder: a checkout's project folder, else the fol
 import importlib, os, runpy, sys, time
 os.environ.setdefault("PYSYZYGOS_T0", repr(time.time()))   # when the command started (run timings, e.g. the pick's)
 
-COMMANDS = {"gui": "gui", "setup": "setup", "pick": "pick", "search": "search", "report": "report",
+COMMANDS = {"gui": "gui", "gui-observation": "gui_observation", "setup": "setup", "pick": "pick", "search": "search", "report": "report",
             "owc-check": "owc_check", "gaia": "gaia_local", "catalog": "starcat", "planets": "bodies", "picks": "picks", "prescreen": "prescreen", "favorites": "favorites",
             "kstars": "kstars", "stellarium": "stellarium", "run": "runner", "cleanup": "cleanup",
             "path-check": "pathcheck", "offline": "offline", "info": "sysinfo", "occult-data": "occultdata",

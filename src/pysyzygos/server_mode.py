@@ -215,10 +215,14 @@ def cross_site_refused(scope, headers):
 class Guard:
     """ASGI middleware: cross-site guard always; with auth (server mode) a login for every request and the
     WebSocket. auth: the record of load_auth, or None (local mode, or --no-auth behind an authenticating proxy);
-    path: the record's file, read again when it changes (a token made while the GUI runs works at once)."""
+    path: the record's file, read again when it changes (a token made while the GUI runs works at once).
+    token_paths / token_post: what a program's token may read (GET, HEAD) and send (POST); the search GUI's default:
+    read /api/v1/ and /fav/, send nothing; the observation GUI lets PyStarLight send its analyses."""
 
-    def __init__(self, app, auth=None, path=None):
+    def __init__(self, app, auth=None, path=None, token_paths=TOKEN_PATHS, token_post=(), local_key=None):
         self.app, self.auth, self.path, self._mtime = app, auth, path, None
+        self.token_paths, self.token_post = tuple(token_paths), tuple(token_post)
+        self.local_key = local_key          # callable(token) -> bool: a key valid from this computer only
 
     def _reload(self):
         try:
@@ -243,12 +247,18 @@ class Guard:
             self._reload()
         token = _bearer(headers)
         if token is not None:
-            if not token_ok(self.auth, token):
+            client = (scope.get("client") or ("", 0))[0]
+            local = self.local_key is not None and is_loopback(client) and self.local_key(token)
+            if not local and not token_ok(self.auth, token):
                 await asyncio.sleep(FAIL_DELAY_S)
                 return await self._refuse(scope, send, 401, "unknown token")
-            if scope["type"] != "http" or scope.get("method", "GET") not in ("GET", "HEAD") \
-                    or not scope.get("path", "").startswith(TOKEN_PATHS):
-                return await self._refuse(scope, send, 403, "a token only reads /api/v1/ and /fav/")
+            method, path = scope.get("method", "GET"), scope.get("path", "")
+            ok = scope["type"] == "http" and (
+                (method in ("GET", "HEAD") and path.startswith(self.token_paths))
+                or (method == "POST" and bool(self.token_post) and path.startswith(self.token_post)))
+            if not ok:
+                return await self._refuse(scope, send, 403, "a token may only read " + ", ".join(self.token_paths)
+                                          + (" and send to " + ", ".join(self.token_post) if self.token_post else ""))
             return await self.app(scope, receive, send)
         if cookie_ok(self.auth, _cookies(headers).get(COOKIE)):
             return await self.app(scope, receive, send)

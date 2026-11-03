@@ -661,7 +661,27 @@ fetch('/api/favorites/keys').then(function(r){return r.json();}).then(function(j
    var q=new URLSearchParams({tid:b.dataset.tid,utc:b.dataset.utc});
    fetch('/api/favorites/add?'+q).then(function(r){return r.json();}).then(function(j){
     if(j.ok){mark(b,true);tell();}pyoToast(j.msg,!j.ok);})
-   .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});});});}).catch(function(){});})();
+   .catch(function(){pyoToast('Favorites: no answer from the GUI',true);});});});
+ // star every event the table shows (its filter), not yet a favorite: one after another, asked once
+ var all=document.createElement('button');all.className='mapbtn';all.type='button';all.id='favall';
+ all.textContent='\u2606 Star all shown';
+ all.title='Add every event the table shows now (after the filter) to the favorites, with its map and preview';
+ var bar=document.getElementById('fbar');(bar||document.querySelector('.wrap')).insertAdjacentElement(bar?'afterend':'beforebegin',all);
+ all.style.margin='0 0 10px';
+ all.addEventListener('click',function(){
+  var todo=[].slice.call(bs).filter(function(b){var tr=b.closest('tr');
+   return b.textContent!=='\u2605'&&tr&&tr.style.display!=='none';});
+  if(!todo.length){pyoToast('Every event shown is a favorite already');return;}
+  pyoAsk('Add the '+todo.length+' event(s) shown to the favorites?','Add all',function(){
+   var n=0,bad=0,i=0;all.disabled=true;
+   (function next(){
+    if(i>=todo.length){all.disabled=false;all.textContent='\u2606 Star all shown';tell();
+     pyoToast(n+' event(s) added to the favorites'+(bad?', '+bad+' not (see the log)':''),bad>0);return;}
+    var b=todo[i++];all.textContent='\u2606 adding '+i+' of '+todo.length+' \u2026';
+    fetch('/api/favorites/add?'+new URLSearchParams({tid:b.dataset.tid,utc:b.dataset.utc}))
+     .then(function(r){return r.json();}).then(function(j){if(j.ok){mark(b,true);n++;}else{bad++;console.log(j.msg);}})
+     .catch(function(){bad++;}).then(next);})();});});
+}).catch(function(){});})();
 </script>"""
 
 FAVPAGE_JS = """<style>

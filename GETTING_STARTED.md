@@ -135,7 +135,7 @@ The **Results** tab lists every event, best first. For each one:
   the center, see the README).
 * **☆**: keeps the event in your favorites.
 
-Star the events you like.
+Star the events you like, or filter the list (below) and use **☆ Star all shown** to star everything the table shows.
 
 A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
 twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it), "hide
