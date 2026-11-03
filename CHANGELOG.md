@@ -13,7 +13,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   observation report with the fields of the IOTA-ES report form, prefilled from the event (asteroid, star, predicted
   time and D/R at the site, site, prediction details), filled from a PyStarLight analysis (`<movie>.event.json`: D/R
   times with errors, recording, camera, site) or an IOTA-ES report form, saved in `observations/` and written as
-  report form text for the submission. `obsreport.py`; tests/test_obsreport.py. Every field shows its origin (the
+  report form text for the submission. `obsreport.py`; tests/test_obsreport.py. Documented in `OBSERVATION-MANAGER.md`
+  (the Observation Manager; PyStarLight's automated video analysis imported directly). Every field shows its origin (the
   recording: GPS site and time, camera, telescope, observers; the analysis; the prediction; edited by hand), the
   report form's first line names the PySyzygos and PyStarLight versions, and PySyzygos' own extra lines can be
   switched off. PyStarLight can send its analyses over the network (`POST /api/obs/v1/analysis`, with a program

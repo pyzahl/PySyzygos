@@ -323,7 +323,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   login: not used). Match by Gaia id (`gaia.id`) else time (10 min); 1 s pause, User-Agent PySyzygos; on click only
   (GUI "Check OWC Feeds" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
   under the asteroid (tags, station count, hover: observer, signed distance km, commitment).
-- Observation GUI (2026-11-02, user's wish: strictly separate from the search GUI): `pysyzygos/gui_observation.py`
+- Observation GUI = "Observation Manager" (user's name; user doc OBSERVATION-MANAGER.md, linked from README and
+  ABOUT.md Part 1; keep it in step) (2026-11-02, user's wish: strictly separate from the search GUI): `pysyzygos/gui_observation.py`
   (`pysyzygos gui-observation`, COMMANDS, port 8081, 127.0.0.1 only, server_mode.Guard without auth, own state
   gui_observation_state.json (cleanup SETTINGS); `build_page`: tabs Status (`status_lines`, NOT_YET), Events
   (`sources()`: fav (status observed) / favall / list:<slug> / archive (`archive_rows`: observations.db, read-only, by

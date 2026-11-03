@@ -46,6 +46,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
   - [Pre-screens](#pre-screens)
 - [Web interface (GUI)](#web-interface-gui)
 - [Observation reports (separate GUI)](#observation-reports-separate-gui)
+- [Observation Manager](OBSERVATION-MANAGER.md) (observation reports; PyStarLight's video analysis imported directly)
 - [Planets and moons](#planets-and-moons)
 - [Occult data (optional add-on)](#occult-data-optional-add-on)
   - [Observed events in the Results tab, and our predictions checked against them](#observed-events-in-the-results-tab-and-our-predictions-checked-against-them)
@@ -1405,44 +1406,19 @@ Each run is its own process. The GUI listens on this computer only (127.0.0.1), 
 
 ## Observation reports (separate GUI)
 
-After the night, a separate web app collects what you observed and writes the report:
+After the night, the **Observation Manager**, a separate web app beside the search GUI, collects your observed events
+and writes the observation report of each event and station. **The automated video analysis from PyStarLight is
+imported directly**: the D and R times with their accuracy from the light curve, and the recording's own data (GPS
+site and time, camera, telescope, observers), each field marked with where it came from. The report is written as an
+IOTA-ES report form for the submission.
 
 ```bash
 uv run pysyzygos gui-observation          # http://127.0.0.1:8081 (the search GUI stays on 8080; both can run)
-                                          # 8081 taken by another program: the next free one, 8082 ... 8090
 ```
 
-It is its own program with its own settings (`gui_observation_state.json`); it only reads your favorites, the saved
-favorites lists and the Occult archive of observed events (with the Occult data add-on), and writes only the
-reports, in `observations/<event>/<station>.json` (private; `pysyzygos cleanup` never deletes them).
-
-* **Status**: favorites marked observed, saved lists, the Occult archive, where PyStarLight analyses are searched,
-  saved reports, and what is not built yet.
-* **Events**: the events to report on: favorites marked observed (or all), a saved list (e.g. the one "Move past
-  observed to list…" fills), the Occult archive (search by number, name or date; choose one of its observers to
-  see that chord), or your saved reports. **Open the report form** for the chosen one.
-* **Report**: the fields of the IOTA-ES asteroidal occultation report form (2.03: result, event, observer, station,
-  equipment, D/R times with accuracy, conditions, prediction details), prefilled from the event: asteroid, star
-  (UCAC4 and Gaia DR3 id), date, predicted time and the predicted D and R at your site, the site, the prediction
-  details. **Find PyStarLight analysis** looks for `<movie>.event.json` of that night and asteroid in your
-  PyStarLight folder(s) (links are not followed) and fills D/R times with their 1-sigma errors, recording start and
-  end, exposure, camera, telescope, observer and site from its step fit; further dips go to "More events". A
-  `.event.json` or an IOTA-ES report form (`.txt`, e.g. from the DVTI tools) can also be loaded by hand. An orange
-  line lists what a submission still needs. Every field says where its value came from: **the recording** (the
-  camera tool's data: GPS site and time, camera, telescope, observers; the authentic ones), **the analysis**, **the
-  prediction**, or **edited by hand** (with the original value). **Save** keeps the report; **IOTA-ES report
-  (.txt)** saves it and downloads it as report form text, to submit; its first line names PySyzygos and PyStarLight
-  with their versions, and **PySyzygos extra fields** adds our own lines (Gaia DR3 id, focal reducer, more events,
-  where each field came from). Online submission is not built yet.
-* **Start it from the search GUI**: Favorites tab, **Observations** (starts it in the background if needed, in the
-  search GUI's mode: in server mode on the same address with the same login, which the browser carries over; it
-  opens `<the address you use>:8081`, so a reverse proxy has to pass that port as well).
-* **From PyStarLight**: PyStarLight sends its analysis to `POST /api/obs/v1/analysis`; it lands under "Received from
-  PyStarLight" in the Events tab and opens with the matching favorite. On the same computer this sets itself up: the
-  observation GUI writes a connection file with its address and a key (`observation_api.json` in your PySyzygos
-  settings folder, e.g. `~/.config/pysyzygos/`; readable by you only), which PyStarLight reads. From another computer start `pysyzygos gui-observation --host 0.0.0.0` with the search GUI's login and a
-  token for the camera tool (`pysyzygos gui --new-token PyStarLight`). What the camera tool and PyStarLight provide,
-  and the API: [docs/observation_interface.md](docs/observation_interface.md).
+Or from the search GUI: Favorites tab, **Observations**. Everything about it (the PyStarLight import, the tabs, the
+report form, modes and ports): **[OBSERVATION-MANAGER.md](OBSERVATION-MANAGER.md)**; the data interface for
+PyStarLight and the camera tool: [docs/observation_interface.md](docs/observation_interface.md).
 
 ## Planets and moons
 

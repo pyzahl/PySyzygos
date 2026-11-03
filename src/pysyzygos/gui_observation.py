@@ -188,13 +188,13 @@ def build_page():
              imports=[], report_path=None, origin={}, given={}, setting=False)
     W = {}
 
-    ui.page_title("PySyzygos observations")
+    ui.page_title("PySyzygos Observation Manager")
     with ui.header().classes("items-center bg-slate-800"):          # as the search GUI's header
         ui.element("img").props('src=/pysyzygos_logo.svg alt=""').classes("w-9 h-9")
         ui.label("PySyzygos").classes("text-xl font-semibold")
         ui.label(f"v{__version__}").classes("text-xs text-slate-400 self-end mb-1").tooltip(
             f"PySyzygos {__version__} \u201c{__codename__}\u201d")
-        ui.label("observations and reports").classes("text-slate-300")
+        ui.label("observation manager").classes("text-slate-300")
         ui.space()
         ui.label(os.path.basename(os.path.abspath(ROOT)) or ROOT).classes("text-slate-300 text-sm").tooltip(
             f"Data folder: {ROOT}")
@@ -220,7 +220,7 @@ def build_page():
         with ui.row().classes("items-center gap-4 no-wrap"):
             ui.element("img").props('src=/pysyzygos_logo.svg alt=""').classes("w-20 h-20")
             with ui.column().classes("gap-0"):
-                ui.label("PySyzygos observations").classes("text-2xl font-semibold")
+                ui.label("PySyzygos Observation Manager").classes("text-2xl font-semibold")
                 ui.label(f"Version {__version__} \u201c{__codename__}\u201d").classes("text-slate-600")
                 ui.label(f"by {__author__}").classes("text-sm text-slate-600")
         ui.label("The observation side of PySyzygos, a separate app beside the search GUI: your observed events "
@@ -230,6 +230,10 @@ def build_page():
                  "curve analysis from PyStarLight, shows where every value came from, and is written as an IOTA-ES "
                  "report form for the submission. Every observed event, positive or negative, adds to what we know "
                  "about the sizes, shapes and orbits of the small bodies of the Solar System.").classes("text-sm")
+        ui.label("Automated video analysis from PyStarLight is imported directly: the D and R times with their "
+                 "accuracy from its light-curve fit, and the recording's own data (GPS site and time, camera, "
+                 "telescope, observers), sent by PyStarLight (on this computer the connection sets itself up), found "
+                 "in your recording folders, or loaded as its .event.json; no retyping.").classes("text-sm mt-2")
         ui.label("Early version: lists, archive, report form, imports and the IOTA-ES text. The submission itself, "
                  "the forms of the other IOTA regions and several stations of one event are still to come (Status "
                  "tab).").classes("text-sm mt-2")
@@ -245,6 +249,8 @@ def build_page():
             "text-xs text-slate-600 mt-2")
         with ui.row().classes("w-full items-center justify-between mt-2"):
             ui.link(__url__, __url__, new_tab=True).classes("text-sm")
+            ui.link("OBSERVATION-MANAGER.md", __url__.rstrip("/") + "/blob/main/OBSERVATION-MANAGER.md",
+                    new_tab=True).classes("text-sm")
             ui.button("Close", on_click=about.close).props("flat")
     with ui.tabs().classes("w-full") as tabs:
         t_status, t_events, t_report = ui.tab("Status"), ui.tab("Events"), ui.tab("Report")
@@ -643,7 +649,7 @@ def main(argv=None):
     ui.page("/")(build_page)
     ui.add_head_html("<script>document.documentElement.lang = 'en';</script>", shared=True)
     ui.number.default_props("lang=en")
-    ui.run(host=a.host, port=a.port, title="PySyzygos observations",
+    ui.run(host=a.host, port=a.port, title="PySyzygos Observation Manager",
            favicon=os.path.join(PKG, "pysyzygos_logo.svg"), show=not (a.no_browser or server), reload=False,
            language="en-US")
 
