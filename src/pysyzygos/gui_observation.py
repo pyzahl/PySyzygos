@@ -256,6 +256,27 @@ def reports_of(entry):
     return out
 
 
+def archive_key_for(src, sel):
+    """The Occult archive event of the chosen row ('target|YYYY-MM-DDTHH:MM:SS'), or None: the archive row itself;
+    for a favorite, a saved report or a received analysis the archive's event of the same asteroid within
+    chords.GROUP_TOL_S."""
+    if not sel:
+        return None
+    if src == "archive":
+        return sel
+    tid, utc = "", ""
+    if src in ("reports", "inbox"):
+        f = (obsreport.load(sel).get("fields") or {}) if src == "reports" else obsreport.from_pystarlight(sel)[0]
+        t = chords.report_time(f)
+        tid, utc = str(f.get("asteroid_number") or "").strip(), t.strftime("%Y-%m-%dT%H:%M:%S") if t else ""
+    else:
+        e = next((x for x in list_entries(src) if x["key"] == sel), None)
+        r = (e or {}).get("record") or {}
+        tid, utc = str(r.get("target_id") or "").strip(), str(r.get("best_utc") or "")[:19]
+    a = chords.archive_star(tid, utc) if tid and utc else None
+    return a["key"] if a else None
+
+
 def chords_job(src, sel):
     """(kind, what, folder) of the chord plot for the chosen event, or (None, why, None): an archive event; a saved
     report (with the other reports of its event); a favorite (the saved reports of its event)."""
@@ -427,6 +448,10 @@ def build_page():
                 ui.button("Chord plot", on_click=lambda: chord_plot()).props("outline").tooltip(
                     "The chords of the chosen event in the fundamental plane, an ellipse fitted to them and the "
                     "profile plot: an archive event, or our saved reports of all stations of the event")
+                ui.button("Archive record", on_click=lambda: archive_record()).props("outline").tooltip(
+                    "The whole record of the event in the IOTA / Occult archive (as the search GUI's Results tab "
+                    "shows it): event, star, fit, satellite, every observer with their times, our check. For a "
+                    "favorite or a report: the archive's event of the same asteroid and time, if it has one")
         with ui.tab_panel(t_chords):
             ch_title = ui.label("No event: Events tab, choose one, 'Chord plot'.").classes("text-lg font-semibold")
             with ui.row().classes("items-end gap-3"):
@@ -602,6 +627,18 @@ def build_page():
         archive_observers()
     table.on_select(on_select)
 
+    def archive_record():
+        from pysyzygos import gui_observed
+        if not S["sel"]:
+            ui.notify("Choose an event first", type="warning")
+            return
+        key = archive_key_for(src_sel.value, S["sel"])
+        if key is None:
+            ui.notify("This event is not in the Occult archive (yet): the archive holds reported observations, "
+                      "updated with the Occult data add-on", type="warning", multi_line=True)
+            return
+        gui_observed.dialog(key)
+
     CH = dict(data=None, folder=None, busy=False)
 
     async def chord_plot(rebuild=False):
@@ -674,10 +711,11 @@ def build_page():
             rows.append(dict(n=s_["n"], result=s_["result"] + (f" ({body})" if body != "main" else ""), station=f"{s_['observer']}, {s_['place']}".strip(", "),
                              d=(s_.get("d_utc") or "")[11:22], r=(s_.get("r_utc") or "")[11:22],
                              dur="" if dur is None else f"{dur:.2f}",
-                             oc=(f"{r['d_s']:+.2f} / {r['r_s']:+.2f}" if r.get("d_s") is not None and
-                                 r.get("r_s") is not None else "outside the fit" if "d_km" in r else
-                                 "inside the fit!" if r.get("miss_inside") else ""),
-                             km=f"{r['d_km']:+.1f} / {r['r_km']:+.1f}" if "d_km" in r else "",
+                             oc=(" / ".join("\u2014" if r.get(k) is None else f"{r[k]:+.2f}" for k in ("d_s", "r_s"))
+                                 if r.get("d_s") is not None or r.get("r_s") is not None else "outside the fit"
+                                 if "d_km" in r else "inside the fit!" if r.get("miss_inside") else ""),
+                             km=" / ".join("\u2014" if r.get(k) is None else f"{r[k]:+.1f}" for k in ("d_km", "r_km"))
+                             if "d_km" in r else "",
                              note=s_.get("note", "")))
         S["setting"] = True
         try:

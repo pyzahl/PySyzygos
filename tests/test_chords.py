@@ -107,4 +107,18 @@ C.save(only, d2)
 assert C.fit_lines(only)[0].startswith("satellite") and len(C.fit_lines(only)) == 1
 sv = C.svg(only)
 assert "satellite chord (s)" in sv and "fit to the satellite" in sv and "chord D\u2013R" not in sv
+# contacts paired per station: D with the next R; a lone D or R is a one-sided chord
+P = C.pair_contacts([("01:00:01", "d1"), ("01:00:09", "d2")], [("01:00:05", "r1")])
+assert P == [(("01:00:01", "d1"), ("01:00:05", "r1")), (("01:00:09", "d2"), (None, None))], P
+assert C.pair_contacts([], [("01:00:05", "r1")]) == [((None, None), ("01:00:05", "r1"))]
+# one-sided chords are points of the outline; planets and moons: their known size in 'auto'
+one_side = [dict(x) for x in data["stations"][:10]]
+for x in one_side[::3]:
+    for k in ("r_xy", "r_t", "r_utc"):
+        x.pop(k)
+os_ = C.fit(dict(data, stations=one_side))
+assert abs(os_["major"] - 103.6) < 0.05 and os_["stations"]["1"]["r_km"] is None and os_["stations"]["1"]["d_km"] is not None
+assert "D 07:44:30.00 UT" in C.svg(dict(data, stations=one_side), os_)
+moon = dict(data, event=dict(data["event"], body_kind="moon", r_km=50.0))
+assert C.fit(moon)["mode"] == "fixed" and C.fit(moon)["major"] == 100.0
 print("CHORDS TESTS PASSED")

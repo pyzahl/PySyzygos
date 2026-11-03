@@ -13,8 +13,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   (circle, fixed size) fitted to the chord ends, O−C per chord, the predicted size and, for archive events, Occult's
   fit for comparison; chords switched off refit at once; SVG download. Satellite chords (Occult codes G/B, e.g.
   (617) Patroclus 2026-01-04: Menoetius) and chords on a double's 2nd star (d/r) are read too, the satellite with its
-  own fitted outline. Checked on (135) Hertha 2008 Dec 11: 101.9 ×
+  own fitted outline. One-sided chords (only D or only R) count as outline points; planets and moons of the archive
+  (Ganymede 2025-10-14: center within 1.2 km of Occult's) are fitted at their known size. Checked on (135) Hertha 2008 Dec 11: 101.9 ×
   60.7 km, PA 41.7° vs Occult's 103.6 × 59.9 km, PA 40.6°, centers within 0.4 km.
+- **Archive record** button (Observation Manager, Events tab, next to Chord plot): the event's whole record in the
+  Occult archive, the same dialog as the search GUI's Results tab (now shared: `gui_observed.py`); also for a
+  favorite, report or analysis whose event the archive has.
 - **Observation Manager, Events tab: the Results table with its filter bar** (favorites, saved lists, the Occult
   archive), plus two filters found only here: **event** (the results of one event: same target, times within 10
   min, e.g. several stations or sites; the "n results" button beside the target sets it) and **results per event

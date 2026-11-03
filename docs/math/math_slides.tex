@@ -1009,3 +1009,98 @@
   {\small $\uv{u}$ the local vertical, $h_\star$ the star's altitude (OV.1). \SI{2000}{m} at $h_\star = \SI{75}{\degree}$:
   \SI{0.533}{km}; measured between the KML lines: \SI{0.535}{km}.}
 \end{frame}
+
+% ------------------------------------------------------------------------------------------------ observed events
+\section{Observed events: the chord plot}
+
+\begin{frame}{Chords: from the observed times to the plane}\slideid{CH}
+  \footnotesize\tightdisplays
+  \begin{columns}[T]
+  \begin{column}{0.60\textwidth}
+  \OWN\ \SP\ Each station $\vv{O}$ relative to the \alert{predicted} asteroid, in its fundamental plane (FP.1, axes of
+  date as Occult's archive; light time from the station, LT.1):
+  \[
+    \tcbhighmath{\pv{q}(t) = -\bigl(\xi(t),\ \eta(t)\bigr)}
+    \tag{CH.1}
+  \]
+  The contacts, personal equation removed, are points of the outline:
+  \[
+    \tcbhighmath{\pv{q}_D = \pv{q}(t_D - \mathrm{PE}_D),\quad \pv{q}_R = \pv{q}(t_R - \mathrm{PE}_R)}
+    \tag{CH.2}
+  \]
+  Real asteroid $\pv{\Delta}$ off the prediction: in its shadow when $\pv{q} - \pv{\Delta}$ is inside the silhouette
+  (a projection along $\uv{s}$, no flip). So the outline through the chord ends is centered at
+  \[
+    \tcbhighmath{\pv{\Delta} = \text{observed} - \text{predicted}}
+    \tag{CH.3}
+  \]
+  \end{column}
+  \begin{column}{0.38\textwidth}
+  \centering
+  \begin{tikzpicture}[scale=0.6, font=\scriptsize, >={Stealth[length=1.6mm]}]
+    \draw[black!25] (-2.9,-2.6) rectangle (2.9,2.6);
+    \draw[->] (-2.5,1.9) -- (-2.5,2.45) node[above] {N};
+    \draw[->] (-2.5,1.9) -- (-3.05,1.9) node[left] {E};
+    \draw[syzblue!50, densely dashed] (-0.5,-0.4) circle (1.35);
+    \draw[syzblue!70] (-0.62,-0.4) -- (-0.38,-0.4) (-0.5,-0.52) -- (-0.5,-0.28);
+    \draw[thick, green!50!black, fill=green!50!black, fill opacity=0.06, rotate around={35:(0.5,0.3)}]
+         (0.5,0.3) ellipse (1.6 and 1.0);
+    \draw[->, syzaccent, thick] (-0.5,-0.4) -- (0.42,0.25) node[midway, below right=-2pt] {$\pv{\Delta}$};
+    \foreach \y/\a/\b in {-0.55/-0.25/1.75, 0.0/-0.75/1.85, 0.55/-1.05/1.75, 1.05/-1.0/1.35} {
+      \draw[black!20] (-2.9,\y-0.9) -- (2.9,\y+0.35);
+      \draw[syzblue, thick] (\a,{\y-0.9+(\a+2.9)*1.25/5.8}) -- (\b,{\y-0.9+(\b+2.9)*1.25/5.8});
+      \fill[white, draw=syzblue] (\a,{\y-0.9+(\a+2.9)*1.25/5.8}) circle (2pt);
+      \draw[syzblue, fill=white] (\b-0.07,{\y-0.9+(\b+2.9)*1.25/5.8-0.07}) rectangle ++(0.14,0.14);
+    }
+    \draw[red!70, densely dashed] (-2.9,-2.35) -- (2.9,-1.1) node[pos=0.15, below] {miss};
+  \end{tikzpicture}\\
+  {\scriptsize sky view, east left; $\square$ D, $\circ$ R; dashed circle: predicted size at $+$}
+  \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Chords: the fitted outline}\slideid{CH}
+  \footnotesize\tightdisplays
+  \SC\ Ellipse: center $\pv{c}$, semi-axes $a \ge b$, major axis at position angle PA (north through east),
+  $\uv{e}_1 = (\sin\mathrm{PA}, \cos\mathrm{PA})$, $\uv{e}_2 = (\cos\mathrm{PA}, -\sin\mathrm{PA})$. Residual of each
+  chord end, radial (km):
+  \[
+    \tcbhighmath{\begin{gathered}
+    e_i = |\pv{q}_i - \pv{c}| - R(\phi_i),\qquad R(\phi) = \Bigl(\frac{\cos^2\phi}{a^2} + \frac{\sin^2\phi}{b^2}\Bigr)^{-1/2}\\
+    \phi_i = \operatorname{atan2}\bigl((\pv{q}_i - \pv{c})\cdot\uv{e}_2,\ (\pv{q}_i - \pv{c})\cdot\uv{e}_1\bigr)
+    \end{gathered}}
+    \tag{CH.4}
+  \]
+  Least squares (Levenberg--Marquardt, starts at 4 PAs); a miss as a limit adds its depth inside ($\delta$: its
+  track's distance from $\pv{c}$ in the outline's unit circle):
+  \[
+    \tcbhighmath{\min_{\pv{c},\,a,\,b,\,\mathrm{PA}}\ \sum_i e_i^2 + \sum_{\text{misses}} \Bigl[\max(0,\, 1 - \delta)\,\tfrac{a+b}{2}\Bigr]^2}
+    \tag{CH.5}
+  \]
+  1-sigma from the Jacobian $\mathsf{J}$ at the solution ($n$ residuals, $k$ parameters):
+  \[
+    \tcbhighmath{\mathsf{C} = (\mathsf{J}^{\mathsf T}\mathsf{J})^{-1}\,\frac{\sum e_i^2}{n - k}}
+    \tag{CH.6}
+  \]
+  {\small Shapes: ellipse ($\ge 3$ chords), circle (2), fixed diameter (1; planets, moons: Occult's ``assumed'').}
+\end{frame}
+
+\begin{frame}{Chords: O$-$C in time, special chords, checks}\slideid{CH}
+  \footnotesize\tightdisplays
+  \OWN\ The station's track near its closest approach, $\pv{q}(t) \approx \pv{q}_{ca} + \vv{w}\,(t - t_{ca})$, meets
+  the outline where $A\tau^2 + B\tau + C = 0$ (coordinates along $\uv{e}_1, \uv{e}_2$ divided by $a, b$); entry and
+  exit $t_{in,out} = t_{ca} + \tau_{1,2}$:
+  \[
+    \tcbhighmath{\mathrm{O{-}C}_D = (t_D - \mathrm{PE}_D) - t_{in},\qquad \mathrm{O{-}C}_R = (t_R - \mathrm{PE}_R) - t_{out}}
+    \tag{CH.7}
+  \]
+  \begin{itemize}\setlength{\itemsep}{0.3ex}
+    \item Heights: above sea level + EGM96 geoid for WGS84 sites (as obs-check).
+    \item Only D or only R (recording began or ended in the event): one point of the outline.
+    \item A satellite's chords (Occult codes G/B) get their own outline; a double's 2nd star (d/r): drawn, not fitted.
+    \item A miss: the station's whole track $\pv{q}(t)$, dashed; inside the fitted outline: flagged.
+  \end{itemize}
+  {\small\textbf{Checks.} (135) Hertha 2008 Dec 11, 21 chords: $102.2 \times 60.6$\,km, PA $41.4^\circ$ (Occult
+  $103.6 \times 59.9$\,km, $40.6^\circ$); centers $(+14.3, +7.4)$ vs $(+14.0, +6.9)$\,km. Ganymede 2025 Oct 14:
+  center within 1.2\,km of Occult's. Our reports of the same stations: same points within 1\,mm.}
+\end{frame}

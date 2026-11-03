@@ -23,8 +23,8 @@ import numpy as np
 from pysyzygos.version import __version__
 
 DIR = os.path.join("observations", "chords")      # in the data folder: <event slug>/chords.json, profile.svg
-FORMAT = 2                                        # chords.json layout; older files are computed again (2: chords
-                                                  # of satellites and 2nd stars, 'body')
+FORMAT = 3                                        # chords.json layout; older files are computed again (2: chords
+                                                  # of satellites and 2nd stars, 'body'; 3: one-sided chords)
 GROUP_TOL_S = 600.0                               # reports of one event: same asteroid, times within 10 min
 RESULTS = {"POSITIVE": "positive", "NEGATIVE": "miss", "CLOUDED OUT": "clouded"}
 DATUM_WGS84 = ("_", "", "*", "WGS84", "unspecified")   # heights + EGM96 geoid (alt_m above sea level)
@@ -61,7 +61,7 @@ def stations_archive(key):
         for cd, cr, body in BODIES:                    # several of one kind at a site: paired in time order
             ds = sorted(((u, d) for lab, u, d in mine if lab == cd), key=lambda q: q[0])
             rs = sorted(((u, d) for lab, u, d in mine if lab == cr), key=lambda q: q[0])
-            pairs += [(body, ud, dd, ur, dr) for (ud, dd), (ur, dr) in zip(ds, rs)]
+            pairs += [(body, *dp, *rp) for dp, rp in pair_contacts(ds, rs)]
         if not pairs:
             x = dict(base, n=len(st) + 1)
             if x["result"] == "positive":
@@ -70,11 +70,15 @@ def stations_archive(key):
                 x.update(result="other", note=f"Occult code {x['result']}: not a chord")
             st.append(x)
             continue
-        for body, ud, dd, ur, dr in sorted(pairs, key=lambda q: q[1]):
-            x = dict(base, n=len(st) + 1, body=body, result="positive", d_utc=ud, r_utc=ur, d_acc=dd.get("acc_s"),
-                     r_acc=dr.get("acc_s"), d_pe=dd.get("pe_s") or 0.0, r_pe=dr.get("pe_s") or 0.0)
-            if "x" in ((dd.get("include") or "_"), (dr.get("include") or "_")):
-                x.update(include=False, note="excluded in Occult's fit")
+        for body, ud, dd, ur, dr in sorted(pairs, key=lambda q: q[1] or q[3]):
+            x = dict(base, n=len(st) + 1, body=body, result="positive")
+            for k, u, d in (("d", ud, dd), ("r", ur, dr)):
+                if u:
+                    x.update({f"{k}_utc": u, f"{k}_acc": d.get("acc_s"), f"{k}_pe": d.get("pe_s") or 0.0})
+            if not (ud and ur):
+                x["note"] = "D only" if ud else "R only"
+            if "x" in ((dd or {}).get("include") or "_", (dr or {}).get("include") or "_"):
+                x.update(include=False, note="; ".join(v for v in (x["note"], "excluded in Occult's fit") if v))
             if body != "main":
                 x["note"] = "; ".join(v for v in (x["note"], f"{body} chord") if v)
             st.append(x)
@@ -92,6 +96,21 @@ def stations_archive(key):
                                  geo_x=rec.get("geo_x_km"), geo_y=rec.get("geo_y_km"),
                                  quality=rec.get("fit_quality_text") or "", assumed=bool(rec.get("fit_assumed_size")))
     return ev, st
+
+
+def pair_contacts(ds, rs):
+    """[((d_utc, d_data) or (None, None), (r_utc, r_data) or (None, None))]: each D with the next R before the next D,
+    in time order; a D without its R (the recording ended inside the event) or an R without its D (it began inside)
+    is a one-sided chord, still a point of the outline."""
+    ds, rs, out, none = list(ds), list(rs), [], (None, None)
+    while ds or rs:
+        if ds and rs and rs[0][0] > ds[0][0] and (len(ds) < 2 or rs[0][0] < ds[1][0]):
+            out.append((ds.pop(0), rs.pop(0)))
+        elif ds and (not rs or ds[0][0] < rs[0][0]):
+            out.append((ds.pop(0), none))
+        else:
+            out.append((none, rs.pop(0)))
+    return out
 
 
 def _report_utc(date, hms, ref=None):
@@ -225,7 +244,7 @@ def _f(x):
 
 
 # ------------------------------------------------------------------------------------------- SPICE: the plane
-# Math: OB.1, LT.1, FP.1, FP.2 (slides OB, LT, FP): the station relative to the asteroid in the fundamental plane.
+# Math: OB.1, LT.1, FP.1, FP.2, CH.1 (slides OB, LT, FP, CH): the station relative to the asteroid in the plane.
 def _plane_fn(spice, target, lon, lat, h_m, x_ax, y_ax):
     """q(et): the station minus the asteroid's predicted center in the fundamental plane (km, x east, y north; axes
     of date), the asteroid as the station sees it (light time from the station)."""
@@ -237,6 +256,7 @@ def _plane_fn(spice, target, lon, lat, h_m, x_ax, y_ax):
     return q
 
 
+# Math: CH.2 (slide CH): the observed contacts as points of the outline.
 def place_stations(spice, target, z, axes, stations, et_ref):
     """Adds to each station: t_ca (s from et_ref: its closest approach to the predicted center), p_ca (km), w (km/s,
     its motion relative to the asteroid), dist_km; with times also d_xy, r_xy, d_t, r_t (s from et_ref, personal
@@ -250,12 +270,14 @@ def place_stations(spice, target, z, axes, stations, et_ref):
                                                  else 0.0)
             q = _plane_fn(spice, target, s["lon"], s["lat"], h, x_ax, y_ax)
             guess, span = 0.0, 1200.0
-            if s.get("d_utc") and s.get("r_utc"):
-                td = spice.str2et(s["d_utc"]) - (s.get("d_pe") or 0.0) - et_ref
-                tr = spice.str2et(s["r_utc"]) - (s.get("r_pe") or 0.0) - et_ref
-                s.update(d_t=round(td, 4), r_t=round(tr, 4), d_xy=[float(v) for v in q(et_ref + td)],
-                         r_xy=[float(v) for v in q(et_ref + tr)])
-                guess, span = (td + tr) / 2.0, 600.0
+            ts = []
+            for k in ("d", "r"):                     # D and R (one of them: a one-sided chord)
+                if s.get(f"{k}_utc"):
+                    tk = spice.str2et(s[f"{k}_utc"]) - (s.get(f"{k}_pe") or 0.0) - et_ref
+                    s.update({f"{k}_t": round(tk, 4), f"{k}_xy": [float(v) for v in q(et_ref + tk)]})
+                    ts.append(tk)
+            if ts:
+                guess, span = sum(ts) / len(ts), 600.0
             r = minimize_scalar(lambda dt: float(np.hypot(*q(et_ref + guess + dt))), bounds=(-span, span),
                                 method="bounded", options={"xatol": 1e-4, "maxiter": 500})
             t = guess + float(r.x)
@@ -265,6 +287,20 @@ def place_stations(spice, target, z, axes, stations, et_ref):
         except Exception as ex:
             s["note"] = (s.get("note", "") + f"; not placed: {type(ex).__name__}").strip("; ")
     return stations
+
+
+def major_body(target):
+    """The registry entry of a planet or moon the archive names ('Ganymede', 'Jupiter'), None for an asteroid (number
+    or provisional designation); SystemExit for other names (comets, Venus: no ephemeris here yet)."""
+    from pysyzygos import bodies, sbdb
+    t = str(target).strip()
+    if t.isdigit() or sbdb.is_designation(t):
+        return None
+    b = bodies.parse(f"M:{t}") or bodies.parse(f"P:{t}")
+    if b is None:
+        raise SystemExit(f"{t}: not an asteroid number or designation, nor a planet or moon PySyzygos knows "
+                         f"(comets and Venus: not yet)")
+    return b
 
 
 def build(kind, what, log=print, folder=None):
@@ -282,15 +318,21 @@ def build(kind, what, log=print, folder=None):
     day = datetime.fromisoformat(ev["utc"][:19])
     a, b = (day - timedelta(days=1)).strftime("%Y-%m-%d"), (day + timedelta(days=1)).strftime("%Y-%m-%d")
     log(f"chords: {ev['name'] or ev['target']} {ev['utc'][:19]} UT, {len(st)} station(s); orbit from JPL Horizons")
-    blob = obscheck.horizons_spk(ev["target"], a, b)
-    tmp = tempfile.mkdtemp(prefix="chords_")
-    fn = os.path.join(tmp, "orbit.bsp")
-    with open(fn, "wb") as fh:
-        fh.write(blob)
+    body = major_body(ev["target"])
+    tmp, fn = tempfile.mkdtemp(prefix="chords_"), None
     try:
-        spice.furnsh(fn)
-        name = "CHORDS_TARGET"
-        kernels.body_alias(spice, name, int(spice.spkobj(fn)[0]))
+        if body:                                    # a planet or moon (the archive names them): as the search does
+            from pysyzygos import bodies, config
+            bodies.ensure_kernel(spice, body["target"], et_ref - 3600.0, et_ref + 3600.0, config.cache_path, HOME)
+            name = body["alias"]
+            ev["body_kind"] = body["kind"]
+        else:
+            fn = os.path.join(tmp, "orbit.bsp")
+            with open(fn, "wb") as fh:
+                fh.write(obscheck.horizons_spk(ev["target"], a, b))
+            spice.furnsh(fn)
+            name = "CHORDS_TARGET"
+            kernels.body_alias(spice, name, int(spice.spkobj(fn)[0]))
         z, star_note, pred = None, "", None
         fav_dir = ev.get("star_dir") if kind == "reports" and None not in (ev.get("star_dir") or [None]) else None
         arc = (dict(star=ev["star"], star_ra=ev["star_ra"], star_dec=ev["star_dec"], star_gaia=ev["star_gaia"])
@@ -334,8 +376,9 @@ def build(kind, what, log=print, folder=None):
             af = ev["archive_fit"]
             af.update(x=round(af["geo_x"] - float(p @ axes[0]), 3), y=round(af["geo_y"] - float(p @ axes[1]), 3))
     finally:
-        spice.unload(fn)
-        os.remove(fn)
+        if fn and os.path.isfile(fn):
+            spice.unload(fn)
+            os.remove(fn)
         os.rmdir(tmp)
     if kind == "reports":                                           # numbered across the track, north side first
         placed = [s for s in st if s.get("w")]
@@ -361,7 +404,7 @@ def build(kind, what, log=print, folder=None):
     except (OSError, ValueError, KeyError):
         pass
     p = save(data, out)
-    log(f"chords: {sum(1 for s in st if s.get('d_xy'))} chord(s), {sum(1 for s in st if s['result'] == 'miss')} "
+    log(f"chords: {sum(1 for s in st if s.get('d_xy') or s.get('r_xy'))} chord(s), {sum(1 for s in st if s['result'] == 'miss')} "
         f"miss(es) -> {p}")
     return p
 
@@ -406,10 +449,11 @@ def used(data, exclude=(), body="main"):
     """The chords that enter the fit of a body ('main', 'satellite'): D and R placed, included, not in exclude
     (numbers)."""
     ex = {int(n) for n in exclude}
-    return [s for s in data["stations"] if s.get("d_xy") and s.get("r_xy") and s.get("include", True)
+    return [s for s in data["stations"] if (s.get("d_xy") or s.get("r_xy")) and s.get("include", True)
             and s["n"] not in ex and (s.get("body") or "main") == body]
 
 
+# Math: CH.3-CH.6 (slide CH): the outline fitted to the chord ends; its center = observed minus predicted.
 def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main"):
     """The ellipse (or circle) fitted to the chords' end points: least squares of the radial distances of D and R
     from the outline (km), each miss inside the outline adding its depth when misses=True. mode 'auto': ellipse with
@@ -420,14 +464,16 @@ def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main")
     from scipy.optimize import least_squares
     ch = used(data, exclude, body)
     n = len(ch)
-    if mode == "auto":
-        mode = "ellipse" if n >= 3 else "circle" if n == 2 else "fixed"
+    if mode == "auto":                             # planets and moons: their known size (Occult: 'assumed')
+        mode = ("fixed" if data["event"].get("body_kind") in ("planet", "moon") and body == "main" else
+                "ellipse" if n >= 3 else "circle" if n == 2 else "fixed")
     sat = body != "main"
     misses = misses and not sat
     r_fix = (diameter or 0) / 2.0 or ((data["event"].get("sat") or {}).get("r_km") if sat else data["event"].get("r_km"))
     if n == 0 or (mode == "fixed" and not r_fix):
         return dict(mode="none", why="no chord to fit" if n == 0 else "no diameter for a fixed-size fit")
-    pts = np.array([s[k] for s in ch for k in ("d_xy", "r_xy")])
+    ends = [(s, k) for s in ch for k in ("d_xy", "r_xy") if s.get(k)]
+    pts = np.array([s[k] for s, k in ends])
     mlines = [(np.array(s["p_ca"]), np.array(s["w"])) for s in data["stations"]
               if misses and s["result"] == "miss" and s.get("p_ca") and s.get("w") and s.get("include", True)
               and s["n"] not in {int(k) for k in exclude}]
@@ -490,12 +536,15 @@ def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main")
     pa %= 180.0
     rms = float(np.sqrt(np.mean(res[:len(pts)] ** 2)))
     per = {}
-    for i, s in enumerate(ch):
-        di, ri = res[2 * i], res[2 * i + 1]
+    for i, (s, k) in enumerate(ends):
+        per.setdefault(str(s["n"]), dict(d_km=None, r_km=None, d_s=None, r_s=None))[k[0] + "_km"] = round(float(res[i]), 3)
+    for s in ch:
         entry, leave = crossing(s, (x, y, a, b, pa))
-        per[str(s["n"])] = dict(d_km=round(float(di), 3), r_km=round(float(ri), 3),
-                                d_s=None if entry is None else round(s["d_t"] - entry, 3),
-                                r_s=None if leave is None else round(s["r_t"] - leave, 3))
+        e = per[str(s["n"])]
+        if s.get("d_t") is not None and entry is not None:
+            e["d_s"] = round(s["d_t"] - entry, 3)
+        if s.get("r_t") is not None and leave is not None:
+            e["r_s"] = round(s["r_t"] - leave, 3)
     for s in data["stations"] if not sat else ():  # misses: inside the fitted outline?
         if s["result"] == "miss" and s.get("p_ca"):
             e, _ = crossing(s, (x, y, a, b, pa))
@@ -507,6 +556,7 @@ def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main")
                 n_chords=n, misses=bool(mlines), excluded=sorted(int(k) for k in exclude), stations=per, body=body)
 
 
+# Math: CH.7 (slide CH): where a station's track enters and leaves the outline (O-C in time).
 def crossing(s, ell):
     """(entry, exit) times (s from the reference, as d_t / r_t) of a station's track through the ellipse
     (x, y, a, b, pa), or (None, None); the track straight with its motion at closest approach."""
@@ -674,31 +724,40 @@ def svg(data, f=None):
         o.append(f'<path d="M{X(g["x"]) - 5:.1f},{Y(g["y"]) - 5:.1f}l10,10M{X(g["x"]) - 5:.1f},{Y(g["y"]) + 5:.1f}'
                  f'l10,-10" stroke="{c}" stroke-width="1.5"/>')
     for s in st:                                   # the chords: D to R, accuracy bars, D square, R circle
-        if not s.get("d_xy") or not s.get("r_xy"):
+        if not s.get("d_xy") and not s.get("r_xy"):
             continue
         off = not s.get("include", True) or s["n"] in excl
         col = COL["off"] if off else BODY_COL.get(s.get("body") or "main", COL["pos"])
-        d, r = np.array(s["d_xy"]), np.array(s["r_xy"])
-        w = np.array(s.get("w") or (r - d))
+        d = np.array(s["d_xy"]) if s.get("d_xy") else None
+        r = np.array(s["r_xy"]) if s.get("r_xy") else None
+        w = np.array(s.get("w") or [1.0, 0.0])
         u = w / (np.hypot(*w) or 1.0)
         sp = float(np.hypot(*w))
+        both = d is not None and r is not None
         tip = (f'{s["n"]} {s["observer"]}, {s["place"]}' + (f' ({s["body"]})' if (s.get("body") or "main") != "main" else "")
-               + f': D {s.get("d_utc", "")[11:]} R {s.get("r_utc", "")[11:]} UT, '
-               f'{(s["r_t"] - s["d_t"]):.2f} s, {np.hypot(*(r - d)):.1f} km' + (f' ({s["note"]})' if s.get("note") else ""))
+               + ": " + " ".join(f"{k.upper()} {s[k + '_utc'][11:]}" for k in ("d", "r") if s.get(k + "_utc")) + " UT"
+               + (f', {(s["r_t"] - s["d_t"]):.2f} s, {np.hypot(*(r - d)):.1f} km' if both else "")
+               + (f' ({s["note"]})' if s.get("note") else ""))
         res = per.get(str(s["n"])) or {}
-        if res.get("d_s") is not None:
-            tip += f'; O−C D {res["d_s"]:+.2f} s, R {res["r_s"]:+.2f} s'
-        o.append(f'<g><title>{_esc(tip)}</title><line x1="{X(d[0]):.1f}" y1="{Y(d[1]):.1f}" x2="{X(r[0]):.1f}" '
-                 f'y2="{Y(r[1]):.1f}" stroke="{col}" stroke-width="{2.6 if not off else 1.6}"'
-                 + (' stroke-dasharray="5 3"' if off else "") + '/>')
+        oc = [f"{k.upper()} {res[k + '_s']:+.2f} s" for k in ("d", "r") if res.get(k + "_s") is not None]
+        if oc:
+            tip += "; O\u2212C " + ", ".join(oc)
+        o.append(f'<g><title>{_esc(tip)}</title>')
+        if both:
+            o.append(f'<line x1="{X(d[0]):.1f}" y1="{Y(d[1]):.1f}" x2="{X(r[0]):.1f}" y2="{Y(r[1]):.1f}" stroke="{col}" '
+                     f'stroke-width="{2.6 if not off else 1.6}"' + (' stroke-dasharray="5 3"' if off else "") + '/>')
         for p_, acc, mark in ((d, s.get("d_acc"), "sq"), (r, s.get("r_acc"), "ci")):
+            if p_ is None:
+                continue
             if acc:
                 e = u * acc * sp
                 o.append(f'<line x1="{X(p_[0] - e[0]):.1f}" y1="{Y(p_[1] - e[1]):.1f}" x2="{X(p_[0] + e[0]):.1f}" '
                          f'y2="{Y(p_[1] + e[1]):.1f}" stroke="{COL["err"]}" stroke-width="5" stroke-opacity="0.55"/>')
-            o.append(f'<rect x="{X(p_[0]) - 3:.1f}" y="{Y(p_[1]) - 3:.1f}" width="6" height="6" fill="#fff" stroke="{col}" '
-                     f'stroke-width="1.4"/>' if mark == "sq" else
-                     f'<circle cx="{X(p_[0]):.1f}" cy="{Y(p_[1]):.1f}" r="3.3" fill="#fff" stroke="{col}" stroke-width="1.4"/>')
+            sz = 3.0 if both else 4.5                  # a one-sided chord: a larger mark
+            o.append(f'<rect x="{X(p_[0]) - sz:.1f}" y="{Y(p_[1]) - sz:.1f}" width="{2 * sz}" height="{2 * sz}" fill="#fff" '
+                     f'stroke="{col}" stroke-width="1.6"/>' if mark == "sq" else
+                     f'<circle cx="{X(p_[0]):.1f}" cy="{Y(p_[1]):.1f}" r="{sz + 0.3:.1f}" fill="#fff" stroke="{col}" '
+                     f'stroke-width="1.6"/>')
         o.append("</g>")
     o.append("</g>")
     for s in st:                                   # numbers where the track enters the plot
@@ -725,7 +784,7 @@ def svg(data, f=None):
         o.append(f'<g stroke="{COL["muted"]}" fill="{COL["muted"]}"><line x1="{bx - 26 * ex:.1f}" y1="{by - 26 * ey:.1f}" '
                  f'x2="{hx:.1f}" y2="{hy:.1f}" stroke-width="1.5"/><path d="M{hx:.1f},{hy:.1f}'
                  f'L{hx - 9 * ex + 4 * ey:.1f},{hy - 9 * ey - 4 * ex:.1f}L{hx - 9 * ex - 4 * ey:.1f},{hy - 9 * ey + 4 * ex:.1f}Z"/>'
-                 f'<text x="{bx}" y="{by + 44}" stroke="none" text-anchor="middle" font-size="11">asteroid motion, '
+                 f'<text x="{bx}" y="{by + 44}" stroke="none" text-anchor="middle" font-size="11">{ev.get("body_kind") or "asteroid"} motion, '
                  f'{np.hypot(*w):.2f} km/s</text></g>')
     bar = _nice(half / 3)
     bx, by = 20 + PLOT - 20 - bar * k, top + PLOT - 22
@@ -769,8 +828,9 @@ def svg(data, f=None):
         tag = (BODY_TAG.get(s.get("body") or "main", "+") if res == "positive" else
                {"miss": "–", "clouded": "c"}.get(res, "?"))
         r = per.get(str(s["n"])) or {}
-        oc = (f"{r['d_s']:+.2f} / {r['r_s']:+.2f}" if r.get("d_s") is not None and r.get("r_s") is not None else
-              "inside!" if r.get("miss_inside") else "")
+        fmt = lambda v: "\u2014" if v is None else f"{v:+.2f}"
+        oc = (f"{fmt(r.get('d_s'))} / {fmt(r.get('r_s'))}" if r.get("d_s") is not None or r.get("r_s") is not None
+              else "inside!" if r.get("miss_inside") else "")
         who = f"{s['observer']}, {s['place']}".strip(", ")
         who = who if len(who) <= 30 else who[:29] + "…"
         o.append(f'<text x="{tx}" y="{y:.1f}" font-size="{fs}" fill="{col}"><tspan font-weight="600">{s["n"]:>2}</tspan>'

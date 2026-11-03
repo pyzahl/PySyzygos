@@ -82,6 +82,10 @@ The exact keys, the connection file, the API and what the camera tool should sti
   * **results per event ≥**: multi-chord events. It counts the results of the event in the list; in the archive it
     counts the event's observers. 2 = every event with more than one chord.
 
+  **Archive record** opens the event's whole record in the IOTA / Occult archive, the same view as the search GUI's
+  Results tab (event, star, Occult's fit, satellite, every observer with their times, our check); for a favorite, a
+  report or a received analysis, the archive's event of the same asteroid and time, when the archive has it.
+
   Saved filter sets stay in this browser. Without a search, the archive shows its newest 3,000 events (all 17,000
   take ~15 s to show); search a number, name, year or month (`2023`, `2023-12`) for the others.
 * **Report**: the observation report of one event and station. Prefilled from the event: asteroid, star (UCAC4 and
@@ -130,7 +134,10 @@ fitted**; or choose one). **Misses as limits** keeps the outline off the misses'
 
 Satellites and double stars: each of a station's chords is its own entry. Chords of a satellite (Occult's codes G/B,
 e.g. Menoetius for (617) Patroclus) are drawn in orange with their own fitted outline; chords on the 2nd star of a
-double (d/r) in teal, not fitted. The main body's fit uses only its own chords.
+double (d/r) in teal, not fitted. The main body's fit uses only its own chords. A station with only a D or only an R
+(the recording began or ended inside the event) is a one-sided chord: a single point of the outline, in the fit.
+Planets and moons of the archive (e.g. Ganymede 2025-10-14) are fitted at their known size, as Occult does; comets
+and Venus are not supported yet.
 
 The **Chords** tab shows:
 

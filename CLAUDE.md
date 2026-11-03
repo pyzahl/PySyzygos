@@ -332,6 +332,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   data-fevt/data-fnres, `filter_bar(groups, nres)` (`event_select`, 'results per event' LIM nres), `group_mark`
   button (PICK_JS toggles the evt select); archive nres = n_observers, `_archive_events` cached by CSV mtime,
   ARCHIVE_PAGE_MAX 3000 without a search (30 MB / ~15 s for all 17k). inbox/reports keep the plain ui.table.
+- `pysyzygos/gui_observed.py` (2026-11-03): the archive event dialog (`dialog(key, buttons=)`), shared by
+  gui_results.show_observed (adds its obs-check button) and the Observation Manager's "Archive record"
+  (`archive_key_for`: archive row, or chords.archive_star of a favorite/report/inbox event; read only).
 - `pysyzygos/chords.py` (2026-11-03, `pysyzygos chords archive KEY | reports P.. | fit JSON`, Observation Manager
   tab Chords): stations of one event -> fundamental plane (axes of date: obscheck.date_axes; q(t) = station minus
   predicted asteroid, spkcpo from the station 'CN', heights + EGM96 for WGS84 datums) -> d_xy/r_xy, p_ca, w, t_ca
@@ -341,7 +344,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (obs_sites order = Occult's numbers, contacts D/R paired by observer + lat/lon, 'x' -> include False),
   BODIES pairs per code (D/R main, G/B satellite, d/r 2nd star, g/b): one entry per chord, key 'body' (fit(body=),
   data fit_sat, `fit_lines`; ev 'sat' from sat_* fields; 524 archive events have such chords; e/f 'Unseen_Primary_
-  event' and N rings -> result 'other'), FORMAT 2 (older chords.json rebuilt by the GUI);
+  event' and N rings -> result 'other'), FORMAT 3 (older chords.json rebuilt by the GUI); `pair_contacts`: a lone
+  D or R = one-sided chord (fit uses each end present; Hertha: Dunham, 21 chords); `major_body` (archive names
+  'Ganymede' -> bodies.parse M:/P: -> bodies.ensure_kernel, ev body_kind; auto fit = fixed known size; comets/Venus
+  -> SystemExit message);
   `stations_reports` (saved reports, `report_group` = same asteroid within 10 min, abs paths; star = the favorite's
   corrected direction, else `archive_star` (local Gaia + corrections); archive fit/size attached when the archive
   has the event). Output observations/chords/<slug>/chords.json + profile.svg; a rebuild keeps fit_opts and include
@@ -751,7 +757,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `math_slides.tex` (the slides, single source: workflow, need for speed SP (funnel), search corridor CO
   (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, astrometry ST1 ST2
   AS, solver IN OB LT, Besselian figure, FG FP CA OV, shadow path on the map PG (geocentric-plane figure + inputs)
-  PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26); "variables and outputs" slides (no ID) after the
+  PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26); section "Observed events: the chord plot" CH.1-CH.7 (chords.py: plane points, fit,
+  O-C; three slides, added 2026-11-03); "variables and outputs" slides (no ID) after the
   astrometry, solver and PG slides: inputs, intermediate symbols, outputs with record field names (keep in step)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
   library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
   (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The
