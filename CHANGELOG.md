@@ -7,6 +7,19 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.5.2] "Beyond Horizons" - 2026-11-02
 
 ### Added
+- **Chord plot** (Observation Manager, tab Chords; `pysyzygos chords`): all stations of one event in the
+  fundamental plane as Occult draws them, from the Occult archive (past events) or from our saved reports of all
+  stations (fresh data: PyStarLight's analysis per station). D and R with their timing accuracy, misses, an ellipse
+  (circle, fixed size) fitted to the chord ends, O−C per chord, the predicted size and, for archive events, Occult's
+  fit for comparison; chords switched off refit at once; SVG download. Satellite chords (Occult codes G/B, e.g.
+  (617) Patroclus 2026-01-04: Menoetius) and chords on a double's 2nd star (d/r) are read too, the satellite with its
+  own fitted outline. Checked on (135) Hertha 2008 Dec 11: 101.9 ×
+  60.7 km, PA 41.7° vs Occult's 103.6 × 59.9 km, PA 40.6°, centers within 0.4 km.
+- **Observation Manager, Events tab: the Results table with its filter bar** (favorites, saved lists, the Occult
+  archive), plus two filters found only here: **event** (the results of one event: same target, times within 10
+  min, e.g. several stations or sites; the "n results" button beside the target sets it) and **results per event
+  ≥** (multi-chord events: the number of results of the event, in the archive its observers). A click on a row
+  chooses it. Without a search the archive shows its newest 3,000 events (all 17,000: ~15 s in the browser).
 - **☆ Star all shown** on the Results page (below the filter bar): adds every event the table shows after the filter to the favorites, asked once, one after another, with a count at the end.
 - **Observation GUI** (`pysyzygos gui-observation`, port 8081; a separate app beside the search GUI): Status, Events
   (favorites marked observed, saved lists, the Occult archive and its observers, saved reports) and Report: an

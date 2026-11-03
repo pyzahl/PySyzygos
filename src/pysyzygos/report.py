@@ -428,6 +428,38 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 globe=globe, rec=r)
 
 
+GROUP_TOL_S = 600.0                  # results of one event: same target, times within 10 min (sites see it minutes apart)
+
+
+def group_events(events, tol=GROUP_TOL_S):
+    """Results of the same event (several stations, sites or reports of one occultation): same target, event times
+    within tol of the previous one. Sets e['grp'] (the first result's event key to the minute) and e['nres'] (results
+    in the group); returns [(grp, label, n)] by time, for the filter bar's event choice."""
+    out, last = [], {}
+    for e in sorted(events, key=lambda x: x["when"]):
+        g = last.get(e["tid"])
+        if g is None or (e["when"] - g["end"]).total_seconds() > tol:
+            g = dict(id=f"{e['tid']}|{e['utc'][:16]}", label=f"{e['label']} {e['utc'][:16].replace('T', ' ')} UT",
+                     members=[])
+            last[e["tid"]] = g
+            out.append(g)
+        g["end"] = e["when"]
+        g["members"].append(e)
+    for g in out:
+        for e in g["members"]:
+            e["grp"], e["nres"] = g["id"], len(g["members"])
+    return [(g["id"], g["label"], len(g["members"])) for g in out]
+
+
+def group_mark(e):
+    """'3 results' after the target when several results belong to its event (a click shows only them); else ''."""
+    if not e.get("grp") or (e.get("nres") or 0) < 2:
+        return ""
+    return (f' <button class="grpbtn" type="button" data-g="{esc(e["grp"])}" title="{e["nres"]} results of this '
+            f'event (stations, sites or reports): click to show only them, again to show all">{e["nres"]} results'
+            f'</button>')
+
+
 def dedupe(events, tol=300.0):
     """Reruns append the same event again; the later log line replaces the earlier one."""
     kept = []
@@ -643,6 +675,25 @@ document.querySelectorAll('tr.obsrow').forEach(function(tr){tr.addEventListener(
  if(!tell('obs_select',tr.dataset.ev)&&window.pyoToast)pyoToast('The full record opens in the GUI (Results tab); here: pysyzygos observed show <asteroid> --date <date>');});});
 })();</script>"""
 
+# Observation Manager (gui_observation, meta 'pick'): a click on a row picks it (obs_pick: data-pick, else the event
+# key); the 'n results' button shows only that event's results (the bar's event choice)
+PICK_JS = """<style>tr.obsrow{cursor:pointer} tr.obsrow.cur td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.grpbtn{font:inherit;font-size:.72rem;font-weight:600;padding:0 6px;margin-left:4px;border:1px solid var(--accent);
+ border-radius:4px;background:transparent;color:var(--accent);cursor:pointer}.grpbtn.on{background:var(--accent);color:#fff}</style>
+<script>(function(){
+function tell(n,a){try{if(parent&&parent!==window&&parent.emitEvent){parent.emitEvent(n,a);return true;}}catch(e){}return false;}
+document.querySelectorAll('tr.obsrow').forEach(function(tr){tr.addEventListener('click',function(ev){
+ if(ev.target.closest('input,button,a,select'))return;
+ document.querySelectorAll('tr.obsrow.cur').forEach(function(x){x.classList.remove('cur');});
+ tr.classList.add('cur');tell('obs_pick',tr.dataset.pick||tr.dataset.ev);});});
+var es=document.querySelector('select[data-s=evt]');
+function marks(){document.querySelectorAll('.grpbtn').forEach(function(b){b.classList.toggle('on',!!es&&es.value===b.dataset.g);});}
+document.querySelectorAll('.grpbtn').forEach(function(b){b.addEventListener('click',function(ev){ev.stopPropagation();
+ if(!es)return;es.value=(es.value===b.dataset.g)?'':b.dataset.g;es.dispatchEvent(new Event('change'));
+ var bar=document.getElementById('fbar');if(bar&&es.value)bar.open=true;});});
+document.addEventListener('pyofilter',marks);marks();
+})();</script>"""
+
 FAV_JS = """<script>
 (function(){var bs=document.querySelectorAll('.favbtn');if(!bs.length||location.protocol==='file:')return;
 var ON='In the favorites: click to remove it again',OFF='Add to the favorites (with its map and preview)';
@@ -684,7 +735,7 @@ fetch('/api/favorites/keys').then(function(r){return r.json();}).then(function(j
 }).catch(function(){});})();
 </script>"""
 
-FAVPAGE_JS = """<style>
+FAVPAGE_CSS = """<style>
 .favbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px;font-size:.9rem}
 .favbar select{font:inherit;padding:2px 4px}
 th,td{padding:8px 6px} tr.favrow{cursor:pointer} tr.favrow.cur td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
@@ -695,7 +746,8 @@ td.fstat .nbub{display:none;position:absolute;right:0;top:100%;z-index:20;width:
  color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.18);font-size:.85rem;line-height:1.35;text-align:left}
 td.fstat .nflag:hover+.nbub,td.fstat .nflag:focus+.nbub{display:block}
 tr.favrow td:last-child{white-space:normal;min-width:9.5em}
-</style><script>
+</style>"""
+FAVPAGE_JS = FAVPAGE_CSS + """<script>
 (function(){
 var boxes=[].slice.call(document.querySelectorAll('.favsel')),all=document.getElementById('favall'),
     cnt=document.getElementById('favcount');
@@ -1188,7 +1240,7 @@ def html_row_observed(e):
     return (
         f'<tr class="obsrow"{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{esc(r.get("prediction") or "")}">'
         + (f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>'
-           if str(e["tid"]).isdigit() else esc(e["label"])) + binary_mark(e["tid"]) + '</td>'
+           if str(e["tid"]).isdigit() else esc(e["label"])) + binary_mark(e["tid"]) + group_mark(e) + '</td>'
         f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (the archive\'s reference time)">'
         f'{esc(fmt_time(e["when"]))}</td>'
         f'<td class="num mag" data-s="{s(e["mag"])}" title="{star_tip}">'
@@ -1241,7 +1293,8 @@ def html_row(e):
     f = e.get("fav")
     if f:                                                        # favorites page: select box, site; no calc time
         site = (e.get("site") or {}).get("name", "?")
-        lead = (f'<tr class="favrow" data-key="{esc(f["key"])}"{filter_attrs(e)}><td><input type="checkbox" class="favsel" '
+        lead = (f'<tr class="obsrow"{filter_attrs(e)}>' if e.get("pick") else   # Observation Manager: a click picks
+                f'<tr class="favrow" data-key="{esc(f["key"])}"{filter_attrs(e)}><td><input type="checkbox" class="favsel" '
                 f'value="{esc(f["key"])}" aria-label="Select {esc(e["label"])}"></td>')
         mid = f'<td data-s="{esc(site)}">{esc(site)}</td>'
         calc = ""
@@ -1254,7 +1307,7 @@ def html_row(e):
         f'<td class="ast" data-s="{esc(e["tid"])}" title="{tip_ast}">' + (
             f'{esc(e["label"])} <span class="badge kind">{esc(e["kind"] or "body")}</span>' if e.get("body") else
             f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>')
-        + binary_mark(e["tid"])
+        + binary_mark(e["tid"]) + group_mark(e)
         + (f' <span class="sizeest" title="Size estimated from H with an assumed albedo: diameter, duration and shadow '
            f'width are uncertain by a factor of about 1.7 (no measured diameter in SBDB)">size est.</span>'
            if size_estimated(e) else '')
@@ -1405,6 +1458,9 @@ def filter_attrs(e):
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
             f' data-fchance="{v(chance, 2)}" data-fsigpw="{v(sigpw)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
             f' data-fcls="{esc(e.get("ccode") or "")}"'
+            + (f' data-fevt="{esc(e["grp"])}"' if e.get("grp") else "")
+            + (f' data-fnres="{e["nres"]}"' if e.get("nres") is not None else "")
+            + (f' data-pick="{esc(e["pick"])}"' if e.get("pick") else "")
             + (f' data-fsite="{esc((e.get("site") or {}).get("name") or "")}"' if e.get("site") else ""))
 
 
@@ -1435,7 +1491,21 @@ def class_select():
             '</select></label>')
 
 
-def filter_bar():
+def event_select(groups):
+    """The Observation Manager's event choice: the results of one event (several stations or sites)."""
+    opt = lambda v, t: f'<option value="{esc(v)}">{esc(t)}</option>'
+    multi = [g for g in groups if g[2] > 1]
+    single = [g for g in groups if g[2] <= 1]
+    body = "".join(opt(g, f"{t} ({n} results)") for g, t, n in multi)
+    body = (f'<optgroup label="Several results">{body}</optgroup>' if multi else "") + (
+        f'<optgroup label="One result">{"".join(opt(g, t) for g, t, _ in single)}</optgroup>' if single else "")
+    return ('<label title="Only the results of one event (same target, times within 10 min): the stations, sites or '
+            'reports of one occultation">event <select data-s="evt">' + opt("", "any") + body + '</select></label>')
+
+
+def filter_bar(groups=None, nres=False):
+    """The filter bar; the Observation Manager adds the event choice (groups from group_events) and 'results per
+    event' (nres)."""
     num = lambda key, label, unit, step, tip: (
         f'<label title="{esc(tip)}">{label} <input type="number" step="{step}" data-f="{key}">{unit}</label>')
     hide = "".join(f'<label><input type="checkbox" data-h="{k}">{esc(t)}</label>' for k, t in FILTER_FLAGS)
@@ -1457,14 +1527,19 @@ def filter_bar():
             + num("hzc", "clear of horizon ≥", "°", "1", "star at least this high above your site's horizon "
                   "(sites.py horizon); sites without a horizon pass")
             + class_select()
+            + ('</div><div class="frow">' + (event_select(groups) if groups else "")
+               + (num("nres", "results per event ≥", "", "1", "events with at least this many results (chords: "
+                      "stations, sites or reports; the archive: observers); 2 = multi-chord events") if nres else "")
+               if groups or nres else "")
             + '</div><div class="frow"><span class="flab">hide:</span>' + hide
             + '<span class="flab">only:</span><label><input type="checkbox" data-o="moon">+moon</label></div>'
             '<div class="frow"><select id="fset" aria-label="Saved filter sets"></select>'
             '<button class="mapbtn" id="fsave" type="button">Save as…</button>'
             '<button class="mapbtn" id="fdel" type="button">Delete</button>'
             '<button class="mapbtn" id="fclear" type="button">Clear</button>'
-            '<span class="fnote">empty fields and unknown values pass; saved sets are shared by Results and '
-            'Favorites</span></div></details>')
+            '<span class="fnote">empty fields and unknown values pass; saved sets are '
+            + ('kept in this browser' if groups or nres else 'shared by Results and Favorites')
+            + '</span></div></details>')
 
 
 FILTER_CSS = """
@@ -1477,14 +1552,14 @@ FILTER_CSS = """
 .flab{color:var(--muted);font-size:.85rem}.fnote{color:var(--muted);font-size:.8rem}#fcount{font-weight:normal}
 .fbar button{font:inherit;font-size:.85rem;padding:2px 10px;border:1px solid var(--line);border-radius:6px;
  background:var(--head);color:var(--ink);cursor:pointer}.fbar button:hover{border-color:var(--accent);color:var(--accent)}
-.fbar select{font:inherit;font-size:.85rem}
+.fbar select{font:inherit;font-size:.85rem}.fbar select[data-s=evt]{max-width:28em}
 """
 
 FILTER_JS = """<script>
 (function(){var bar=document.getElementById('fbar');if(!bar)return;
 var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
 var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
-var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1,sigpw:-1},GRP=__GROUPS__;
+var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1,sigpw:-1,nres:1},GRP=__GROUPS__;
 function clsOk(c,want){if(!c||!want)return true;if(want.slice(0,2)!=='g:')return c===want;want=want.slice(2);
  if(want!=='other')return (GRP[want]||[]).indexOf(c)>=0;
  for(var g in GRP)if(GRP[g].indexOf(c)>=0)return false;return true;}
@@ -1510,7 +1585,7 @@ function hzAlt(site,az){var p=HZ[site];if(!p||!p.length)return null;az=((az%360)
 function pass(r,s){var tm=parseFloat(r.dataset.ftime);
  if(s.hzc!==undefined){var az=parseFloat(r.dataset.faz),al=parseFloat(r.dataset.falt),h=hzAlt(r.dataset.fsite||HZ0,az);
   if(h!==null&&!isNaN(az)&&!isNaN(al)&&al-h<s.hzc)return false;}
- if(!clsOk(r.dataset.fcls||'',s.cls))return false;
+ if(!clsOk(r.dataset.fcls||'',s.cls))return false;if(s.evt&&r.dataset.fevt!==s.evt)return false;
  if(!isNaN(tm)){if(s.from&&tm<tsec(s.from))return false;if(s.to&&tm>tsec(s.to,true))return false;}
  for(var k in LIM){if(s[k]===undefined)continue;var v=r.dataset['f'+k];if(v===undefined||v==='')continue;
   v=parseFloat(v);if(LIM[k]<0?v>s[k]:v<s[k])return false;}
@@ -1558,9 +1633,10 @@ FILTER_JS = FILTER_JS.replace("__GROUPS__", json.dumps({k: list(v) for k, v in _
 
 def to_html(events, meta):
     on = lambda key: ' sorted-asc' if meta.get("sort", "date") == key else ""
-    fav = meta.get("favorites")
-    head = (('<th><input type="checkbox" id="favall" aria-label="Select all"></th><th data-k>Asteroid</th>'
-             '<th data-k title="Site the event was predicted for">Site</th>') if fav else '<th data-k>Asteroid</th>') + (
+    fav, pick = meta.get("favorites"), meta.get("pick")
+    head = (('' if pick else '<th><input type="checkbox" id="favall" aria-label="Select all"></th>')
+            + '<th data-k>Asteroid</th><th data-k title="Site the event was predicted for">Site</th>'
+            if fav else '<th data-k>Asteroid</th>') + (
             f'<th class="{on("date").strip()}" data-k id="evtimehead">Event time (UT)</th>'
             f'<th class="num{on("mag")}" data-k title="Gaia G magnitude of the star">Star mag</th>'
             '<th class="num" data-k title="Magnitude drop with the star fully covered">Mag drop</th>'
@@ -1601,9 +1677,9 @@ def to_html(events, meta):
         body = "".join(html_row_body(e) for e in events)
     else:
         body = "".join(html_row(e) for e in events)
-    table = (filter_bar() + f'<div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+    table = (filter_bar(meta.get("groups"), meta.get("nres")) + f'<div class="wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
              if events else '<div class="wrap"><div class="empty">No events match.</div></div>')
-    if fav:
+    if fav and not pick:
         opts = "".join(f"<option>{esc(x)}</option>" for x in meta.get("statuses", ()))
         table = (f'<div class="favbar"><span id="favcount">0 selected</span>'
                  f'<label>status <select id="favstatus">{opts}</select></label>'
@@ -1642,7 +1718,7 @@ def to_html(events, meta):
 <li>Map shows the path on an interactive map (needs internet for the map tiles) and links the closest centre-line point in Google Maps. Google Maps itself cannot load a local KML file: use the KML link with Google Earth, or import it in My Maps (Create a new map, then Import).</li>
 </ul>
 </details>
-</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{FAVPAGE_JS if fav else FAV_JS}{OBS_JS if meta.get("layout") == "observed" else ""}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
+</main>{DIALOG if paths else ''}<script>{JS}</script>{map_script(paths, meta) if paths else ''}{PREVIEW_DIALOG if n_prev else ''}{TOAST_JS}{horizon_js(events, meta)}{FILTER_JS}{AZ_JS}{(FAVPAGE_CSS if fav else "") + PICK_JS if pick else FAVPAGE_JS if fav else FAV_JS}{OBS_JS if meta.get("layout") == "observed" and not pick else ""}{KSTARS_JS.replace("__SITE__", json.dumps(meta.get("site")))}</body></html>
 """
 
 

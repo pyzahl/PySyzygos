@@ -323,6 +323,33 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   login: not used). Match by Gaia id (`gaia.id`) else time (10 min); 1 s pause, User-Agent PySyzygos; on click only
   (GUI "Check OWC Feeds" in Results/Favorites, `run.io_bound`); cache `<data folder>/owc_cache.json`; report `owc_line()`
   under the asteroid (tags, station count, hover: observer, signed distance km, commitment).
+- Observation Manager Events page (2026-11-03): favorites/favall/list:<slug>/archive (`page_source`) as
+  report.to_html in an iframe (`events_page`, meta pick=True: no select boxes/favbar, PICK_JS emits obs_pick with
+  data-pick (favorite key) or data-ev (archive) -> `picked`; FAVPAGE_CSS for the note flag), served from memory
+  (PAGES) at /fav/_obs_<src>.html by the route `fav_files`, which also serves favorites/ read only (the rows' map/
+  preview links are relative to favorites/; lists: lists/<slug>/files/<key>). Filters only here:
+  `report.group_events` (GROUP_TOL_S 600, same tid; e grp = 'tid|YYYY-MM-DDTHH:MM' of the first, nres) ->
+  data-fevt/data-fnres, `filter_bar(groups, nres)` (`event_select`, 'results per event' LIM nres), `group_mark`
+  button (PICK_JS toggles the evt select); archive nres = n_observers, `_archive_events` cached by CSV mtime,
+  ARCHIVE_PAGE_MAX 3000 without a search (30 MB / ~15 s for all 17k). inbox/reports keep the plain ui.table.
+- `pysyzygos/chords.py` (2026-11-03, `pysyzygos chords archive KEY | reports P.. | fit JSON`, Observation Manager
+  tab Chords): stations of one event -> fundamental plane (axes of date: obscheck.date_axes; q(t) = station minus
+  predicted asteroid, spkcpo from the station 'CN', heights + EGM96 for WGS84 datums) -> d_xy/r_xy, p_ca, w, t_ca
+  -> `fit` (least squares of the D/R radial distances; auto: ellipse >= 3 chords, circle 2, fixed predicted size 1;
+  misses as limits; include flags/exclude) -> `svg` (sky view east left, Occult-like; station list; Occult's archive
+  fit dotted = geo_x/y minus our geocentric prediction at the ARCHIVE's reference time). Sources: `stations_archive`
+  (obs_sites order = Occult's numbers, contacts D/R paired by observer + lat/lon, 'x' -> include False),
+  BODIES pairs per code (D/R main, G/B satellite, d/r 2nd star, g/b): one entry per chord, key 'body' (fit(body=),
+  data fit_sat, `fit_lines`; ev 'sat' from sat_* fields; 524 archive events have such chords; e/f 'Unseen_Primary_
+  event' and N rings -> result 'other'), FORMAT 2 (older chords.json rebuilt by the GUI);
+  `stations_reports` (saved reports, `report_group` = same asteroid within 10 min, abs paths; star = the favorite's
+  corrected direction, else `archive_star` (local Gaia + corrections); archive fit/size attached when the archive
+  has the event). Output observations/chords/<slug>/chords.json + profile.svg; a rebuild keeps fit_opts and include
+  flags. GUI: Events "Chord plot" (`chords_job`: archive key / report group / favorite's `reports_of`), subprocess
+  build (SPICE), refit in-process on table ticks, shape, misses. Checked: Hertha 2008 Dec 11 (20 chords) 101.9 x 60.7
+  km PA 41.7 vs Occult 103.6 x 59.9 PA 40.6, centers within 0.4 km; reports route = archive route within 1 mm.
+  tests/test_chords.py. Open: per-chord time shifts, satellites/2nd stars, shape models; RMS 4.2 vs Occult's 1.8 (2008
+  slide): Occult may weight or shift chords.
 - Observation GUI = "Observation Manager" (user's name; user doc OBSERVATION-MANAGER.md, linked from README and
   ABOUT.md Part 1; keep it in step) (2026-11-02, user's wish: strictly separate from the search GUI): `pysyzygos/gui_observation.py`
   (`pysyzygos gui-observation`, COMMANDS, port 8081, 127.0.0.1 only, server_mode.Guard without auth, own state

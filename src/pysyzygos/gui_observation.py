@@ -10,10 +10,13 @@ observations/<event>/). Tabs:
     Status   what is there: favorites marked observed, saved lists, the Occult archive, PyStarLight analyses,
              saved reports, and what is not built yet
     Events   the events to report on: favorites (observed), a saved list, the Occult archive, analyses received
-             from PyStarLight, or saved reports
+             from PyStarLight, or saved reports; favorites, lists and the archive as the Results table with its filter
+             bar, plus the event choice (the results of one event) and 'results per event' (multi-chord events)
     Report   the observation report of one event and station: prefilled from the event, imports (PyStarLight
              analysis, an IOTA-ES report form; each field shows where it came from: the recording, the analysis, the
              prediction, or edited by hand), saved, and written as an IOTA-ES report form (.txt) for submission
+    Chords   the chords of one event (an archive event, or our saved reports of all its stations) in the fundamental
+             plane, an ellipse fitted to them and the profile plot (chords.py)
 
 API for PyStarLight (docs/observation_interface.md): GET /api/obs/v1/ (status), POST /api/obs/v1/analysis (its
 <movie>.event.json as the body) -> observations/inbox/. Local (127.0.0.1): the key of the connection file
@@ -22,15 +25,18 @@ from the network (--host 0.0.0.0 or --server) with the search GUI's login and pr
 `pysyzygos gui --set-password`, `pysyzygos gui --new-token PyStarLight`), a token may only use /api/obs/v1/.
 """
 from pysyzygos.version import __version__, __codename__, __author__, __copyright__, __license__, __url__
-from pysyzygos import favorites, obsreport, observed
+from pysyzygos import chords, favorites, obsreport, observed
 from pysyzygos.home import HOME as ROOT, PKG
-import argparse, json, os, sqlite3
+import argparse, json, os, re, sqlite3, time
 
 STATE = "gui_observation_state.json"
 RUN = {}                                  # how this app was started (restart: the same port, host and mode)
 PORT = 8081                               # default port; if taken, the next free one up to PORT + PORTS - 1
 PORTS = 10                                # (the connection file says which: the search GUI's button reads it)
-ARCHIVE_LIMIT = 300                       # rows of the Occult archive shown per search
+ARCHIVE_LIMIT = 300                       # rows of the Occult archive shown per search (the plain table's limit)
+ARCHIVE_PAGE_MAX = 3000                   # archive events on the page without a search (all 17,000: 30 MB, ~15 s to show)
+PAGES = {}                                # the events pages, served at /fav/_obs_<source>.html (beside the favorites'
+_ARCHIVE = {}                             # map and preview copies, which they link relatively); the archive's events
 API = "/api/obs/v1/"                      # the API for PyStarLight (token: read and send here only)
 
 
@@ -96,8 +102,9 @@ def list_entries(src):
     return []
 
 
-def archive_rows(query):
-    """Occult archive events matching an asteroid number, a name or a date ('2025-11', '2025-11-21'), newest first."""
+def archive_rows(query, limit=ARCHIVE_LIMIT):
+    """Occult archive events matching an asteroid number, a name or a date ('2025-11', '2025-11-21'), newest first
+    (limit None: all)."""
     q = str(query or "").strip()
     _, db_file, _ = observed.paths()
     if not os.path.isfile(db_file):
@@ -111,7 +118,7 @@ def archive_rows(query):
         if q:
             sql += " WHERE target_id = ? OR json_extract(record, '$.target_name') LIKE ? OR best_utc LIKE ?"
             args = [q, f"%{q}%", f"{q}%"]
-        rows = con.execute(sql + f" ORDER BY best_utc DESC LIMIT {ARCHIVE_LIMIT}", args).fetchall()
+        rows = con.execute(sql + " ORDER BY best_utc DESC" + (f" LIMIT {int(limit)}" if limit else ""), args).fetchall()
     finally:
         con.close()
     return [dict(id=f"{t}|{str(u)[:19]}", date=str(u)[:19].replace("T", " "), asteroid=n or t, star=s or "",
@@ -134,6 +141,141 @@ def rows_for(src, query=""):
     q = str(query or "").lower()
     rows = [_fav_row(e) for e in list_entries(src)]
     return [r for r in rows if not q or q in json.dumps(r).lower()]
+
+
+PAGE_SOURCES = ("fav", "favall", "archive")     # and 'list:<slug>': shown as the Results table with its filter bar
+
+
+def page_source(src):
+    return src in PAGE_SOURCES or str(src).startswith("list:")
+
+
+def page_name(src):
+    return "_obs_" + re.sub(r"[^A-Za-z0-9_-]+", "_", src) + ".html"
+
+
+def _entry_dir(src, key):
+    """A favorite's own folder (map, preview, globe copies): favorites/<key>, in a list favorites/lists/<slug>/files/<key>."""
+    if src.startswith("list:"):
+        return os.path.join(favorites.DIR, favorites.LISTS, src[5:], "files", key)
+    return os.path.join(favorites.DIR, key)
+
+
+def _archive_events():
+    """The Occult archive's events (report.build_event of observations_log.csv), built once per file version."""
+    from pysyzygos import report as R
+    _, _, csv_file = observed.paths()
+    if not os.path.isfile(csv_file):
+        return []
+    mt = os.path.getmtime(csv_file)
+    if _ARCHIVE.get("mtime") != mt:
+        rows, _ = R.read_log(csv_file)
+        events = []
+        for r in rows:
+            try:
+                e = R.build_event(r, None, None, "", ROOT)
+            except (KeyError, ValueError):
+                continue
+            n = R.num(r.get("n_observers"))
+            e["nres"] = int(n) if n is not None else None              # results of the event: its observers
+            events.append(e)
+        _ARCHIVE.clear()
+        _ARCHIVE.update(mtime=mt, events=events)
+    return _ARCHIVE["events"]
+
+
+def events_page(src, query=""):
+    """The events of a source as the Results table (report.to_html) with the filter bar, plus the event choice and
+    'results per event' (several stations, sites or reports of one occultation; the archive: its observers). A click
+    on a row picks it (obs_pick). Returns (html, n)."""
+    from pysyzygos import report as R
+    from pysyzygos import urls as U
+    from datetime import datetime
+    q = str(query or "").strip()
+    meta = dict(span="", sort="date", info=None, generated=datetime.now().strftime("%Y-%m-%d %H:%M"), obs=None,
+                site=None, pick=True, nres=True, tiles=U.URL_OSM_TILES, paths={})
+    if src == "archive":
+        events = _archive_events()
+        if q:
+            keys = {r["id"] for r in archive_rows(q, limit=None)}
+            events = [e for e in events if R.event_key(e["tid"], e["utc"]) in keys]
+        events = sorted(events, key=lambda e: e["when"], reverse=True)
+        n_all = len(events)
+        if not q and n_all > ARCHIVE_PAGE_MAX:
+            events = events[:ARCHIVE_PAGE_MAX]
+        meta.update(title="Observed occultations (IOTA / Occult archive)", layout="observed",
+                    observer="observed events (Occult archive)" + (f" matching “{q}”" if q else "")
+                    + (f", the newest {len(events)} of {n_all}: search a number, name, year or month for others"
+                       if len(events) < n_all else ""))
+    else:
+        events, sites = [], set()
+        for f in list_entries(src):
+            if q and q.lower() not in json.dumps(_fav_row(f)).lower():
+                continue
+            r, site = f.get("record") or {}, f.get("site") or {}
+            try:
+                e = R.build_event(r, site.get("lat"), site.get("lon"), _entry_dir(src, f["key"]), favorites.DIR)
+            except (KeyError, ValueError, TypeError, AttributeError):
+                continue
+            e.update(fav=dict(key=f["key"], status=f.get("status", ""), note=f.get("note", ""),
+                              added=f.get("added", "")), site=site, pick=f["key"])
+            if e["kml_abs"]:
+                try:
+                    meta["paths"][f["key"]] = R.kml_to_data(e["kml_abs"])
+                    e["pkey"] = f["key"]
+                except Exception:
+                    pass
+            sites.add(site.get("name", "?"))
+            events.append(e)
+        events.sort(key=lambda e: e["when"])
+        meta.update(title=dict(sources()).get(src, src), favorites=True, statuses=(), groups=R.group_events(events),
+                    observer=f"{len(sites)} site{'s' if len(sites) != 1 else ''}: {', '.join(sorted(sites))}"
+                    if sites else "no events")
+    if events:
+        meta["span"] = f" from {min(e['when'] for e in events):%Y-%m-%d} to {max(e['when'] for e in events):%Y-%m-%d}"
+    return R.to_html(events, meta), len(events)
+
+
+def reports_of(entry):
+    """Our saved reports of a favorite's event (any station): same asteroid, times within chords.GROUP_TOL_S."""
+    from datetime import datetime, timezone
+    r = entry.get("record") or {}
+    try:
+        t0 = datetime.fromisoformat(str(r.get("best_utc"))[:19]).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return []
+    num, name = obsreport._name_parts(r.get("target_id"), r.get("target_name"))
+    out = []
+    for x in obsreport.saved(obsreport.DIR):
+        f = obsreport.load(x["path"]).get("fields") or {}
+        same = (str(f.get("asteroid_number") or "") == str(num or "")) if num else \
+            (str(f.get("asteroid_name") or "").strip().lower() == str(name or "").strip().lower())
+        t = chords.report_time(f)
+        if same and t is not None and abs((t - t0).total_seconds()) <= chords.GROUP_TOL_S:
+            out.append(x["path"])
+    return out
+
+
+def chords_job(src, sel):
+    """(kind, what, folder) of the chord plot for the chosen event, or (None, why, None): an archive event; a saved
+    report (with the other reports of its event); a favorite (the saved reports of its event)."""
+    if not sel:
+        return None, "Choose an event first", None
+    if src == "archive":
+        return "archive", sel, os.path.join(ROOT, chords.DIR, chords.slug(sel))
+    if src == "reports":
+        paths = [sel]
+    elif src == "inbox":
+        return None, "Open the report form and save it first: the chords come from saved reports", None
+    else:
+        e = next((x for x in list_entries(src) if x["key"] == sel), None)
+        paths = reports_of(e) if e else []
+        if not paths:
+            return None, ("No saved report of this event yet: open the report form for each station (PyStarLight's "
+                          "analysis) and save it"), None
+    paths = chords.report_group(paths[0])
+    key = obsreport.event_key(obsreport.load(paths[0]).get("fields") or {})
+    return "reports", paths, os.path.join(ROOT, chords.DIR, chords.slug(key))
 
 
 def sites_dict():
@@ -176,7 +318,7 @@ NOT_YET = """**Not built yet** (this first version: lists, archive, report form,
 - More than one D/R pair per report as separate events (second star, satellite): kept as lines under 'More events'.
 - The light curve itself (PyStarLight CSV, plots) attached to a report; Occult's LightData/LightValues.
 - Observer profile kept once (name, e-mail, address, equipment per site): entered per report for now.
-- Several stations of one observer / several observers of one event shown together; a chord plot.
+- Chords: time shifts per chord (Occult's 'shift' for a station's clock), satellites and second stars, a shape model's outline.
 - Online submission per IOTA region (IOTA-ES, IOTA North America, RASNZ/IOTA ANZ, ...): which forms and channels.
 - Observer profiles and several operators / chord stations: from the camera tool, to be managed.
 """
@@ -234,8 +376,11 @@ def build_page():
                  "accuracy from its light-curve fit, and the recording's own data (GPS site and time, camera, "
                  "telescope, observers), sent by PyStarLight (on this computer the connection sets itself up), found "
                  "in your recording folders, or loaded as its .event.json; no retyping.").classes("text-sm mt-2")
-        ui.label("Early version: lists, archive, report form, imports and the IOTA-ES text. The submission itself, "
-                 "the forms of the other IOTA regions and several stations of one event are still to come (Status "
+        ui.label("Chords: the stations of one event (an event of the archive, or our reports of all its stations) "
+                 "in the fundamental plane, an ellipse fitted to them and the profile plot, with Occult's fit for "
+                 "comparison.").classes("text-sm mt-2")
+        ui.label("Early version: lists, archive, report form, imports, the IOTA-ES text and the chord plot. The "
+                 "submission itself and the forms of the other IOTA regions are still to come (Status "
                  "tab).").classes("text-sm mt-2")
         ui.label("Credits").classes("font-semibold mt-2")
         ui.label("Report form: IOTA-ES (European Section of the International Occultation Timing Association) \u00b7 "
@@ -254,6 +399,7 @@ def build_page():
             ui.button("Close", on_click=about.close).props("flat")
     with ui.tabs().classes("w-full") as tabs:
         t_status, t_events, t_report = ui.tab("Status"), ui.tab("Events"), ui.tab("Report")
+        t_chords = ui.tab("Chords")
     with ui.tab_panels(tabs, value=t_events).classes("w-full"):
         with ui.tab_panel(t_status):
             status_box = ui.column().classes("w-full gap-1")
@@ -271,11 +417,37 @@ def build_page():
                                                      ("star", "Star"), ("site", "Site / observers"),
                                                      ("status", "Status"), ("note", "Note"))],
                              rows=[], row_key="id", selection="single", pagination=25).classes("w-full")
+            frame = ui.element("iframe").style("width: 100%; height: 72vh; border: 0; display: block")
             with ui.row().classes("items-end gap-3"):
+                pick_lbl = ui.label("").classes("text-sm text-slate-600")
                 obs_sel = ui.select({}, label="Observer of the archive event (prefills station and D/R)").classes(
                     "w-96")
                 obs_sel.set_visibility(False)
                 ui.button("Open the report form", on_click=lambda: open_report()).props("color=primary")
+                ui.button("Chord plot", on_click=lambda: chord_plot()).props("outline").tooltip(
+                    "The chords of the chosen event in the fundamental plane, an ellipse fitted to them and the "
+                    "profile plot: an archive event, or our saved reports of all stations of the event")
+        with ui.tab_panel(t_chords):
+            ch_title = ui.label("No event: Events tab, choose one, 'Chord plot'.").classes("text-lg font-semibold")
+            with ui.row().classes("items-end gap-3"):
+                ch_mode = ui.select({"auto": "auto (by the number of chords)", "ellipse": "ellipse",
+                                     "circle": "circle", "fixed": "fixed diameter"}, value="auto",
+                                    label="Shape fitted").classes("w-64")
+                ch_dia = ui.number("Diameter for 'fixed' (km)", format="%.1f").classes("w-48").tooltip(
+                    "Empty: the predicted diameter")
+                ch_miss = ui.checkbox("Misses as limits").tooltip(
+                    "A miss whose track passes inside the outline pushes the fit away from it")
+                ui.button("Compute again", on_click=lambda: chord_plot(rebuild=True)).props("outline").tooltip(
+                    "Place the stations again (today's JPL Horizons orbit; reports changed since)")
+                ui.button("Download SVG", on_click=lambda: chord_download()).props("outline")
+            ch_info = ui.label("").classes("text-sm text-slate-600")
+            ch_svg = ui.html("").classes("w-full overflow-auto")
+            ui.label("Chords in the fit (untick to leave one out; misses count with 'Misses as limits')").classes(
+                "text-sm font-medium mt-2")
+            ch_table = ui.table(columns=[dict(name=k, label=lab, field=k, align="left") for k, lab in (
+                ("n", "#"), ("result", "Result"), ("station", "Observer, station"), ("d", "D (UT)"), ("r", "R (UT)"),
+                ("dur", "Duration (s)"), ("oc", "O−C D / R (s)"), ("km", "Radial D / R (km)"), ("note", "Note"))],
+                rows=[], row_key="n", selection="multiple").props("dense flat").classes("w-full")
         with ui.tab_panel(t_report):
             title = ui.label("No event chosen: Events tab, choose one, 'Open the report form'.").classes(
                 "text-lg font-semibold")
@@ -383,17 +555,34 @@ def build_page():
                     ui.label(k).classes("font-medium")
                     ui.label(v)
 
-    def fill_table():
-        S["src"] = src_sel.value
-        save_state(source=src_sel.value)
-        table.rows = rows_for(src_sel.value, q_in.value)
-        table.selected = []
-        table.update()
+    async def fill_table():
+        from nicegui import run
+        src = S["src"] = src_sel.value
+        save_state(source=src)
+        S["sel"] = None
+        pick_lbl.text = ""
         obs_sel.set_visibility(False)
+        paged = page_source(src)
+        table.set_visibility(not paged)
+        frame.set_visibility(paged)
+        if not paged:
+            table.rows = rows_for(src, q_in.value)
+            table.selected = []
+            table.update()
+            return
+        name = page_name(src)
+        if src == "archive" and "events" not in _ARCHIVE:
+            ui.notify("Reading the Occult archive (once per start)…")
+        PAGES[name], n = await run.io_bound(events_page, src, q_in.value)
+        frame.props(f'src="/fav/{name}?t={time.time():.0f}"')
 
-    def on_select(e):
-        rows = e.selection if hasattr(e, "selection") else table.selected
-        S["sel"] = rows[0]["id"] if rows else None
+    def picked(key, label=""):
+        """A row of the events page was clicked (obs_pick)."""
+        S["sel"] = key or None
+        pick_lbl.text = f"Chosen: {label or key}" if key else ""
+        archive_observers()
+
+    def archive_observers():
         if S["sel"] and src_sel.value == "archive":
             rec, cts = observed.find(S["sel"])
             names = [s.get("observer") for s in (rec or {}).get("obs_sites") or [] if s.get("observer")]
@@ -401,9 +590,128 @@ def build_page():
             obs_sel.value = ""
             obs_sel.update()
             obs_sel.set_visibility(True)
+            if rec:
+                pick_lbl.text = f"Chosen: {rec.get('target_name') or rec.get('target_id')} {S['sel'].split('|')[-1]}"
         else:
             obs_sel.set_visibility(False)
+    ui.on("obs_pick", lambda e: picked(e.args if isinstance(e.args, str) else (e.args or [""])[0]))
+
+    def on_select(e):
+        rows = e.selection if hasattr(e, "selection") else table.selected
+        S["sel"] = rows[0]["id"] if rows else None
+        archive_observers()
     table.on_select(on_select)
+
+    CH = dict(data=None, folder=None, busy=False)
+
+    async def chord_plot(rebuild=False):
+        """Show the chord plot of the chosen event (Events tab), computing it first if needed (a process of its own:
+        SPICE and JPL Horizons); our reports changed since the last computation: computed again."""
+        import asyncio, sys as _sys
+        if CH["busy"]:
+            ui.notify("Still computing the chords…")
+            return
+        if rebuild and CH["data"]:
+            ev = CH["data"]["event"]
+            kind, what, folder = ("archive", ev["key"], CH["folder"]) if ev["source"] == "occult archive" else \
+                ("reports", chords.report_group(ev["reports"][0]), CH["folder"])
+        else:
+            kind, what, folder = chords_job(src_sel.value, S["sel"])
+        if kind is None:
+            ui.notify(what, type="warning", multi_line=True)
+            return
+        js = os.path.join(folder, "chords.json")
+        stale = os.path.isfile(js) and ((kind == "reports" and any(
+            os.path.getmtime(p) > os.path.getmtime(js) for p in what)) or chords.load(js).get("format", 1) < chords.FORMAT)
+        if rebuild or stale or not os.path.isfile(js):
+            CH["busy"] = True
+            n = ui.notification("Computing the chords (JPL Horizons orbit, the stations in the fundamental "
+                                "plane)…", spinner=True, timeout=None)
+            try:
+                args = [_sys.executable, "-u", "-m", "pysyzygos", "chords"] + (
+                    ["archive", what] if kind == "archive" else ["reports", *what])
+                env = dict(os.environ, PYSYZYGOS_HOME=ROOT, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+                p = await asyncio.create_subprocess_exec(*args, cwd=ROOT, env=env, stdout=asyncio.subprocess.PIPE,
+                                                         stderr=asyncio.subprocess.STDOUT)
+                out = (await p.communicate())[0].decode("utf-8", "replace")
+            finally:
+                CH["busy"] = False
+                n.dismiss()
+            if p.returncode != 0 or not os.path.isfile(js):
+                tail = [x for x in out.strip().splitlines() if x.strip()][-3:]
+                ui.notify("Chords not computed: " + " / ".join(tail)[-400:], type="negative", multi_line=True,
+                          timeout=0, close_button=True)
+                return
+        CH["data"], CH["folder"] = chords.load(js), folder
+        o = CH["data"].get("fit_opts") or {}
+        S["setting"] = True
+        try:
+            ch_mode.value, ch_miss.value = o.get("mode", "auto"), bool(o.get("misses"))
+            ch_dia.value = o.get("diameter")
+        finally:
+            S["setting"] = False
+        show_chords()
+        tabs.value = t_chords
+
+    def show_chords():
+        d = CH["data"]
+        ev, f = d["event"], d.get("fit") or {}
+        ch_title.text = f"{chords.label(ev)} {ev['utc'][:19].replace('T', ' ')} UT · " + \
+            ("Occult archive" if ev["source"] == "occult archive" else f"{len(ev.get('reports') or [])} saved report(s)")
+        ch_info.text = (f"Star: {d.get('star_used', '')}. Computed {d.get('made', '')[:16].replace('T', ' ')} UT "
+                        f"(PySyzygos {d.get('version', '')}). " + "; ".join(chords.fit_lines(d, f))
+                        + (f". Occult's fit: {ev['archive_fit']['major']:.1f} × {ev['archive_fit']['minor']:.1f} km, "
+                           f"PA {ev['archive_fit']['pa']:.1f}°, center {ev['archive_fit']['x']:+.1f}, "
+                           f"{ev['archive_fit']['y']:+.1f} km" if (ev.get("archive_fit") or {}).get("x") is not None
+                           else ""))
+        ch_svg.content = chords.svg(d, f)
+        per = dict(f.get("stations") or {}, **((d.get("fit_sat") or {}).get("stations") or {}))
+        rows = []
+        for s_ in d["stations"]:
+            r = per.get(str(s_["n"])) or {}
+            dur = s_["r_t"] - s_["d_t"] if s_.get("d_t") is not None and s_.get("r_t") is not None else None
+            body = s_.get("body") or "main"
+            rows.append(dict(n=s_["n"], result=s_["result"] + (f" ({body})" if body != "main" else ""), station=f"{s_['observer']}, {s_['place']}".strip(", "),
+                             d=(s_.get("d_utc") or "")[11:22], r=(s_.get("r_utc") or "")[11:22],
+                             dur="" if dur is None else f"{dur:.2f}",
+                             oc=(f"{r['d_s']:+.2f} / {r['r_s']:+.2f}" if r.get("d_s") is not None and
+                                 r.get("r_s") is not None else "outside the fit" if "d_km" in r else
+                                 "inside the fit!" if r.get("miss_inside") else ""),
+                             km=f"{r['d_km']:+.1f} / {r['r_km']:+.1f}" if "d_km" in r else "",
+                             note=s_.get("note", "")))
+        S["setting"] = True
+        try:
+            ch_table.rows = rows
+            ch_table.selected = [x for x, s_ in zip(rows, d["stations"]) if s_.get("include", True)
+                                 and s_["result"] in ("positive", "miss")]
+            ch_table.update()
+        finally:
+            S["setting"] = False
+
+    def chord_refit(*_):
+        """Fit and draw again (no SPICE): the shape, misses, the chords ticked."""
+        d = CH["data"]
+        if S["setting"] or not d:
+            return
+        on = {x["n"] for x in ch_table.selected}
+        for s_ in d["stations"]:
+            if s_["result"] in ("positive", "miss"):
+                s_["include"] = s_["n"] in on
+        d["fit_opts"] = dict(mode=ch_mode.value or "auto", misses=bool(ch_miss.value),
+                             **({"diameter": float(ch_dia.value)} if ch_dia.value else {}))
+        chords.save(d, CH["folder"])
+        show_chords()
+    ch_mode.on_value_change(chord_refit)
+    ch_miss.on_value_change(chord_refit)
+    ch_dia.on("blur", chord_refit)
+    ch_table.on_select(chord_refit)
+
+    def chord_download():
+        if not CH["data"]:
+            ui.notify("No chord plot yet", type="warning")
+            return
+        ev = CH["data"]["event"]
+        ui.download(os.path.join(CH["folder"], "profile.svg"), f"chords_{chords.slug(ev['key'])}.svg")
 
     def open_report():
         if not S["sel"]:
@@ -528,7 +836,7 @@ def build_page():
 
     src_sel.on_value_change(lambda *_: fill_table())
     show_status()
-    fill_table()
+    ui.timer(0.1, fill_table, once=True)
     show_missing()
 
 
@@ -578,6 +886,18 @@ def add_api(app, local=True):
     sending needs the connection file's key (in server mode the guard checks the program tokens instead)."""
     from fastapi import Request
     from fastapi.responses import JSONResponse
+
+    @app.get("/fav/{path:path}")
+    def fav_files(path: str):
+        """The events pages (PAGES) and, read only, the favorites' files they link (map, preview, globe copies)."""
+        from fastapi.responses import FileResponse, HTMLResponse, Response
+        if path in PAGES:
+            return HTMLResponse(PAGES[path], headers={"Cache-Control": "no-store"})
+        base = os.path.realpath(os.path.join(ROOT, favorites.DIR))
+        p = os.path.realpath(os.path.join(base, path))
+        if not p.startswith(base + os.sep) or not os.path.isfile(p):
+            return Response(status_code=404)
+        return FileResponse(p)
 
     @app.get(API)
     def api_status():

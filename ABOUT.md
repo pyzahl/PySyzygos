@@ -62,7 +62,7 @@ during an occultation. Up to version 0.18 it was called PyOccult.
 | present | `pysyzygos/report.py` | turns `hits_log.csv` into an HTML or Markdown event list with an embedded map |
 | operate | `pysyzygos/gui.py` (+ `gui_<tab>.py`, `gui_common.py`) | local web interface (NiceGUI): sites on a map, runs, live log, results |
 | check | `pysyzygos/owc_check.py` | reruns an OWC search result you saved (`owc_reference.txt`, private) and compares event by event |
-| report | `pysyzygos/gui_observation.py`, `pysyzygos/obsreport.py` | the Observation Manager, a separate app: observation reports of observed events, with PyStarLight's automated video analysis (D/R times, recording data) imported directly; written as IOTA-ES report forms ([OBSERVATION-MANAGER.md](OBSERVATION-MANAGER.md)) |
+| report | `pysyzygos/gui_observation.py`, `pysyzygos/obsreport.py`, `pysyzygos/chords.py` | the Observation Manager, a separate app: observation reports of observed events, with PyStarLight's automated video analysis (D/R times, recording data) imported directly; written as IOTA-ES report forms ([OBSERVATION-MANAGER.md](OBSERVATION-MANAGER.md)) |
 
 Supporting modules: `pysyzygos/corridor.py` (per-asteroid star corridor and candidate scan), `pysyzygos/starcat.py`
 (the star catalog; `gaia_local.py` reads the earlier format), `pysyzygos/screen.py` (the pick tool's event screen),

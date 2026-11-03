@@ -61,4 +61,26 @@ assert db.filter_to_sql({"cls": "x'; DROP"}) == ""                      # only k
 assert R.note_flag("") == "" and R.note_flag("  ") == ""
 c = R.note_flag("NEGATIVE: no event seen <b>")
 assert '<span class="nflag" tabindex="0"' in c and '<span class="nbub" role="tooltip">NEGATIVE: no event seen &lt;b&gt;</span>' in c, c
+# Observation Manager: results of one event grouped (same target, within 10 min), the event choice and 'results per
+# event' only when asked for, rows that a click picks
+from datetime import timedelta
+t0 = datetime(2026, 11, 2, 1, 9, 10, tzinfo=timezone.utc)
+ev = lambda tid, dt, lab="(3200) Phaethon": dict(base, tid=tid, label=lab, when=t0 + timedelta(seconds=dt),
+                                                  utc=(t0 + timedelta(seconds=dt)).strftime("%Y-%m-%dT%H:%M:%S"))
+evs = [ev("3200", 0), ev("3200", 70), ev("3200", 500), ev("3200", 3 * 3600), ev("709", 30, "(709) Fringilla")]
+groups = R.group_events(evs)
+assert [(g, n) for g, _, n in groups] == [("3200|2026-11-02T01:09", 3), ("709|2026-11-02T01:09", 1),
+                                         ("3200|2026-11-02T04:09", 1)], groups
+assert [e["nres"] for e in evs] == [3, 3, 3, 1, 1] and evs[2]["grp"] == "3200|2026-11-02T01:09"
+assert groups[0][1] == "(3200) Phaethon 2026-11-02 01:09 UT"
+vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', R.filter_attrs(evs[0])))
+assert vals["evt"] == "3200|2026-11-02T01:09" and vals["nres"] == "3"
+assert 'data-pick="k1"' in R.filter_attrs(dict(evs[0], pick="k1"))
+assert 'class="grpbtn"' in R.group_mark(evs[0]) and R.group_mark(evs[3]) == ""
+bar = R.filter_bar(groups, True)
+assert 'select data-s="evt"' in bar and 'data-f="nres"' in bar and "(3 results)" in bar
+assert 'Several results' in bar and 'One result' in bar
+assert 'data-s="evt"' not in R.filter_bar() and 'data-f="nres"' not in R.filter_bar()     # Results / Favorites: unchanged
+assert "nres:1" in R.FILTER_JS and "s.evt&&r.dataset.fevt!==s.evt" in R.FILTER_JS
+assert "obs_pick" in R.PICK_JS and "grpbtn" in R.PICK_JS
 print("REPORT FILTER TESTS PASSED")

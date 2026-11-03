@@ -56,11 +56,14 @@ def load_results(path):
 
 # ----------------------------------------------------------------------------------------------- orbits
 def horizons_spk(number, start, stop, timeout=120):
-    """The asteroid's SPK (bytes) from JPL Horizons for [start, stop] (YYYY-MM-DD). Network only (threads)."""
+    """The asteroid's SPK (bytes) from JPL Horizons for [start, stop] (YYYY-MM-DD); number, or an unnumbered
+    asteroid's provisional designation. Network only (threads)."""
     import requests
+    t = str(number).strip()
+    command = t + ";" if t.isdigit() else f"'DES={t};'"           # as search.horizons_command
     for k in range(4):
         r = requests.get(U.URL_JPL_HORIZONS_API, params={
-            "format": "json", "COMMAND": f"{number};", "EPHEM_TYPE": "SPK", "MAKE_EPHEM": "YES",
+            "format": "json", "COMMAND": command, "EPHEM_TYPE": "SPK", "MAKE_EPHEM": "YES",
             "START_TIME": start, "STOP_TIME": stop, "OBJ_DATA": "NO"}, timeout=(15, timeout))
         if r.status_code != 503 or k == 3:
             break

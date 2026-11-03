@@ -46,7 +46,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
   - [Pre-screens](#pre-screens)
 - [Web interface (GUI)](#web-interface-gui)
 - [Observation reports (separate GUI)](#observation-reports-separate-gui)
-- [Observation Manager](OBSERVATION-MANAGER.md) (observation reports; PyStarLight's video analysis imported directly)
+- [Observation Manager](OBSERVATION-MANAGER.md) (observation reports; PyStarLight's video analysis imported directly; chord plots)
 - [Planets and moons](#planets-and-moons)
 - [Occult data (optional add-on)](#occult-data-optional-add-on)
   - [Observed events in the Results tab, and our predictions checked against them](#observed-events-in-the-results-tab-and-our-predictions-checked-against-them)
@@ -1410,7 +1410,8 @@ After the night, the **Observation Manager**, a separate web app beside the sear
 and writes the observation report of each event and station. **The automated video analysis from PyStarLight is
 imported directly**: the D and R times with their accuracy from the light curve, and the recording's own data (GPS
 site and time, camera, telescope, observers), each field marked with where it came from. The report is written as an
-IOTA-ES report form for the submission.
+IOTA-ES report form for the submission. The **chord plot** puts all stations of one event (an event of the Occult
+archive, or our reports of all its stations) into one profile with a fitted ellipse, as Occult draws it.
 
 ```bash
 uv run pysyzygos gui-observation          # http://127.0.0.1:8081 (the search GUI stays on 8080; both can run)

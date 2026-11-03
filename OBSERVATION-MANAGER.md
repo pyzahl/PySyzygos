@@ -11,9 +11,8 @@ uv run pysyzygos gui-observation          # http://127.0.0.1:8081 (the search GU
 
 Or from the search GUI: Favorites tab, **Observations** (starts it in the background if needed and opens it).
 
-Early version: lists, the archive of observed events, the report form, the imports and the IOTA-ES report text.
-Still to come: the submission itself, the forms of the other IOTA regions, several stations of one event with a chord
-plot, observer profiles.
+Early version: lists, the archive of observed events, the report form, the imports, the IOTA-ES report text and the
+chord plot of an event. Still to come: the submission itself, the forms of the other IOTA regions, observer profiles.
 
 ## Contents
 
@@ -22,6 +21,7 @@ plot, observer profiles.
 - [The tabs](#the-tabs)
 - [Where every value came from](#where-every-value-came-from)
 - [The report form](#the-report-form)
+- [Chords: the profile of an event](#chords-the-profile-of-an-event)
 - [Running it: modes, ports, restart](#running-it-modes-ports-restart)
 - [Files](#files)
 
@@ -73,7 +73,17 @@ The exact keys, the connection file, the API and what the camera tool should sti
 * **Events**: the events to report on: favorites marked observed (or all), a saved list (e.g. the one the search
   GUI's "Move past observed to list…" fills), the Occult archive of observed occultations (with the Occult data
   add-on; search by number, name or date; choose one of its observers to see that chord), the analyses **Received
-  from PyStarLight**, or your saved reports. **Open the report form** for the chosen one.
+  from PyStarLight**, or your saved reports. Click a row to choose it, then **Open the report form**.
+  Favorites, lists and the archive are shown as the Results table with its **filter bar**, plus two filters found
+  only here:
+  * **event**: only the results of one event, i.e. the same target with times within 10 minutes (several stations,
+    several sites, the observers of an archive event checked by obs-check). The **n results** button beside the
+    target does the same; click it again to show all.
+  * **results per event ≥**: multi-chord events. It counts the results of the event in the list; in the archive it
+    counts the event's observers. 2 = every event with more than one chord.
+
+  Saved filter sets stay in this browser. Without a search, the archive shows its newest 3,000 events (all 17,000
+  take ~15 s to show); search a number, name, year or month (`2023`, `2023-12`) for the others.
 * **Report**: the observation report of one event and station. Prefilled from the event: asteroid, star (UCAC4 and
   Gaia DR3 id), date, predicted time and the predicted D and R at your site, the site, the prediction details. Then
   the PyStarLight analysis (above), or an IOTA-ES report form (`.txt`, e.g. from the DVTI tools). An orange line lists
@@ -102,6 +112,42 @@ personal equation, Gaia DR3 id, more events, and where each field came from. Off
 
 Online submission is not built yet: submit the text the usual way.
 
+## Chords: the profile of an event
+
+All stations of one event together, as Occult draws them: choose the event in the Events tab, **Chord plot**.
+
+* **Past events**: an event of the Occult archive, with every observer's D and R as the archive has them.
+* **Fresh data**: our saved reports, one per station (each one made from PyStarLight's analysis, or typed in). A
+  report, or a favorite of the event, brings all saved reports of that event (same asteroid, times within 10 minutes).
+  Saved a report since? The plot is computed again by itself.
+
+How: each station's D and R become points in the fundamental plane, the station's position relative to the
+asteroid's predicted center at those times (JPL Horizons orbit seen from the station, the star as the search takes
+it, axes of date like Occult's). A positive station gives a chord from D to R, a miss its whole track (dashed). An
+ellipse is fitted to the chords' ends (least squares of their radial distances); its center is the observed minus
+predicted position. With 3 chords or more an ellipse, with 2 a circle, with 1 the predicted diameter (**Shape
+fitted**; or choose one). **Misses as limits** keeps the outline off the misses' tracks.
+
+Satellites and double stars: each of a station's chords is its own entry. Chords of a satellite (Occult's codes G/B,
+e.g. Menoetius for (617) Patroclus) are drawn in orange with their own fitted outline; chords on the 2nd star of a
+double (d/r) in teal, not fitted. The main body's fit uses only its own chords.
+
+The **Chords** tab shows:
+
+* the plot: north up, east left; D (□) and R (○) with their timing accuracy (amber), the fit, the predicted size at
+  the predicted center (+), and for archive events Occult's own fit (dotted) for comparison;
+* a table of the stations: untick one to leave it out of the fit (the plot and the fit follow at once; chords Occult
+  excluded start unticked), with each chord's O−C at D and R in seconds (along the track, against the fitted outline)
+  and in km (radial);
+* **Compute again** (today's orbit; your choices are kept) and **Download SVG**.
+
+Check: (135) Hertha 2008 Dec 11, 20 chords. We get 101.9 ± 2.8 × 60.7 ± 2.6 km, PA 41.7 ± 2.8°; Occult's archive
+fit is 103.6 × 59.9 km, PA 40.6°. Both centers sit 14 km east and 7 km north of our prediction (within 0.4 km). The
+same stations entered as our own reports give the same points (within a millimeter).
+
+Command line: `pysyzygos chords archive "135|2008-12-11T07:45:46"`, `pysyzygos chords reports <report.json>`,
+`pysyzygos chords fit <chords.json> --mode circle --exclude 21` (files in `observations/chords/<event>/`).
+
 ## Running it: modes, ports, restart
 
 - **Port**: 8081, or the next free one up to 8090 if another program has it (the connection file says which). An
@@ -122,9 +168,10 @@ Online submission is not built yet: submit the text the usual way.
 |---|---|
 | reports | `observations/<event>/<station>.json` and `..._IOTA-ES.txt` in the data folder (private, gitignored; `pysyzygos cleanup` never deletes them) |
 | analyses received | `observations/inbox/` |
+| chords | `observations/chords/<event>/chords.json` (stations in the plane, fit, your choices) and `profile.svg` |
 | settings | `gui_observation_state.json` in the data folder |
 | connection for PyStarLight | `observation_api.json` in the PySyzygos settings folder (mode 600) |
-| code | `src/pysyzygos/gui_observation.py` (the app), `src/pysyzygos/obsreport.py` (fields, imports, report form, inbox; standard library only), `tests/test_obsreport.py` |
+| code | `src/pysyzygos/gui_observation.py` (the app), `src/pysyzygos/obsreport.py` (fields, imports, report form, inbox; standard library only), `src/pysyzygos/chords.py` (chords, fit, plot), `tests/test_obsreport.py`, `tests/test_chords.py` |
 
 It only reads the favorites, the saved lists and the Occult archive; it never changes them, and it never writes into
 PyStarLight's folders.
