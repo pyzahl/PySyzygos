@@ -26,6 +26,11 @@ def panel(pg):
             ui.link("Changelog", U.URL_CHANGELOG, new_tab=True).classes("text-sm")
             pg.upd_rel = ui.link("Release", "", new_tab=True).classes("text-sm")
             pg.upd_rel.set_visibility(False)
+            from pysyzygos import urls as U_
+            pg.upd_git = ui.link("Get git (installer)", U_.URL_GIT_DOWNLOAD, new_tab=True).classes("text-sm").tooltip(
+                "Git for Windows, macOS or Linux. Then switch this ZIP folder to git (README: 'Installed from the "
+                "ZIP? Switch to git'): updates become one click here")
+            pg.upd_git.set_visibility(False)
             pg.upd_btn = ui.button("Update", on_click=lambda: pg.upd_run()).props("outline dense color=primary").tooltip(
                 "git pull (fast-forward only: never merges, never touches your changes), the dependencies if they "
                 "changed, then a restart. Your data folder (sites, results, catalogs) is not touched")
@@ -326,6 +331,7 @@ def handlers(pg):
         s = await run.io_bound(selfupdate.status)
         rel = s.get("release") or {}
         pg.upd_rel.set_visibility(bool(rel.get("url")) and (s.get("kind") == "zip" or s.get("release_newer")))
+        pg.upd_git.set_visibility(s.get("kind") == "zip")
         if rel.get("url"):
             pg.upd_rel.props(f"href={rel['url']}")
             pg.upd_rel.text = f"Release {rel.get('tag', '')}"

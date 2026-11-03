@@ -277,8 +277,15 @@ the packages if they changed (`uv sync` or `pip install -e .`), then Restart. Co
 ## Installed from the ZIP? Switch to git
 
 Your ZIP folder can become a git checkout in place, keeping everything of yours (sites, settings, the catalog,
-kernels, picks, favorites, results: none of it is part of PySyzygos's own files). Install git first (Windows: step 1
-above), close PySyzygos, then in your PySyzygos folder:
+kernels, picks, favorites, results: none of it is part of PySyzygos's own files).
+
+**Install git first:** [git-scm.com/downloads](https://git-scm.com/downloads) has the installers.
+* Windows: [Git for Windows](https://git-scm.com/download/win) (keep all default choices), or in PowerShell
+  `winget install --id Git.Git -e --source winget`. Open a new PowerShell afterwards.
+* macOS: type `git --version` in a terminal; if git is missing, macOS offers to install it (Command Line Tools).
+* Linux: from your distribution, e.g. `sudo apt install git` (Debian, Ubuntu) or `sudo dnf install git` (Fedora).
+
+Then close PySyzygos, and in your PySyzygos folder:
 
 ```powershell
 cd C:\PySyzygos
