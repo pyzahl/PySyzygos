@@ -4,7 +4,7 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
-## [Unreleased]
+## [1.5.2] "Beyond Horizons" - 2026-11-02
 
 ### Added
 - **Unnumbered asteroids as search targets** by their provisional designation, e.g. the newly found TNO **2026 ED138**:
@@ -1205,6 +1205,7 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
+[1.5.2]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...main
 [1.5.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.1
 [1.5.0]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...v1.5.1
 [1.4.1]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...main
