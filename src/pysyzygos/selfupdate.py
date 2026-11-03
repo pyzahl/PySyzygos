@@ -76,7 +76,9 @@ def status(fetch=True, repo=None, release=True):
     rel = latest_release() if release else None
     s.update(release=rel, release_newer=bool(rel and version_tuple(rel["tag"]) > version_tuple(__version__)))
     if repo is None:
-        s.update(kind="zip", possible=False, reason="not a git checkout (installed from a ZIP): download the release")
+        s.update(kind="zip", possible=False, reason="not a git checkout (installed from a ZIP): download the release, or switch the folder to "
+                                                    "git for one-click updates (README: 'Installed from the ZIP? Switch "
+                                                    "to git')")
         return s
     s["kind"] = "git"
     if shutil.which("git") is None:

@@ -32,9 +32,18 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   zooms to single events. The table's filter decides which favorites are drawn.
 
 ### Fixed
+- **Shared pre-screen list**: publishing dropped a pre-screen from the mirror's list when its archive could not be
+  checked at all (timeout, network or server error), not only when it was deleted there. Now only a clear "not
+  found" (HTTP 404/410) leaves it out; one that cannot be checked stays, with a warning, and publish prints what it
+  kept from the mirror's list.
 - Globe plot of an asteroid whose full name has no number ("(2026 ED138)"): it failed with "list index out of range".
 
 ### Changed
+- **Install with git, not the ZIP**: README and GETTING_STARTED now recommend git (on Windows: Git for Windows first,
+  `winget install --id Git.Git -e --source winget`), since a git checkout updates with one click in the System tab
+  and gets the patch versions between releases. New README section "Installed from the ZIP? Switch to git": five
+  commands turn an unpacked ZIP into a git checkout in place, keeping sites, settings, catalog, results and
+  favorites. The System tab says so for a ZIP install.
 - **Favorites table without a Note column**: a favorite with a note shows a small amber "note" flag under its status;
   hovering it (or tabbing to it) shows the whole note in a bubble. The note stays in the panel, the CSV and the lists.
 - **Favorites table without the "Added (UT)" column**. The detail panel now says when the prediction was computed

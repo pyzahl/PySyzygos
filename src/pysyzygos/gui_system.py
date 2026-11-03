@@ -336,8 +336,10 @@ def handlers(pg):
                                 f"new version {v} available ({behind} change(s)); update by hand: {s.get('reason')}")
             pg.upd_info.classes(replace="text-sm text-amber-700")
         elif s.get("kind") == "zip":
-            pg.upd_info.text = (f"release {rel.get('tag')} available: download it" if s.get("release_newer") else
-                                "up to date" if rel else "no update information (offline?)")
+            pg.upd_info.text = ((f"release {rel.get('tag')} available: download it" if s.get("release_newer") else
+                                 "up to date with the releases" if rel else "no update information (offline?)")
+                                + " \u00b7 installed from a ZIP: switch it to git for one-click updates and the patch "
+                                  "versions between releases (README: 'Installed from the ZIP? Switch to git')")
             pg.upd_info.classes(replace="text-sm" + (" text-amber-700" if s.get("release_newer") else ""))
         else:
             pg.upd_info.text = s.get("reason") or "up to date"

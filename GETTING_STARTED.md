@@ -20,8 +20,10 @@ kept, so later runs take seconds. See [Why the first run is slow](#why-the-first
    * Windows, in PowerShell: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 
    Then open a new terminal.
-2. Get PySyzygos: `git clone https://github.com/pyzahl/PySyzygos`, or on GitHub the green **Code** button,
-   **Download ZIP**, and unpack it.
+2. Get PySyzygos: `git clone https://github.com/pyzahl/PySyzygos`. **Use git if you can** (on Windows install
+   [Git for Windows](https://git-scm.com/download/win) first): later updates are then one click, **Update** in the
+   System tab. On GitHub the green **Code** button, **Download ZIP** works too, but you then download and copy every
+   update by hand ([switching a ZIP install to git](README.md#installed-from-the-zip-switch-to-git) keeps your data).
 3. In the PySyzygos folder, run the setup:
 
    ```bash

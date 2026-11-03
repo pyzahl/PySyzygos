@@ -157,7 +157,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   whose archive is not on the mirror (publish and merge), and publish keeps of the share folder's list only entries
   whose archive is in that folder (packed, not uploaded yet); CLI `prescreen merge [lists] [-o] [--check] [--drop
   NAME]` (lists: files, URLs, or names on the mirror; --drop leaves a name out by hand;
-  `check_archives` = one-byte GET per archive). The mirror's folder cannot be listed anonymously (Nextcloud
+  `check_archives` = one-byte GET per archive; 2026-11-02: `archive_state` there/gone/unknown, only GONE_STATUS 404/410 drops an entry, unknown kept with a WARNING, on_mirror logs 'mirror's list: n kept (...)'). The mirror's folder cannot be listed anonymously (Nextcloud
   WebDAV needs login), single files can be read. First use: the 40 d (2026-10-01) + 70 d (2026-10-21) lists merged.
   Tests: publish(remote=[]) (no network), two-machine case via file:// in test_prescreen_share.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`

@@ -24,6 +24,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Install](#install)
   - [Easiest: with uv (Linux, macOS, Windows)](#easiest-with-uv-linux-macos-windows)
   - [Windows, step by step (with uv)](#windows-step-by-step-with-uv)
+  - [Installed from the ZIP? Switch to git](#installed-from-the-zip-switch-to-git)
   - [With pip and a virtual environment](#with-pip-and-a-virtual-environment)
 - [Python Virtual Environment Setup Guide](#python-virtual-environment-setup-guide)
   - [1. Create the Virtual Environment](#1-create-the-virtual-environment)
@@ -129,8 +130,10 @@ and a look at all its details in six steps, and explains why the first runs are 
 A few commands, one download (about 3 GB), then everything happens in your browser:
 
 1. **Get it:** install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
-   `git clone https://github.com/pyzahl/PySyzygos` (or download the ZIP from GitHub and unpack it). Windows users: see
-   [Windows, step by step](#windows-step-by-step-with-uv). Without uv on Linux/macOS: `sh linux_install.sh` does
+   `git clone https://github.com/pyzahl/PySyzygos`. **Use git rather than the ZIP:** with git, updates are one click
+   (System tab, **Update**); a ZIP install has to be downloaded and copied over by hand for every update, and patch
+   versions come only through git. Windows users: install [Git for Windows](https://git-scm.com/download/win) first,
+   then see [Windows, step by step](#windows-step-by-step-with-uv). Without uv on Linux/macOS: `sh linux_install.sh` does
    steps 2 and 3 with pip.
 2. **Set up once**, in the PySyzygos folder: `uv run pysyzygos setup`. It downloads the SPICE kernels and the local
    Gaia catalog (G <= 16, ready-made from Zenodo or a mirror; resumes if interrupted) and asks for your first
@@ -175,8 +178,9 @@ nothing else is needed (no Python installation, no virtual environment by hand, 
    * Windows (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 
    (then open a new terminal, so the `uv` command is found)
-2. Get PySyzygos: `git clone https://github.com/pyzahl/PySyzygos.git`, or download the ZIP from GitHub (green "Code"
-   button, "Download ZIP") and unpack it.
+2. Get PySyzygos: `git clone https://github.com/pyzahl/PySyzygos.git` (recommended: updates are one click in the
+   System tab; on Windows install [Git for Windows](https://git-scm.com/download/win) first). The ZIP from GitHub
+   (green "Code" button, "Download ZIP") works too, but every update is then a manual download.
 3. In the PySyzygos folder:
 
    ```bash
@@ -201,22 +205,37 @@ Not tested on Windows yet: please report what works and what does not (GitHub is
 > `C:\Windows\System32\.venv`). If that happened: delete that `.venv` folder (as administrator) and start again in your
 > own folder, e.g. `C:\PySyzygos`.
 
-1. **Install uv.** Open PowerShell (Start menu, type "PowerShell", Enter) and paste:
+1. **Install Git (highly recommended).** With git, PySyzygos updates itself with one click (System tab, **Update**);
+   from a ZIP you have to download and copy every new version by hand, and you miss the patch versions in between
+   (they are not released as ZIPs). In PowerShell:
+
+   ```powershell
+   winget install --id Git.Git -e --source winget
+   ```
+
+   or download the installer from https://git-scm.com/download/win and keep all its default choices. Close PowerShell
+   and open a new one afterwards (`git --version` shows it).
+2. **Install uv.** Open PowerShell (Start menu, type "PowerShell", Enter) and paste:
 
    ```powershell
    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
 
    Close PowerShell and open a new one, so the `uv` command is found (`uv --version` shows it).
-2. **Get PySyzygos.** On https://github.com/pyzahl/PySyzygos click the green "Code" button, then "Download ZIP".
-   Unpack it (right-click, "Extract All...") and give the folder a simple place and name, e.g. `C:\PySyzygos`
-   (the ZIP's folder is called `PySyzygos-main`; rename it if you like). With Git for Windows installed you can
-   instead run `git clone https://github.com/pyzahl/PySyzygos.git C:\PySyzygos`, which makes updates easier.
+3. **Get PySyzygos.** With git (step 1), in PowerShell:
+
+   ```powershell
+   git clone https://github.com/pyzahl/PySyzygos.git C:\PySyzygos
+   ```
+
+   Without git: on https://github.com/pyzahl/PySyzygos click the green "Code" button, then "Download ZIP", unpack it
+   (right-click, "Extract All...") and give the folder a simple place and name, e.g. `C:\PySyzygos` (the ZIP's folder
+   is called `PySyzygos-main`). You can [switch it to git](#installed-from-the-zip-switch-to-git) any time later.
 
    Choose a folder that is **not** synced to OneDrive (Documents and Desktop often are): PySyzygos keeps everything
    in this folder, including the Gaia catalog (3 GB, or 11 GB for G 18), which you do not want uploaded to the cloud.
    You need about 5 GB free on that drive for the default catalog.
-3. **One-time setup.** In PowerShell:
+4. **One-time setup.** In PowerShell:
 
    ```powershell
    cd C:\PySyzygos
@@ -226,7 +245,7 @@ Not tested on Windows yet: please report what works and what does not (GitHub is
    The first run downloads Python and the packages (about a minute), then setup asks for your site (it can guess
    it from your internet address or look up a place name) and the catalog: Enter takes G 16 from Zenodo (2.1 GB
    download). Setup can be stopped and rerun; it resumes.
-4. **Start PySyzygos.**
+5. **Start PySyzygos.**
 
    ```powershell
    cd C:\PySyzygos
@@ -245,14 +264,32 @@ cd /d "%~dp0"
 uv run pysyzygos
 ```
 
-**Updating.** With git: `cd C:\PySyzygos`, `git pull`. With the ZIP: download it again and copy its contents over
-your folder (your own files, `sites.py`, `pysyzygos_config.py`, the catalog, picks, favorites and results, are not
+**Updating.** With git: one click in the GUI (below), or `cd C:\PySyzygos`, `git pull`. With the ZIP: download it
+again and copy its contents over your folder (your own files, `sites.py`, `pysyzygos_config.py`, the catalog, picks, favorites and results, are not
 in the ZIP, so they stay). Then start as usual; uv updates the packages by itself. **In the GUI:** the System tab
 says whether a newer version is there (looked up when you open the tab; nothing pops up elsewhere), with the
 changelog of the new version, and for a git install an **Update** button: `git pull --ff-only` (never merges, never
 touches your changes; refused with a reason when the checkout has local changes to tracked files or has diverged),
 the packages if they changed (`uv sync` or `pip install -e .`), then Restart. Command line: `pysyzygos update
-[--check]`. A ZIP install gets the link to the newest release.
+[--check]`. A ZIP install gets only the link to the newest release: switch it to git (next section) for the
+**Update** button.
+
+## Installed from the ZIP? Switch to git
+
+Your ZIP folder can become a git checkout in place, keeping everything of yours (sites, settings, the catalog,
+kernels, picks, favorites, results: none of it is part of PySyzygos's own files). Install git first (Windows: step 1
+above), close PySyzygos, then in your PySyzygos folder:
+
+```powershell
+cd C:\PySyzygos
+git init
+git remote add origin https://github.com/pyzahl/PySyzygos.git
+git fetch origin
+git checkout -f -B main --track origin/main
+```
+
+This makes PySyzygos's own files those of the newest version (changes you made to them yourself are replaced; your
+own files above are not touched). Start as usual: from now on the System tab offers the **Update** button.
 
 **Good to know on Windows:** caches go to the Windows temp folder (`cache_path` in `pysyzygos_config.py` sets
 another one); the SPICE kernels are downloaded with `curl`, which is part of Windows 10 and 11; the KStars buttons

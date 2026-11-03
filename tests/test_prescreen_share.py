@@ -33,7 +33,7 @@ e = PS.publish(a, share, log=quiet, remote=[])
 assert [f["name"] for f in e["files"]] == [os.path.basename(a), os.path.basename(PS._idx_path(a)),
                                            os.path.basename(PS._meta_path(a))]               # meta last
 assert e["catalog"] == dict(folder="gaia_dr3_g16.new", format=2, build_id="abc123", gmax=16.0, pm_epoch="2026-10-17",
-                            data_version=None)
+                            data_version="2.1")          # from pm_epoch, as starcat.data_version
 arch = os.path.join(share, e["archive"])
 assert e["archive"] == "global__2026-10-01_40d_G16.tar.xz" and os.path.getsize(arch) == e["archive_bytes"]
 assert open(arch + ".sha256").read() == f"{e['archive_sha256']}  {e['archive']}\n"
@@ -127,4 +127,25 @@ assert m["updated"] == "2026-10-22T10:00:00"
 PS.write_manifest(m, os.path.join(share_b, "merged.json"))
 assert PS.load_manifest(os.path.join(share_b, "merged.json")) == m and PS.load_manifest("/nonexistent.json") is None
 assert PS.check_archives(m, "file://" + mirror_a + "/", log=quiet) == ["y", "x"]              # neither archive there
+# only a clear "not found" drops a listed pre-screen: no answer (timeout, network, server error) keeps it, warned
+states = {"x.tar.xz": "gone", "y.tar.xz": "unknown: timed out"}
+real = PS.archive_state
+PS.archive_state = lambda url: states[url.rsplit("/", 1)[1]]
+lines, unknown = [], []
+assert PS.check_archives(m, "https://mirror/", log=quiet, unknown=unknown) == ["x"] and unknown == ["y"]
+kept = PS.on_mirror(m, "https://mirror/", log=lines.append)
+assert [x["name"] for x in kept["prescreens"]] == ["y"], kept
+assert any("WARNING y" in l for l in lines) and any("1 kept (y), 1 left out" in l for l in lines), lines
+PS.archive_state = real
+class _R:                                       # requests stand-in: the answer's status code
+    def __init__(self, code): self.status_code = code
+    def close(self): pass
+import types
+for code, want in ((200, "there"), (206, "there"), (404, "gone"), (410, "gone"), (503, "unknown: HTTP 503"),
+                   (401, "unknown: HTTP 401")):
+    sys.modules["requests"] = types.SimpleNamespace(get=lambda *a, code=code, **k: _R(code))
+    assert PS.archive_state("https://mirror/a.tar.xz") == want, (code, PS.archive_state("https://mirror/a.tar.xz"))
+def _boom(*a, **k): raise OSError("connection refused")
+sys.modules["requests"] = types.SimpleNamespace(get=_boom)
+assert PS.archive_state("https://mirror/a.tar.xz").startswith("unknown: connection refused")
 print("PRESCREEN SHARE TESTS PASSED")

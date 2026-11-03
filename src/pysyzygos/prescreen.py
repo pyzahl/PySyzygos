@@ -887,8 +887,9 @@ def catalog_info(name):
         if p and os.path.isfile(p):
             with open(p) as f:
                 c = json.load(f)
-            out.update(format=c.get("format", 1), build_id=c.get("build_id"), gmax=c.get("gmax"),
-                       pm_epoch=(c.get("pm_epoch") or {}).get("date"), data_version=c.get("data_version"))
+            dv = c.get("data_version") or (("2.1" if c.get("pm_epoch") else "2.0") if c.get("format") == 2 else None)
+            out.update(format=c.get("format", 1), build_id=c.get("build_id"), gmax=c.get("gmax"),   # data_version
+                       pm_epoch=(c.get("pm_epoch") or {}).get("date"), data_version=dv)   # as starcat.data_version
             break
     return out
 
@@ -971,33 +972,52 @@ def write_manifest(man, path):
     os.replace(path + ".tmp", path)
 
 
-def check_archives(man, mirror, log=print):
-    """Names of the listed pre-screens whose archive is not on the mirror (a one-byte request each)."""
+GONE_STATUS = (404, 410)              # the mirror's answers that mean an archive is not there (deleted)
+
+
+def archive_state(url):
+    """'there', 'gone' (the mirror says it does not exist) or 'unknown: <why>' (no clear answer: network error,
+    timeout, a server error, an unexpected status) for one archive (a one-byte request)."""
+    if url.startswith("file://"):
+        return "there" if os.path.isfile(url[len("file://"):]) else "gone"
+    try:
+        import requests
+        r = requests.get(url, headers={"Range": "bytes=0-0"}, timeout=30, stream=True)
+        code = r.status_code
+        r.close()
+    except Exception as e:
+        return f"unknown: {str(e)[:80]}"
+    if code in (200, 206):
+        return "there"
+    return "gone" if code in GONE_STATUS else f"unknown: HTTP {code}"
+
+
+def check_archives(man, mirror, log=print, unknown=None):
+    """Names of the listed pre-screens whose archive is not on the mirror (a one-byte request each). Only a clear
+    'not found' counts; archives without a clear answer are listed in `unknown` (a list, if given), not as missing."""
     missing = []
     for e in man.get("prescreens", []):
-        url = mirror + e["archive"]
-        try:
-            if url.startswith("file://"):
-                ok = os.path.isfile(url[len("file://"):])
-            else:
-                import requests
-                r = requests.get(url, headers={"Range": "bytes=0-0"}, timeout=30, stream=True)
-                ok = r.status_code in (200, 206)
-                r.close()
-        except Exception:
-            ok = False
-        log(f"   {e['archive']}: {'on the mirror' if ok else 'MISSING'}")
-        if not ok:
+        st = archive_state(mirror + e["archive"])
+        log(f"   {e['archive']}: {'on the mirror' if st == 'there' else 'MISSING' if st == 'gone' else st}")
+        if st == "gone":
             missing.append(e["name"])
+        elif st != "there" and unknown is not None:
+            unknown.append(e["name"])
     return missing
 
 
 def on_mirror(man, mirror, log=print):
-    """The mirror's list without the pre-screens whose archive is not on the mirror (deleted there)."""
-    gone = set(check_archives(man, mirror, log=lambda *a: None))
+    """The mirror's list without the pre-screens whose archive is not on the mirror (deleted there: a clear 'not
+    found'; an archive that could not be checked stays in the list, with a warning)."""
+    unknown = []
+    gone = set(check_archives(man, mirror, log=lambda *a: None, unknown=unknown))
     for name in sorted(gone):
         log(f"   {name}: listed on the mirror, archive not there: left out")
-    return dict(man, prescreens=[e for e in man.get("prescreens", []) if e["name"] not in gone])
+    for name in sorted(unknown):
+        log(f"   WARNING {name}: its archive on the mirror could not be checked: kept in the list")
+    kept = [e for e in man.get("prescreens", []) if e["name"] not in gone]
+    log(f"   mirror's list: {len(kept)} kept ({', '.join(e['name'] for e in kept) or 'none'}), {len(gone)} left out")
+    return dict(man, prescreens=kept)
 
 
 def mirrors():
