@@ -14,8 +14,22 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   fit for comparison; chords switched off refit at once; SVG download. Satellite chords (Occult codes G/B, e.g.
   (617) Patroclus 2026-01-04: Menoetius) and chords on a double's 2nd star (d/r) are read too, the satellite with its
   own fitted outline. One-sided chords (only D or only R) count as outline points; planets and moons of the archive
-  (Ganymede 2025-10-14: center within 1.2 km of Occult's) are fitted at their known size. Checked on (135) Hertha 2008 Dec 11: 101.9 ×
+  (Ganymede 2025-10-14: center within 1.2 km of Occult's) are fitted at their known size. Binary asteroids: JPL's
+  own ephemerides of each body (Horizons 9200xxxxx primary, 1200xxxxx satellite) are marked in the plot, with the
+  observed minus predicted against each body (the asteroid's orbit is the system's, between the bodies). The fit's
+  'auto' checks itself: an ellipse (or circle) the chords cannot determine falls back to a circle (or the expected
+  size), noted; one chord at a fixed size takes the side nearer the body's own prediction (Patroclus 2024-10-18:
+  center equal to Occult's within 0.3 km). Checked on (135) Hertha 2008 Dec 11: 101.9 ×
   60.7 km, PA 41.7° vs Occult's 103.6 × 59.9 km, PA 40.6°, centers within 0.4 km.
+- **Binary asteroids: each body.** JPL's orbit of a binary (e.g. (617) Patroclus) is the system's, a point between
+  the bodies. For the 7 binaries with JPL ephemerides of each body (Horizons 9200xxxxx primary, 1200xxxxx
+  satellites: Patroclus, Quaoar, Orcus, Salacia, Haumea, Eris, Kagara; 185 binaries checked) the search takes each
+  body as a target of its own ('617+P', '617+S1'; Johnston's sizes, the system's H shared by area; ~2 s per body):
+  a body within the reach is a hit, marked primary / satellite in the tables, and its map shows all bodies; the pick
+  widens its margin for them by the moons' distance (config `binary_bodies`). For any favorite with a known
+  satellite, **Predict each body (binary)** in its panel computes each body on request (`pysyzygos binary <key>`;
+  `--list` asks JPL which binaries have them).
+  Patroclus 2026-01-04 at Seewis: Menoetius predicted D 22:43:41 R 22:44:05, observed 22:44:03-22:44:23.
 - **Archive record** button (Observation Manager, Events tab, next to Chord plot): the event's whole record in the
   Occult archive, the same dialog as the search GUI's Results tab (now shared: `gui_observed.py`); also for a
   favorite, report or analysis whose event the archive has.

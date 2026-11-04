@@ -172,7 +172,7 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             cap = min(opt["cam_limit"], float(m_ast[vis].max()) + dm_drop, float(owc_limit(dur_max.max(), opt)))
             if cap < 0:
                 continue
-            margin = EARTH_R_KM + row["D_max_km"] / 2 + opt["reach_km"]
+            margin = EARTH_R_KM + row["D_max_km"] / 2 + opt["reach_km"] + row.get("bin_km", 0.0)   # + moons' reach
             w = np.degrees(margin / delta[k]) + pad / 3600.0
             idx = np.where(vis)[0]
             stars = index.near_path(U[k][idx], w[idx], cap)
@@ -205,7 +205,7 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             gk = g[k]
             t, miss, offs, vrel = solve_site(spice, site, lambda tt: _interp(gk, ets, tt), sdir,
                                              cands.et_guess.to_numpy(), half)
-            r_max = row["D_max_km"] / 2
+            r_max = row["D_max_km"] / 2 + row.get("bin_km", 0.0)       # a binary searched body by body: its moons too
             for q in np.where(miss <= r_max + opt["reach_km"])[0]:
                 o, upv = site.at(t[q])
                 star_alt = math.degrees(math.asin(float(sdir[q] @ upv[0])))

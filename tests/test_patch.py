@@ -29,7 +29,9 @@ _con = pysyzygos_db.connect(os.path.join(os.path.dirname(out_csv), "test.db"))
 from pysyzygos import bodies as pysyzygos_bodies
 ns.update(db=pysyzygos_db, bodies=pysyzygos_bodies)             # asteroid targets here: bodies.* answers 'not a body'
 from pysyzygos import gaia_local as pysyzygos_gaia_local
-ns.update(gaia_local=pysyzygos_gaia_local)                       # star_flag for supplement stars
+ns.update(gaia_local=pysyzygos_gaia_local)
+from pysyzygos import components as _components
+ns.update(components=_components)        # a binary's bodies (components.py)                       # star_flag for supplement stars
 ns['spice'] = types.SimpleNamespace(et2utc=lambda et, f, p: "ET:%r" % float(et))
 def star_test(loc, utc, span, ra, dec, tid, r, reach):
     calls['star_test'] += 1

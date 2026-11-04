@@ -191,6 +191,21 @@ def size_estimated(e):
     return str(e.get("size_src") or "").lower().startswith("h only")
 
 
+def target_label(target_id, name):
+    """asteroid_label, also for a binary's body searched on its own ('617+S1', '(617) Patroclus I Menoetius' ->
+    '(617) Patroclus I Menoetius'; components.py)."""
+    from pysyzygos import components
+    return asteroid_label(components.system(target_id), name)
+
+
+def part_badge(tid):
+    """' <span class="badge kind">satellite I</span>' for a binary's body searched on its own, else ''."""
+    from pysyzygos import components
+    k = components.kind_of(tid)
+    return (f' <span class="badge kind" title="searched with its own JPL ephemeris: this body\'s shadow (the map shows '
+            f'the other bodies too)">{esc(k)}</span>') if k else ""
+
+
 def asteroid_label(target_id, name):
     """'218001 (2001 XQ72)' -> '(218001) 2001 XQ72';  '4272 Entsuji (1977 EG5)' -> '(4272) Entsuji'."""
     name = (name or "").strip()
@@ -270,7 +285,11 @@ def find_kml(kml_dir, target_id, when, ext="kml"):
 JPL_SBDB = U.URL_JPL_SBDB_PAGE                                       # asteroid page, + number
 VIZIER_GAIA = U.URL_VIZIER_GAIA_DR3                                   # star, + Gaia DR3 id
 KML_NS = "{http://www.opengis.net/kml/2.2}"
-LINE_STYLES = (("Center line at site height", "#65a30d", 2, "10 4"), ("Centre", "#15803d", 3, None), ("Shadow limit", "#dc2626", 2, None), ("1-sigma", "#7c3aed", 1.5, "2 4"),
+# first match wins; 'Body n ...': a binary's bodies, each from JPL's own ephemeris (components.py, on request)
+LINE_STYLES = (("Body 1 center", "#2563eb", 3, None), ("Body 1 limit", "#2563eb", 1.2, None),   # colors no other
+               ("Body 2 center", "#111827", 3, None), ("Body 2 limit", "#111827", 1.2, None),   # line uses; limits solid
+               ("Body 3 center", "#0d9488", 3, None), ("Body 3 limit", "#0d9488", 1.2, None),   # (sigma lines: dashed)
+               ("Center line at site height", "#65a30d", 2, "10 4"), ("Centre", "#15803d", 3, None), ("Shadow limit", "#dc2626", 2, None), ("1-sigma", "#7c3aed", 1.5, "2 4"),
                ("3-sigma", "#d97706", 2, "6 6"), ("Satellite zone", "#0891b2", 1.5, "1 5"),
                ("Proper motion", "#db2777", 1.5, "8 3 2 3"))       # the centre with another proper motion (pmcheck)
 
@@ -404,7 +423,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
     if DISTANCE == "ground" and g_miss is not None:              # on the ground (default; FP.3), when recorded
         miss, margin, dist_kind = g_miss, g_margin, "ground"
     body = ":" in tid                                            # a planet or moon (bodies.py: P:Jupiter, M:Io)
-    label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else asteroid_label(tid, r.get("target_name"))
+    label = (r.get("target_name") or tid.split(":", 1)[1]).strip() if body else target_label(tid, r.get("target_name"))
     return dict(when=when, label=label, full=(r.get("target_name") or "").strip(), tid=tid, body=body,
                 cls=class_text(r), ccode=class_code(r), kind=(r.get("kind") or ("asteroid" if not body else "")).strip(),
                 d_utc=(r.get("d_utc") or "").strip(), r_utc=(r.get("r_utc") or "").strip(),
@@ -1053,12 +1072,22 @@ def weather_line(e):
             f'{esc(weather.short(w))}</span></span>')
 
 
+def sbdb_id(tid):
+    """The JPL SBDB lookup of a target: the system's number for a binary's body ('617+S1' -> '617')."""
+    from pysyzygos import components
+    return components.system(tid)
+
+
 def binary_mark(tid):
     """'<sup class=bin>+moon</sup>' after the asteroid when it has known satellites (binaries.py), with details on
     hover; empty otherwise."""
-    from pysyzygos import binaries
+    from pysyzygos import binaries, components
+    if components.is_component(tid):                     # a body searched on its own: say which
+        return part_badge(tid)
     tag = binaries.short(tid)
-    return f'<sup class="bin" title="{esc(binaries.text(tid))}">{esc(tag)}</sup>' if tag else ""
+    note = ("\nThe prediction follows JPL's orbit of the system, a point between the bodies; each body's own path "
+            "and timing: star the event, then Favorites, 'Predict each body (binary)'") if tag and tag != "+moon?" else ""
+    return f'<sup class="bin" title="{esc(binaries.text(tid) + note)}">{esc(tag)}</sup>' if tag else ""
 
 
 def double_mark(e):
@@ -1239,7 +1268,7 @@ def html_row_observed(e):
                                               r.get("star_flag") or "", r.get("star_double") or "") if x))
     return (
         f'<tr class="obsrow"{filter_attrs(e)}><td class="ast" data-s="{esc(e["tid"])}" title="{esc(r.get("prediction") or "")}">'
-        + (f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>'
+        + (f'<a href="{JPL_SBDB}{urllib.parse.quote(sbdb_id(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>'
            if str(e["tid"]).isdigit() else esc(e["label"])) + binary_mark(e["tid"]) + group_mark(e) + '</td>'
         f'<td data-s="{e["when"].timestamp():.3f}" title="{esc(e["utc"])} UTC (the archive\'s reference time)">'
         f'{esc(fmt_time(e["when"]))}</td>'
@@ -1306,7 +1335,7 @@ def html_row(e):
         lead +
         f'<td class="ast" data-s="{esc(e["tid"])}" title="{tip_ast}">' + (
             f'{esc(e["label"])} <span class="badge kind">{esc(e["kind"] or "body")}</span>' if e.get("body") else
-            f'<a href="{JPL_SBDB}{urllib.parse.quote(str(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>')
+            f'<a href="{JPL_SBDB}{urllib.parse.quote(sbdb_id(e["tid"]))}" target="_blank" rel="noopener">{esc(e["label"])}</a>')
         + binary_mark(e["tid"]) + group_mark(e)
         + (f' <span class="sizeest" title="Size estimated from H with an assumed albedo: diameter, duration and shadow '
            f'width are uncertain by a factor of about 1.7 (no measured diameter in SBDB)">size est.</span>'

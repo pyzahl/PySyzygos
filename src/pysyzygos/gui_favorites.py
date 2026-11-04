@@ -66,6 +66,7 @@ def panel(pg):
                         ui.label(sym).style(f"color: {col}; font-weight: 700")
                         ui.label(txt)
                 ui.label("marker: site")
+                pg.f_bin_legend = ui.row().classes("gap-3 items-center")       # a binary's bodies (on request)
             with ui.column().classes("w-full"):
                 pg.f_title = ui.label().classes("text-lg font-semibold")
                 pg.f_bar = ui.html("").tooltip(
@@ -104,6 +105,14 @@ def panel(pg):
                                 "companion the local catalog does not keep (elongated image, position wobble, "
                                 "colour-window excess). Kept with the favorite")
                         pg.f_viz = ui.label().classes("text-sm text-slate-700 whitespace-pre-line")
+                        with ui.row().classes("items-center gap-2") as pg.f_bin_row:
+                            pg.f_bin_btn = ui.button("Predict each body (binary)", on_click=lambda: pg.fav_binary()).props(
+                                "outline dense color=orange").tooltip(
+                                "This asteroid has a known satellite: JPL's orbit (and so this prediction and its map) "
+                                "is the system's, a point between the bodies. Computes each body from JPL's own "
+                                "ephemerides (Horizons, ~20 s): its offset, closest approach at this site, D and R when "
+                                "inside, and its own path on the map. Kept with the favorite")
+                        pg.f_bin = ui.markdown().classes("w-full text-sm")
                         pg.f_added = ui.label().classes("text-xs text-slate-500")
                         with ui.row().classes("items-end gap-4"):
                             pg.f_status = ui.select(list(favorites.STATUSES), label="Status").classes("w-40")
@@ -337,6 +346,27 @@ def handlers(pg):
         dlg.open()
     pg.fav_lists = fav_lists
 
+    async def fav_binary():
+        """Each body of a binary asteroid from JPL's own ephemerides (components.py), on request."""
+        key = pg.fav_cur["key"]
+        if not key:
+            ui.notify("Click a favorite first", type="warning")
+            return
+
+        async def done(rc):
+            e = next((x for x in favorites.load() if x["key"] == key), None)
+            if rc == 0 and e and e.get("binary"):
+                from pysyzygos import components
+                pg.f_bin.content = components.markdown(e["binary"])
+                pg.draw_fav_map(e)
+                ui.notify("Each body computed: table below, paths on the map", type="positive")
+            else:
+                ui.notify("Not computed: see the log (JPL may have no ephemerides of this asteroid's bodies)",
+                          type="warning", multi_line=True)
+        pg.f_bin.content = "*computing each body (JPL Horizons) ...*"
+        await run_process(PYSYZYGOS + ["binary", key], pg.fav_log, on_done=done, slot="fav")
+    pg.fav_binary = fav_binary
+
     async def fav_vizier():
         from pysyzygos import doubles as D_
         e = next((x for x in favorites.load() if x["key"] == pg.fav_cur["key"]), None)
@@ -469,6 +499,10 @@ def handlers(pg):
         pg.f_ocd.set_visibility(bool(ocd))
         from pysyzygos import doubles as D_
         pg.f_viz.text = "\n".join(D_.vizier_text(e.get("vizier")))
+        from pysyzygos import binaries, components
+        tid = str(e["record"].get("target_id", "")).strip()
+        pg.f_bin_row.set_visibility(bool(tid.isdigit() and binaries.short(tid)))
+        pg.f_bin.content = components.markdown(e["binary"]) if e.get("binary") else ""
         pg.f_added.text = favorites.prediction_text(e)
         pg.f_status.value, pg.f_note.value = e.get("status", "planned"), e.get("note", "")
         pg.f_img.set_visibility("svg" in files)
@@ -501,6 +535,22 @@ def handlers(pg):
         pg.f_nomap.set_visibility(data is None)
         if data is None:
             return
+        bk = (e.get("binary") or {}).get("kml")                  # a binary: each body's path (components.py)
+        pg.f_bin_legend.clear()
+        if bk:
+            from pysyzygos import report as R_
+            cols = {p: c for p, c, _, _ in R_.LINE_STYLES}
+            with pg.f_bin_legend:
+                ui.label("|").classes("text-slate-300")
+                for i, b in enumerate((e.get("binary") or {}).get("bodies") or [], 1):
+                    with ui.row().classes("gap-1 items-center"):
+                        ui.label("━").style(f"color: {cols.get(f'Body {i} center', '#2563eb')}; font-weight: 700")
+                        ui.label(f"{b['name']} (JPL)")
+                ui.label("(green, red: the system's orbit, between the bodies)")
+            try:
+                data["lines"] = data["lines"] + report.kml_to_data(os.path.join(favorites.DIR, bk))["lines"]
+            except Exception:
+                pass
         for ln in data["lines"]:
             if len(ln["pts"]) > 1:
                 opts = {"color": ln["color"], "weight": ln["width"]}

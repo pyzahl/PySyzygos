@@ -32,6 +32,9 @@ companion_radius_arcsec = 4.0   # close and double stars: neighbours within this
 owc_feeds = True           # "Check OWC Feeds" buttons (GUI Results, Favorites): look the events up in OccultWatcher Cloud
                            # (prediction feeds, signed-up stations), on click only, one request per second. False: no
                            # buttons. (Before 1.3.3 this was owc_lookup, off by default; that old key is ignored.)
+binary_bodies = True       # binaries with JPL ephemerides of their bodies (Patroclus, Quaoar, Orcus, Salacia,
+                           # Haumea, Eris, Kagara: components.KNOWN): each body searched instead of the system
+                           # point, every hit's map with all bodies; False: the system orbit only
 gaia_online_check = True   # after a search: check the event stars in the Gaia archive (doubles, neighbours the local
                            # catalog leaves out); one query per run, skipped when offline
 min_mag_drop = 0.1         # mag; events with a smaller drop are not logged (also sets the Gaia magnitude cap per asteroid)

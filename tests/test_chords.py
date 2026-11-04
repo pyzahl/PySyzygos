@@ -101,7 +101,7 @@ assert abs(both["fit"]["major"] - 103.6) < 0.02 and both["fit"]["n_chords"] == 1
 fs = both["fit_sat"]
 assert fs["body"] == "satellite" and fs["n_chords"] == 5 and abs(fs["major"] - 116.0) < 0.05 and abs(fs["x"] + 300) < 0.05
 lines = C.fit_lines(both)
-assert lines[0].startswith("main body: 103.6") and lines[1].startswith("satellite (617) 1 = Menoetius: 116.0"), lines
+assert lines[0].startswith("main body: 103.6") and lines[1].startswith("satellite Menoetius: 116.0"), lines
 only = dict(both, stations=data["stations"][10:] + sats)
 C.save(only, d2)
 assert C.fit_lines(only)[0].startswith("satellite") and len(C.fit_lines(only)) == 1
@@ -121,4 +121,29 @@ assert abs(os_["major"] - 103.6) < 0.05 and os_["stations"]["1"]["r_km"] is None
 assert "D 07:44:30.00 UT" in C.svg(dict(data, stations=one_side), os_)
 moon = dict(data, event=dict(data["event"], body_kind="moon", r_km=50.0))
 assert C.fit(moon)["mode"] == "fixed" and C.fit(moon)["major"] == 100.0
+# a binary: each body where JPL predicts it; O-C against its own prediction on a line of its own
+comp = dict(only, event=dict(only["event"], components=[dict(kind="primary", id=920000617, x=190.0, y=30.0),
+                                                        dict(kind="satellite I", id=120000617, x=-310.0, y=95.0)]))
+C.save(comp, d2)
+L = C.fit_lines(comp)
+assert L[1].startswith("Menoetius: observed minus its own JPL prediction +10.0 km east, -5.0 km north"), L
+sv = C.svg(comp)
+assert "Hertha predicted" in sv and "Menoetius predicted" in sv and "the system's orbit position" in sv
+assert C.component(comp, "primary")["id"] == 920000617 and C.component(data, "primary") is None
+# auto: three close, parallel chords cannot fix an ellipse or a circle -> the expected size, noted
+rng2 = np.random.default_rng(7)
+close = dict(data, stations=[dict(x, **{k: list(np.array(x[k]) + rng2.normal(0, 1.0, 2)) for k in ("d_xy", "r_xy")})
+                             for x in (station(i + 1, o) for i, o in enumerate((-2.0, 0.0, 2.0)))])
+fc = C.fit(close)
+assert fc["mode"] in ("circle", "fixed") and "ellipse not determined" in fc["auto_note"], fc
+assert "(ellipse not determined by these chords" in C.fit_text(fc)
+# one chord, fixed size: both sides fit; the one nearer the body's own prediction (hint) wins
+one = dict(data, stations=[station(1, 20.0)])
+a1 = C.fit(one, mode="fixed", diameter=60.0, hint=(14.0, 7.0))
+u = V / np.hypot(*V); nrm = np.array([-u[1], u[0]])
+p_ca = np.array(TRUE[:2]) + 20.0 * nrm
+side = lambda f: float(np.dot(np.array([f["x"], f["y"]]) - p_ca, nrm))
+far = tuple(np.array(TRUE[:2]) + 80.0 * nrm)
+a2 = C.fit(one, mode="fixed", diameter=60.0, hint=far)
+assert side(a1) < 0 < side(a2), (a1, a2)                                 # opposite sides of the chord
 print("CHORDS TESTS PASSED")

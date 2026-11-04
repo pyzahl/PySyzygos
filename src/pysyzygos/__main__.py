@@ -32,7 +32,7 @@ COMMANDS = {"gui": "gui", "gui-observation": "gui_observation", "setup": "setup"
             "owc-check": "owc_check", "gaia": "gaia_local", "catalog": "starcat", "planets": "bodies", "picks": "picks", "prescreen": "prescreen", "favorites": "favorites",
             "kstars": "kstars", "stellarium": "stellarium", "run": "runner", "cleanup": "cleanup",
             "path-check": "pathcheck", "offline": "offline", "info": "sysinfo", "occult-data": "occultdata",
-            "observed": "observed", "obs-check": "obscheck", "chords": "chords",
+            "observed": "observed", "obs-check": "obscheck", "chords": "chords", "binary": "components",
             "update": "selfupdate"}
 SCRIPTS = {"search"}            # not import-safe (sets up SPICE at import): executed as a script
 

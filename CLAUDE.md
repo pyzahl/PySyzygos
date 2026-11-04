@@ -332,6 +332,21 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   data-fevt/data-fnres, `filter_bar(groups, nres)` (`event_select`, 'results per event' LIM nres), `group_mark`
   button (PICK_JS toggles the evt select); archive nres = n_observers, `_archive_events` cached by CSV mtime,
   ARCHIVE_PAGE_MAX 3000 without a search (30 MB / ~15 s for all 17k). inbox/reports keep the plain ui.table.
+- `pysyzygos/components.py` (2026-11-04, `pysyzygos binary <favorite key> | --list`). Search (user, 2026-11-04,
+  after first deciding "on request only"): for KNOWN (7 systems with JPL per-body ephemerides; + cache) each body is a
+  target '617+P' / '617+S1' instead of the system (search.search_bodies in pass 1, BODIES, other_bodies -> paths
+  'bodies' -> KML 'Body n center/limit <name>'; size `body_size` = Johnston r +-10 %, H shared by area; name, class,
+  path uncertainty via components.system(); record system_id/body at the end; config binary_bodies). Pick:
+  build_rows bin_km (binaries.zone_km for known()) added to screen margins; known() kept past a pre-screen filter.
+  Report `target_label`, `part_badge`, `sbdb_id`; obsreport._name_parts gives the system's number/name.
+  Checked: Patroclus 2026-01-04 at Seewis, reach 50 km: Menoetius hit 22:43:53.10, 14.3 km (= binary event), no
+  Patroclus hit (408 km). Before that, on request only: `available(number)` (Horizons OBJ_DATA of
+  k*1e8+2e7+number, k 9 primary / 1,2,3 satellites; cache_path PySyzygos_components.json, 30 d), `ensure_kernel`
+  (Horizons vectors rel. Sun -> type-13 SPK PySyzygos_component_<naif>_*.bsp, alias '617+P' / '617+S1'), `sizes`
+  (Johnston d1/d2), `site_pass`, `event` -> favorites/<key>/binary/ bodies.json/.md/.kml + favorite field 'binary'
+  (kml relative to favorites/); GUI favorites `pg.fav_binary` (button shown when binaries.short), `pg.f_bin` table,
+  draw_fav_map adds the bodies' lines + `pg.f_bin_legend`; report LINE_STYLES 'Body n center/limit' (colors unused
+  elsewhere, limits solid); binary_mark hover names the button. tests/test_components.py.
 - `pysyzygos/gui_observed.py` (2026-11-03): the archive event dialog (`dialog(key, buttons=)`), shared by
   gui_results.show_observed (adds its obs-check button) and the Observation Manager's "Archive record"
   (`archive_key_for`: archive row, or chords.archive_star of a favorite/report/inbox event; read only).
@@ -345,7 +360,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   BODIES pairs per code (D/R main, G/B satellite, d/r 2nd star, g/b): one entry per chord, key 'body' (fit(body=),
   data fit_sat, `fit_lines`; ev 'sat' from sat_* fields; 524 archive events have such chords; e/f 'Unseen_Primary_
   event' and N rings -> result 'other'), FORMAT 3 (older chords.json rebuilt by the GUI); `pair_contacts`: a lone
-  D or R = one-sided chord (fit uses each end present; Hertha: Dunham, 21 chords); `major_body` (archive names
+  D or R = one-sided chord (fit uses each end present; Hertha: Dunham, 21 chords);
+  `fit` = auto check around `_fit` (either axis sigma > 30 % or > 2.5x expected -> circle -> fixed, 'auto_note');
+  `hint` (the body's JPL position, save() passes component primary / satellite I) breaks ties (1 chord: 2 sides).
+  `component_offsets` (binaries: ev sat or binaries.short): Horizons vectors of k*1e8+2e7+number (9 primary, 1/2
+  satellites I/II; no SPK for them) -> type-13 SPK -> offsets from the system's 'CN' position (ev components; plot
+  markers, fit_lines "observed minus its own JPL prediction"). JPL's '617' = the SYSTEM, between the bodies
+  (Patroclus +191,+34 / Menoetius -368,+152 km on 2026-01-04); the search predicts the system point too.
+  `major_body` (archive names
   'Ganymede' -> bodies.parse M:/P: -> bodies.ensure_kernel, ev body_kind; auto fit = fixed known size; comets/Venus
   -> SystemExit message);
   `stations_reports` (saved reports, `report_group` = same asteroid within 10 min, abs paths; star = the favorite's

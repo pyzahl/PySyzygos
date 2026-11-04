@@ -50,7 +50,9 @@
 
 
 % section page: metropolis' progressbar template plus the section's own subsections (from the table of contents,
-% so they always match the outline), styled like the outline's subsection entries
+% so they always match the outline), styled like the outline's subsection entries; \sectionlogo (empty unless
+% set right before a \section) puts an image to the right of the title
+\providecommand{\sectionlogo}{}
 \makeatletter
 \setbeamertemplate{section page}{%
   \centering
@@ -64,7 +66,8 @@
      \setbeamertemplate{subsection in toc}{{\color{syzblue}\scriptsize$\blacktriangleright$}~\inserttocsubsection\par
        \vspace*{0.5ex}}%
      \tableofcontents[currentsection, sectionstyle=hide/hide, subsectionstyle=show/show/hide]}
-  \end{minipage}
+  \end{minipage}%
+  \ifx\sectionlogo\empty\else\hspace{1.5em}\begin{minipage}{6em}\sectionlogo\end{minipage}\fi
   \par
   \vspace{\baselineskip}
 }

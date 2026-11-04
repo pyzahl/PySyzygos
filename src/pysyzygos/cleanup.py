@@ -29,10 +29,11 @@ DOWNLOADS = KERNEL_FILES + NAIF_FILES + ("earth_1962_*_combined.bpc", "data/ObsC
                                          "sbdb_cache.json", "owc_cache.json", "weather_cache.json",
                                          "occult_data")                     # occultdata.py add-on
 CACHE_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PySyzygos_sbdb_cache.json",
+                  "PySyzygos_component_*.bsp", "PySyzygos_components.json",      # binaries' bodies (components.py)
                   "PySyzygos_sbdb_phys.json", "pysyzygos_exports",
                   "PyOccult_asteroid_*.bsp", "PyOccult_body_*.bsp", "PyOccult_sbdb_cache.json",   # names before 1.0.0
                   "PyOccult_sbdb_phys.json", "pyoccult_exports")
-ORBIT_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PyOccult_asteroid_*.bsp", "PyOccult_body_*.bsp")
+ORBIT_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PySyzygos_component_*.bsp", "PyOccult_asteroid_*.bsp", "PyOccult_body_*.bsp")
 OUTPUTS = ("pysyzygos.db", "pysyzygos.db-wal", "pysyzygos.db-shm", "owc_check.db", "owc_check.db-wal", "owc_check.db-shm",
            "hits_log.csv", "hits_report.html", "hits_report.md", "bodies_log.csv", "bodies_report.html",
            "earth_log.csv", "earth_log.runs.jsonl", "earth_report.html", "observed_report.html", "obs_checks",

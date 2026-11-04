@@ -110,6 +110,7 @@ everything: `pysyzygos` (the web interface) or `pysyzygos <command>`, e.g. `pysy
 | `pysyzygos/stellarium.py` | points a running Stellarium at an event (Remote Control plugin, HTTP); the report's Stellarium button |
 | `pysyzygos/favorites.py` | the favorites list (`favorites/`, private): events starred in the report, with copies of map and preview; `list` |
 | `pysyzygos/weather.py` | cloud forecast for the favorites' sites and times (Open-Meteo; GUI Favorites "Cloud forecast") |
+| `pysyzygos/components.py` | a binary asteroid's bodies, each from JPL's own ephemeris, for one favorite on request (`pysyzygos binary`; GUI Favorites "Predict each body") |
 | `pysyzygos/pathcheck.py` | path verification: a favorite's geodetic path, fresh, compared with Occult's path listing (`pysyzygos path-check`; GUI Favorites) |
 | `pysyzygos/setup.py` | one-time setup: SPICE kernels, the star catalog (download or build, its parts, the upgrade of an old one) |
 | `pysyzygos/starcat.py` | the star catalog (since 1.3.0): build from ESA's files, Zenodo download, parts, lookups (`pysyzygos catalog`) |
@@ -598,6 +599,14 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    with asteroid and date, the sites as pins, and a list to hide single events or zoom to them; the table's filter
    decides which favorites are drawn (`favorites/glance.html`). The panel's small line under the event says when
    the prediction was computed (the search run) and from which orbit solution, and when the favorite was added.
+   **Binary asteroids** ("+moon"): JPL's orbit of a binary is the system's, a point between the bodies, where no
+   body need be (for (617) Patroclus the bodies are ~690 km apart). For the few binaries with JPL ephemerides of
+   each body (Patroclus, Quaoar, Orcus, Salacia, Haumea, Eris, Kagara; `pysyzygos binary --list` asks JPL anew)
+   the search takes each body as its own target instead of that point: a body passing within your reach is a hit
+   (marked primary / satellite I in the tables), and every such hit's map shows all bodies' paths; the pick widens
+   its margin for them by the moons' distance (config `binary_bodies = False`: the system only). For other events
+   **Predict each body (binary)** in the panel computes each body on request: its offset from the system point, its
+   closest approach at your site, D and R if you are inside its shadow, and its path on the panel's map.
    **Path verification** (checkbox at the top, off by default): compare a favorite's geodetic path with Occult's
    path listing for the same event, as in VERIFICATION.md section 3. These tasks run beside a search, pick or
    pre-screen; their output goes to the Favorites tab's own log (that tab shows no other log). *Compute our path (fresh)* runs the search for

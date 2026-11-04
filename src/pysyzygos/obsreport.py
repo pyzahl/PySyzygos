@@ -154,6 +154,10 @@ def seconds_of_day(hms):
 def _name_parts(target_id, target_name):
     """('3200', 'Phaethon') from '3200' / '3200 Phaethon (1983 TB)'; ('', '2026 ED138') for an unnumbered one."""
     tid, name = str(target_id or "").strip(), str(target_name or "").strip()
+    m = re.match(r"^(\d+)\+(?:P|S\d)$", tid)          # a binary's body searched on its own: the asteroid's report
+    if m:
+        from pysyzygos import binaries
+        return m.group(1), (binaries.lookup(m.group(1)) or {}).get("name") or re.sub(r"^\(?\d+\)?\s*", "", name).split(" I")[0]
     if not tid.isdigit():
         return "", tid or name
     rest = re.sub(r"^\(?\d+\)?\s*", "", name)

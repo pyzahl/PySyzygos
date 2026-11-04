@@ -321,6 +321,8 @@ def write_shadow_kml(paths, filename, title, observer=None, tick_every=10):
     if paths.get('satellite_plus'):                                         # known satellite: where its shadow can pass
         parts += [line("Satellite zone A", paths['satellite_plus'], "ffffaa00", 1),
                   line("Satellite zone B", paths['satellite_minus'], "ffffaa00", 1)]
+    for label, pts in paths.get('bodies') or []:                           # a binary's other bodies (components.py)
+        parts.append(line(label, pts, "ffeb6325" if label.startswith("Body 1") else "ff27180f", 3 if " center " in label else 1))
     for label, pts in paths.get('pm_alts') or []:                          # 2-parameter star: other proper motions
         parts.append(line(f"Proper motion {label}", pts, "ffcc66ff", 1))
     for i, (et, lon, lat, dur) in enumerate(paths['center']):

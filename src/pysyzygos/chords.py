@@ -303,6 +303,50 @@ def major_body(target):
     return b
 
 
+COMPONENT_IDS = (("primary", 9), ("satellite I", 1), ("satellite II", 2))   # JPL: 9/1/2 * 1e8 + 2e7 + number
+
+
+def component_offsets(spice, system, number, et_ref, axes, tmp, log=print):
+    """A binary asteroid's bodies as JPL predicts them (Horizons: primary 920000617, satellites 120000617, 220000617
+    for (617)), relative to the system's orbit ('617': one orbit for the pair, the point the search and Occult's
+    predictions use): [dict(kind, id, x, y)] in the plane (km, the axes of the plot), [] when JPL has none. Horizons
+    gives no SPK for them: geocentric state vectors (+-1 h) become a small SPK (type 13, as bodies.ensure_kernel)."""
+    from pysyzygos import bodies, kernels
+    if number >= 10 ** 7:
+        return []
+    out = []
+    t0 = spice.et2utc(et_ref - 3600.0, "ISOC", 0).replace("T", " ")
+    t1 = spice.et2utc(et_ref + 3600.0, "ISOC", 0).replace("T", " ")
+    p_sys = np.asarray(spice.spkpos(system, et_ref, "J2000", "CN", "EARTH")[0])
+    for kind, k in COMPONENT_IDS:
+        naif = k * 10 ** 8 + 2 * 10 ** 7 + number
+        try:
+            ets, states = bodies._horizons_states(naif, 399, t0, t1, step_min=10)
+        except Exception:
+            if kind == "primary":
+                return []                          # no component ephemerides for this asteroid
+            break
+        fn = os.path.join(tmp, f"{naif}.bsp")
+        h = spice.spkopn(fn, "PySyzygos binary component", 0)
+        spice.spkw13(h, naif, 399, "J2000", float(ets[0]), float(ets[-1]), f"{naif} from JPL Horizons", 7,
+                     len(ets), states, ets)
+        spice.spkcls(h)
+        spice.furnsh(fn)
+        try:
+            alias = f"CHORDS_{kind.replace(' ', '_').upper()}"
+            kernels.body_alias(spice, alias, naif)
+            d = np.asarray(spice.spkpos(alias, et_ref, "J2000", "CN", "EARTH")[0]) - p_sys
+            # a body d from the system's position occults for the stations at q = d (CH.3): its marker goes at +d
+            out.append(dict(kind=kind, id=naif, x=round(float(d @ axes[0]), 3), y=round(float(d @ axes[1]), 3)))
+        finally:
+            spice.unload(fn)
+            os.remove(fn)
+    if out:
+        log("chords: JPL's own ephemerides of the binary's bodies: " + ", ".join(
+            f"{c['kind']} {c['x']:+.0f}, {c['y']:+.0f} km" for c in out) + " from the system's position")
+    return out
+
+
 def build(kind, what, log=print, folder=None):
     """The chords of one event: kind 'archive' (what = the archive key) or 'reports' (what = report paths). Fetches
     the orbit (JPL Horizons), places the stations, fits, writes <folder>/<event>/chords.json and profile.svg.
@@ -370,6 +414,13 @@ def build(kind, what, log=print, folder=None):
                          "the archive's position (+ light deflection)")
         axes = obscheck.date_axes(et_ref, np.asarray(z))
         place_stations(spice, name, np.asarray(z), axes, st, et_ref)
+        if not body and ev["target"].isdigit():     # a binary: where JPL predicts each of its bodies
+            from pysyzygos import binaries
+            if ev.get("sat") or binaries.short(ev["target"]):
+                try:
+                    ev["components"] = component_offsets(spice, name, int(ev["target"]), et_ref, axes, tmp, log)
+                except Exception as ex:
+                    log(f"chords: the binary's bodies not available ({type(ex).__name__}: {str(ex)[:120]})")
         if ev.get("archive_fit") and ev["archive_fit"].get("geo_x") is not None:   # Occult's center vs predicted
             t_af = spice.str2et(ev["archive_fit"].get("utc") or ev["utc"])        # at the archive's reference time
             p = np.asarray(spice.spkpos(name, t_af, "J2000", "CN", "EARTH")[0])
@@ -412,10 +463,12 @@ def build(kind, what, log=print, folder=None):
 def save(data, out):
     """chords.json (atomic) and profile.svg with the fit of data['fit_opts']."""
     opts = data.get("fit_opts", {})
-    fit_ = fit(data, **opts)
+    hint = lambda kind: (lambda c: (c["x"], c["y"]) if c else None)(component(data, kind))
+    fit_ = fit(data, **opts, hint=hint("primary"))
     data["fit"] = fit_
     if any((x.get("body") or "main") == "satellite" and x.get("d_xy") for x in data["stations"]):
-        data["fit_sat"] = fit(data, mode="auto", exclude=opts.get("exclude", ()), body="satellite")
+        data["fit_sat"] = fit(data, mode="auto", exclude=opts.get("exclude", ()), body="satellite",
+                              hint=hint("satellite I"))
     else:
         data.pop("fit_sat", None)
     p = os.path.join(out, "chords.json")
@@ -453,8 +506,37 @@ def used(data, exclude=(), body="main"):
             and s["n"] not in ex and (s.get("body") or "main") == body]
 
 
+def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main", hint=None):
+    """_fit, with 'auto' checked: an ellipse the chords cannot determine (chords close together or nearly parallel:
+    either axis uncertain by more than 30 % of itself, or larger than 2.5 times the expected size) becomes a circle, and
+    that in turn the expected size (the shape chosen is noted in 'auto_note')."""
+    if mode != "auto":
+        return _fit(data, mode, misses, exclude, diameter, body, hint)
+    g = _fit(data, "auto", misses, exclude, diameter, body, hint)
+    exp = (diameter or 0) or 2 * ((((data["event"].get("sat") or {}).get("r_km")) if body != "main" else
+                                   data["event"].get("r_km")) or 0)
+
+    def bad(f):
+        if f.get("mode") in ("none", "fixed"):
+            return False
+        for v, s_ in ((f["major"], f.get("smajor")), (f["minor"], f.get("sminor"))):     # either axis undetermined
+            if s_ is None or s_ > 0.3 * v:
+                return True
+        return bool(exp and f["major"] > 2.5 * exp)
+    for nxt, why in (("circle", "ellipse not determined by these chords: circle"),
+                     ("fixed", "circle not determined either: the expected size")):
+        if not bad(g):
+            return g
+        h = _fit(data, nxt, misses, exclude, diameter, body, hint)
+        if h.get("mode") == "none":
+            return g
+        h["auto_note"] = why
+        g = h
+    return g
+
+
 # Math: CH.3-CH.6 (slide CH): the outline fitted to the chord ends; its center = observed minus predicted.
-def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main"):
+def _fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main", hint=None):
     """The ellipse (or circle) fitted to the chords' end points: least squares of the radial distances of D and R
     from the outline (km), each miss inside the outline adding its depth when misses=True. mode 'auto': ellipse with
     3 or more chords, circle with 2, the predicted (or given) diameter with 1. Returns dict(mode, x, y (center:
@@ -503,19 +585,27 @@ def fit(data, mode="auto", misses=False, exclude=(), diameter=None, body="main")
             out.append(max(0.0, 1.0 - d) * (a + b) / 2.0)
         return np.array(out)
 
+    nrm = np.array([0.0, 0.0])                      # across the first chord: a fixed size fits on either side of it
+    w0 = ch[0].get("w")
+    if w0:
+        nrm = np.array([-w0[1], w0[0]]) / (np.hypot(*w0) or 1.0)
+    rf = r_fix or 0.0
     starts = {"ellipse": [[c0[0], c0[1], r0 * 1.1, r0 * 0.9, math.radians(t)] for t in (0, 45, 90, 135)],
-              "circle": [[c0[0], c0[1], r0]],
-              "fixed": [[c0[0], c0[1]], [0.0, 0.0]]}[mode]
+              "circle": [[c0[0], c0[1], r0], [*(c0 + r0 * nrm), r0], [*(c0 - r0 * nrm), r0]],
+              "fixed": [list(c0 + rf * nrm), list(c0 - rf * nrm), [c0[0], c0[1]], list(hint or (0.0, 0.0))]}[mode]
     if mode == "ellipse" and len(pts) + len(mlines) < 6:
         return dict(mode="none", why="an ellipse needs 3 chords: choose circle or fixed")
-    best = None
+    runs = []
     for x0 in starts:
         try:
             r = least_squares(resid, np.array(x0, float), method="lm" if len(pts) + len(mlines) >= len(x0) else "trf")
         except ValueError:
             r = least_squares(resid, np.array(x0, float), method="trf")
-        if best is None or r.cost < best.cost:
-            best = r
+        runs.append(r)
+    low = min(r.cost for r in runs)
+    ties = [r for r in runs if r.cost <= low + 1e-6 * (1.0 + low)]      # e.g. 1 chord: both sides fit equally well
+    ref = np.array(hint if hint is not None else (0.0, 0.0))            # then: nearest the body's own prediction
+    best = min(ties, key=lambda r: float(np.hypot(*(np.array(unpack(r.x)[:2]) - ref))))
     x, y, a, b, pa = unpack(best.x)
     res = resid(best.x)
     k = len(best.x)
@@ -585,7 +675,8 @@ def fit_text(f):
         size = f"circle {pm(f['major'], f['smajor'])} km"
     else:
         size = f"fixed diameter {f['major']:.1f} km"
-    return (f"{size}, center {f['x']:+.1f}, {f['y']:+.1f} km from the prediction, RMS {f['rms_km']:.2f} km "
+    return (f"{size}" + (f" ({f['auto_note']})" if f.get("auto_note") else "")
+            + f", center {f['x']:+.1f}, {f['y']:+.1f} km from the prediction, RMS {f['rms_km']:.2f} km "
             f"({f['n_chords']} chord{'s' if f['n_chords'] != 1 else ''}" + (", misses as limits" if f.get("misses") else "")
             + ")")
 
@@ -598,15 +689,33 @@ BODY_COL = {"main": "#1d4ed8", "satellite": "#ea580c", "2nd star": "#0d9488", "s
 BODY_TAG = {"main": "+", "satellite": "s", "2nd star": "2", "satellite, 2nd star": "s2"}
 
 
+def component(data, kind):
+    """JPL's predicted position of a binary's body ('primary', 'satellite I') in the plot's frame, or None."""
+    return next((c for c in data["event"].get("components") or [] if c["kind"] == kind), None)
+
+
+def sat_name(data):
+    """'Menoetius' from the archive's '(617) 1 = Menoetius'; '' if unknown."""
+    return ((data["event"].get("sat") or {}).get("name") or "").split("=")[-1].strip()
+
+
 def fit_lines(data, f=None):
-    """The fit(s) as text lines: the main body's, and a satellite's when it has chords."""
+    """The fit(s) as text lines: the main body's, and a satellite's when it has chords; for a binary also each
+    body's O-C against its own JPL prediction."""
     f = f if f is not None else data.get("fit")
     fs = data.get("fit_sat")
+    def vs(g, kind, who):                         # a line of its own: the header is one plot wide
+        c = component(data, kind)
+        if not c or not g or g.get("mode") in (None, "none"):
+            return []
+        return [f"{who}: observed minus its own JPL prediction {g['x'] - c['x']:+.1f} km east, "
+                f"{g['y'] - c['y']:+.1f} km north ({math.hypot(g['x'] - c['x'], g['y'] - c['y']):.0f} km)"]
+    prim = label(data["event"]).split(") ", 1)[-1] or "primary"
     if not fs:
-        return [fit_text(f)]
-    name = ((data["event"].get("sat") or {}).get("name") or "").strip()
-    out = [] if (f or {}).get("why") == "no chord to fit" else ["main body: " + fit_text(f)]
-    return out + [f"satellite{' ' + name if name else ''}: " + fit_text(fs)]
+        return [fit_text(f)] + vs(f, "primary", prim)
+    name = sat_name(data) or "satellite"
+    out = [] if (f or {}).get("why") == "no chord to fit" else ["main body: " + fit_text(f)] + vs(f, "primary", prim)
+    return out + [f"satellite {sat_name(data)}: ".replace("  ", " ") + fit_text(fs)] + vs(fs, "satellite I", name)
 
 
 def _nice(v):
@@ -658,6 +767,7 @@ def svg(data, f=None):
         shapes += _ellipse_pts(af["x"], af["y"], af["major"] / 2, af["minor"] / 2, af["pa"], 36)
     if ev.get("r_km"):
         shapes += _ellipse_pts(0.0, 0.0, ev["r_km"], ev["r_km"], 0.0, 36)
+    shapes += [(c["x"], c["y"]) for c in ev.get("components") or []]
     allp = np.array(pts + shapes) if pts + shapes else np.array([[0.0, 0.0]])
     if not pts and not shapes:                     # misses only: around their closest approaches
         mp = [s["p_ca"] for s in st if s.get("p_ca")]
@@ -678,7 +788,8 @@ def svg(data, f=None):
     o.append(f'<text x="20" y="26" font-size="18" font-weight="600" fill="{COL["ink"]}">{_esc(name)} '
              f'{_esc(ev["utc"][:19].replace("T", " "))} UT</text>')
     for i, t in enumerate(lines):
-        o.append(f'<text x="20" y="{46 + 16 * i}" fill="{COL["sfit"] if t.startswith("satellite") else COL["ink"]}">'
+        sat_line = t.startswith("satellite") or (sat_name(data) and t.startswith(sat_name(data) + ":"))
+        o.append(f'<text x="20" y="{46 + 16 * i}" fill="{COL["sfit"] if sat_line else COL["ink"]}">'
                  f'{_esc(t)}</text>')
     sub = (f"star {ev.get('star_catalog') or ''}" + (f" (Gaia DR3 {ev['star']})" if ev.get("star") else "")
            + f" · {'Occult archive' if ev['source'] == 'occult archive' else 'our reports'} · "
@@ -711,6 +822,21 @@ def svg(data, f=None):
                  f'stroke-width="1" stroke-dasharray="3 4"><title>predicted: {2 * ev["r_km"]:.1f} km at the predicted '
                  f'center</title></circle>')
         o.append(f'<path d="M{X(0) - 6:.1f},{Y(0):.1f}h12M{X(0):.1f},{Y(0) - 6:.1f}v12" stroke="{COL["pred"]}"/>')
+    comps = ev.get("components") or []
+    for c in comps:                                # a binary: where JPL predicts each body
+        col = COL["sat"] if c["kind"] != "primary" else COL["pos"]
+        lab = (sat_name(data) or c["kind"]) if c["kind"] == "satellite I" else \
+            label(ev).split(") ", 1)[-1] if c["kind"] == "primary" else c["kind"]
+        r_c = (ev.get("sat") or {}).get("r_km") if c["kind"] == "satellite I" else None
+        cx_, cy_ = X(c["x"]), Y(c["y"])
+        if r_c:
+            o.append(f'<circle cx="{cx_:.1f}" cy="{cy_:.1f}" r="{r_c * k:.1f}" fill="none" stroke="{col}" '
+                     f'stroke-opacity="0.7" stroke-width="1.2" stroke-dasharray="3 4"/>')
+        o.append(f'<g stroke="{col}" stroke-width="1.6"><path d="M{cx_ - 7:.1f},{cy_:.1f}h14M{cx_:.1f},{cy_ - 7:.1f}v14"/>'
+                 f'<title>{_esc(lab)} as JPL predicts it ({c["id"]}): {c["x"]:+.1f}, {c["y"]:+.1f} km from the system\'s '
+                 f'position</title></g><text x="{cx_ + (9 if cx_ < 20 + PLOT - 130 else -9):.1f}" y="{cy_ - 8:.1f}" '
+                 f'text-anchor="{"start" if cx_ < 20 + PLOT - 130 else "end"}" font-size="11" fill="{col}" '
+                 f'paint-order="stroke" stroke="#f8fafc" stroke-width="3">{_esc(lab)} predicted</text>')
     if af and af.get("x") is not None:
         o.append(f'<polyline points="{" ".join(P(p) for p in _ellipse_pts(af["x"], af["y"], af["major"] / 2, af["minor"] / 2, af["pa"]))}" '
                  f'fill="none" stroke="{COL["occ"]}" stroke-width="1.4" stroke-dasharray="2 3"><title>Occult archive '
@@ -805,7 +931,10 @@ def svg(data, f=None):
     if af and af.get("x") is not None:
         items.append((COL["occ"], "2 3", 1.4, "Occult archive fit"))
     if ev.get("r_km"):
-        items.append((COL["pred"], "3 4", 1, f"predicted {2 * ev['r_km']:.0f} km at the predicted center (+)"))
+        items.append((COL["pred"], "3 4", 1, f"the system's orbit position (+), {2 * ev['r_km']:.0f} km"
+                      if ev.get("components") else f"predicted {2 * ev['r_km']:.0f} km at the predicted center (+)"))
+    if ev.get("components"):
+        items.append((COL["sat"], "", 1.6, "each body as JPL predicts it (\u271a)"))
     ly = HH - 14 - 15 * len(items)
     for i, (c, dash, sw, t) in enumerate(items):
         y = ly + 15 * i

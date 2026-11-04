@@ -30,14 +30,14 @@
     AS.3 & AS & \texttt{orbits.\_accel} \\
     IN.1 & IN & \texttt{search.star\_test} \\
     SZ.1 & SZ & \texttt{search.get\_asteroid\_size} \\
-    OB.1 & OB & \texttt{chords.\_plane\_fn}, \texttt{obscheck.site\_solve}, \texttt{search.observer\_j2000}, \texttt{search.besselian\_offsets} \\
+    OB.1 & OB & \texttt{chords.\_plane\_fn}, \texttt{components.site\_pass}, \texttt{obscheck.site\_solve}, \texttt{search.observer\_j2000}, \texttt{search.besselian\_offsets} \\
     OB.2 & OB & \texttt{obscheck.site\_solve}, \texttt{search.observer\_j2000}, \texttt{search.besselian\_offsets} \\
-    LT.1 & LT & \texttt{chords.\_plane\_fn}, \texttt{obscheck.site\_solve}, \texttt{paths.shadow\_path}, \texttt{search.besselian\_offsets} \\
+    LT.1 & LT & \texttt{chords.\_plane\_fn}, \texttt{components.site\_pass}, \texttt{obscheck.site\_solve}, \texttt{paths.shadow\_path}, \texttt{search.besselian\_offsets} \\
     LT.2 & LT & \texttt{search.besselian\_offsets} \\
-    FP.1 & FP & \texttt{chords.\_plane\_fn}, \texttt{obscheck.predict}, \texttt{obscheck.site\_solve}, \texttt{search.besselian\_offsets}, \texttt{search.earth\_point} \\
-    FP.2 & FP & \texttt{chords.\_plane\_fn}, \texttt{obscheck.predict}, \texttt{obscheck.site\_solve}, \texttt{search.besselian\_offsets}, \texttt{search.get\_besselian\_miss\_distance}, \texttt{search.earth\_point} \\
+    FP.1 & FP & \texttt{chords.\_plane\_fn}, \texttt{components.site\_pass}, \texttt{obscheck.predict}, \texttt{obscheck.site\_solve}, \texttt{search.besselian\_offsets}, \texttt{search.earth\_point} \\
+    FP.2 & FP & \texttt{chords.\_plane\_fn}, \texttt{components.site\_pass}, \texttt{obscheck.predict}, \texttt{obscheck.site\_solve}, \texttt{search.besselian\_offsets}, \texttt{search.get\_besselian\_miss\_distance}, \texttt{search.earth\_point} \\
     FP.3 & FP & \texttt{paths.ground\_scale}, \texttt{search.ground\_distance} \\
-    CA.1 & CA & \texttt{search.star\_test} \\
+    CA.1 & CA & \texttt{components.site\_pass}, \texttt{search.star\_test} \\
   \end{tabular}
 \end{frame}
 
@@ -70,10 +70,10 @@
     PD.3 & PD & \texttt{paths.shadow\_path} \\
     CH.1 & CH & \texttt{chords.\_plane\_fn} \\
     CH.2 & CH & \texttt{chords.place\_stations} \\
-    CH.3 & CH & \texttt{chords.fit} \\
-    CH.4 & CH & \texttt{chords.fit} \\
-    CH.5 & CH & \texttt{chords.fit} \\
-    CH.6 & CH & \texttt{chords.fit} \\
+    CH.3 & CH & \texttt{chords.\_fit} \\
+    CH.4 & CH & \texttt{chords.\_fit} \\
+    CH.5 & CH & \texttt{chords.\_fit} \\
+    CH.6 & CH & \texttt{chords.\_fit} \\
     CH.7 & CH & \texttt{chords.crossing} \\
   \end{tabular}
 \end{frame}

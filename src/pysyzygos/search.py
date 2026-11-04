@@ -32,6 +32,7 @@ from pysyzygos import horizon          # the site's own horizon (OccultWatcher [
 from pysyzygos import db               # results database
 from pysyzygos import bodies           # planets and moons as targets (P:Jupiter, M:Io, ...)
 from pysyzygos import binaries         # known asteroid satellites
+from pysyzygos import components       # a binary's bodies with their own JPL ephemerides ('617+P', '617+S1')
 from pysyzygos import astrometry
 from pysyzygos import sbdb as sbdb_cache
 from pysyzygos import screen          # OWC observability formula, extinction
@@ -267,6 +268,10 @@ def get_asteroid_name(spk_id):
     designation ('2026 ED138'); a major body: its name."""
     if bodies.is_body(spk_id):
         return bodies.name(spk_id)
+    if components.is_component(spk_id):                   # a binary's body: JPL's name of it
+        b = next((x for x in components.available(components.system(spk_id), config.cache_path)
+                  if x["kind"] == components.kind_of(spk_id)), None)
+        return (b or {}).get("name") or f"({components.system(spk_id)}) {components.kind_of(spk_id)}"
     if not str(spk_id).strip().isdigit():
         n = str(spk_id).strip()
         return ((sbdb_phys(n) or {}).get("_fullname") or "").strip() or f"({n})"
@@ -970,11 +975,11 @@ def finish_pending():
         STEPS.add("hit: path uncertainty (JPL Horizons)", time.time() - t0, len(items), "hits", group=P2)
         return sum(bool(fin(None)) for (_, _, fin) in items)
     with ThreadPoolExecutor(max_workers=min(PATH_ERROR_WORKERS, len(items))) as ex:
-        perrs = list(ex.map(lambda it: path_error(it[0], it[1]), items))     # network only (astroquery)
+        perrs = list(ex.map(lambda it: path_error(components.system(it[0]), it[1]), items))   # network only
     again = [k for k, p in enumerate(perrs) if p is None]
     for k in again:                                          # busy server or no covariance: once more, alone
         time.sleep(1.0)
-        perrs[k] = path_error(items[k][0], items[k][1])
+        perrs[k] = path_error(components.system(items[k][0]), items[k][1])
     dt = time.time() - t0
     if any(p is None for p in perrs):
         WARNINGS["path_error"] = (f"default path uncertainty for {sum(p is None for p in perrs)} of {len(perrs)} "
@@ -995,7 +1000,7 @@ def asteroid_class(target_id):
     """(code, name) of the asteroid's JPL orbit class (MBA, TJN, APO, TNO, ...; '' if unknown, a planet or moon)."""
     if bodies.is_body(target_id):
         return "", ""
-    c = ((sbdb_phys(str(target_id).strip()) or {}).get("_class")) or {}
+    c = ((sbdb_phys(components.system(target_id)) or {}).get("_class")) or {}
     return c.get("value", ""), c.get("title", "")
 
 
@@ -1272,6 +1277,47 @@ def earth_point(target_id, star_dir, et_guess, bracket_s, r_km):
                 lat=math.degrees(lat), central=bool(k <= 1.0))
 
 
+BODIES = {}                                              # system number -> [(target id, size)] of its bodies
+
+
+def search_bodies(t, et0, et1, system_size):
+    """A binary asteroid with JPL ephemerides of its bodies (components.py): [(target id, size)] to search instead of
+    the system point ('617+P', '617+S1'; kernels loaded), [] for any other asteroid or when they cannot be had (a
+    run warning; the system is searched then)."""
+    if not getattr(config, "binary_bodies", True) or not str(t).isdigit() or binaries.short(t) in ("", "+moon?"):
+        return []
+    try:
+        found = components.available(t, config.cache_path)
+        out = []
+        for b in found:
+            tid = components.ensure_kernel(spice, t, b, et0, et1, config.cache_path)
+            size = components.body_size(tid, system_size)
+            if size:
+                out.append((tid, size))
+    except Exception as ex:
+        WARNINGS[f"bodies:{t}"] = f"{t}: its bodies' ephemerides not available ({str(ex)[:80]}): the system searched"
+        return []
+    BODIES[str(t)] = out
+    return out
+
+
+def other_bodies(target_id, star_dir, et, sigma3):
+    """The other bodies' path lines of a binary for this hit's map: [(name, points)] as 'Body n center <name>',
+    'Body n limit <name> A/B' (n: the body's place, primary 1; report.LINE_STYLES colors)."""
+    out = []
+    for i, (tid, size) in enumerate(BODIES.get(components.system(target_id), []), 1):
+        if tid == target_id:
+            continue
+        try:
+            nm = re.sub(r"^\(?\d+\)?\s*", "", get_asteroid_name(tid)).strip() or tid
+            bp = shadow_path(tid, star_dir, et, size["r_km"], sigma3)
+            out += [(f"Body {i} center {nm}", bp["center"]), (f"Body {i} limit {nm} A", bp["edge_plus"]),
+                    (f"Body {i} limit {nm} B", bp["edge_minus"])]
+        except Exception as ex:
+            print(f" --- no path for {tid}: {ex}")
+    return out
+
+
 # Math: ST2 (slide ST2, via astrometry.corrected_star_dir), CA.2 (bracket-edge minima rejected), then
 # OV.1-OV.3 and the path uncertainty for the hit.
 def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, bracket_s, r_search, win_lo, win_hi,
@@ -1406,6 +1452,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                       p_site=float("nan") if EARTH else site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
         contacts = []
         record["kind"] = bodies.kind(target_id)
+        if components.is_component(target_id):               # a binary's body (new fields at the end of the record)
+            record.update(system_id=components.system(target_id), body=components.kind_of(target_id))
         if bodies.is_body(target_id):                        # disappearance and reappearance at the site
             ct = contact_times(res['best_et'], res['min_distance'], size['r_km'], met['speed_kms'], star_dir, obs_geo,
                                target_id)
@@ -1487,6 +1535,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                                 sat_km=binaries.zone_km(target_id),    # known satellite: its zone on the map
                                 height_km=site_lle(record)[2] / 1000.0)   # + the center line at the site's height
             paths["center_height_name"] = f"Center line at site height ({site_lle(record)[2]:.0f} m)"
+            if components.is_component(target_id):                        # a binary's body: the others too
+                paths["bodies"] = other_bodies(target_id, star_dir, res['best_et'], sigma3)
             paths["pm_alts"] = []                                         # the centre line with each other proper motion
             for e in pm_alts:
                 if abs(e["east"]) + abs(e["north"]) < 1.0:
@@ -1520,7 +1570,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
 
 
     if bodies.is_body(target_id) or not DEFER_HITS:
-        return finish(None if bodies.is_body(target_id) else path_error(target_id, res['best_utc']))
+        return finish(None if bodies.is_body(target_id) else path_error(components.system(target_id), res['best_utc']))
     PENDING.append((target_id, res['best_utc'], finish))
     return True
 
@@ -1793,6 +1843,15 @@ if __name__ == "__main__":
                 run_note("skip_size", t)
                 continue
             print(f"Estimated/known target {t} size: {size['r_max_km']:.1f} km (H={size.get('H')}, G={size.get('G')})")
+            parts = search_bodies(t, et0, et1, size)
+            if parts:                                               # a binary with each body's own ephemeris
+                print(f"{t}: its bodies searched instead of the system point: "
+                      + ", ".join(f"{get_asteroid_name(b)} (D {2 * s_['r_km']:.0f} km)" for b, s_ in parts))
+                for b, s_ in parts:
+                    plans[b] = (s_, corridor.plan_corridor(b, et0, et1, s_, mag_lim, config.max_shadow_dist,
+                                                           min_drop=getattr(config, "min_mag_drop", 0.1),
+                                                           step_s=getattr(config, "corridor_step_s", 600.0)))
+                continue
         plans[t] = (size, corridor.plan_corridor(t, et0, et1, size, mag_lim, config.max_shadow_dist,
                                                  min_drop=getattr(config, "min_mag_drop", 0.1),
                                                  step_s=getattr(config, "corridor_step_s", 600.0)))

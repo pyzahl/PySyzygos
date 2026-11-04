@@ -108,8 +108,10 @@ def to_float(x, default=float("nan")):
 
 def build_rows(fields, data, hmax):
     """Asteroid dicts for the screen. Sizes follow pysyzygos.get_asteroid_size: measured diameter (upper bound +3 sigma,
-    15 % if no sigma) or, from H, albedo 0.14 nominal and 0.05 upper bound."""
-    rows = []
+    15 % if no sigma) or, from H, albedo 0.14 nominal and 0.05 upper bound. bin_km: for a binary whose bodies the
+    search takes separately (components.py), the moons' reach beyond the system point (screen margins)."""
+    from pysyzygos import binaries, components
+    rows, kn = [], components.known()
     for r in data:
         d = dict(zip(fields, r))
         H, a, e = to_float(d["H"]), to_float(d["a"]), to_float(d["e"])
@@ -126,7 +128,8 @@ def build_rows(fields, data, hmax):
             D, Dmax, est = Dp(0.14), Dp(0.05), True
         G = to_float(d["G"])
         cls = str(d.get("class") or "").strip()
-        rows.append(dict(number=spk - 20000000 if spk >= 20000000 else spk - 2000000, spkid=spk,
+        num = spk - 20000000 if spk >= 20000000 else spk - 2000000
+        rows.append(dict(number=num, spkid=spk, bin_km=float(binaries.zone_km(num) or 0.0) if str(num) in kn else 0.0,
                          name=(d["full_name"] or "").strip(), H=H, G=0.15 if math.isnan(G) else G, D_km=D, D_max_km=Dmax,
                          D_est=est, cc=to_float(d["condition_code"], 9.0), neo=d.get("neo") == "Y",
                          cls=cls, group=group_of(cls), pha=d.get("pha") == "Y", sats=int(to_float(d.get("sats"), 0.0)),
@@ -375,7 +378,9 @@ def main(argv=None):
             keep = PS.numbers(a.prescreen, et0, et1, a.cam_limit)
             how = f"events in the window with a star G <= {a.cam_limit:g}"
         n_all = len(rows)
-        rows = [r for r in rows if int(r["number"]) in keep]
+        from pysyzygos import components                # binaries searched body by body: their moons' events
+        kn = {int(n) for n in components.known()}       # may not be in a pre-screen (screened with the system)
+        rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"
     if a.a_min is not None or a.a_max is not None:       # a semi-major-axis range (AU)

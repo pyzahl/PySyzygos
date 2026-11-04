@@ -510,7 +510,7 @@ def glance_data(folder=DIR, keys=None):
             continue
         r, color = e["record"], GLANCE_COLORS[len(out) % len(GLANCE_COLORS)]
         tid = str(r.get("target_id", "")).strip()
-        name = (r.get("target_name") or tid).strip() if ":" in tid else R.asteroid_label(tid, r.get("target_name"))
+        name = (r.get("target_name") or tid).strip() if ":" in tid else R.target_label(tid, r.get("target_name"))
         lines = [dict(name=ln["name"], pts=ln["pts"], kind=next(k for k in GLANCE_LINES if ln["name"].startswith(k)))
                  for ln in d["lines"] if ln["name"].startswith(GLANCE_LINES) and len(ln["pts"]) > 1]
         sites = [[p["lat"], p["lon"]] for p in d["pins"] if p["name"] == "Observer"]

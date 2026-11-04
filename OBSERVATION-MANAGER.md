@@ -134,7 +134,14 @@ fitted**; or choose one). **Misses as limits** keeps the outline off the misses'
 
 Satellites and double stars: each of a station's chords is its own entry. Chords of a satellite (Occult's codes G/B,
 e.g. Menoetius for (617) Patroclus) are drawn in orange with their own fitted outline; chords on the 2nd star of a
-double (d/r) in teal, not fitted. The main body's fit uses only its own chords. A station with only a D or only an R
+double (d/r) in teal, not fitted. The main body's fit uses only its own chords.
+
+**Binary asteroids: watch for several bodies.** JPL's orbit of a binary such as (617) Patroclus describes the
+*system* (one orbit for the pair), and that is the point predictions use (ours and Occult's "JPL#.."): no body is
+there. Where JPL also has the bodies' own ephemerides (Horizons 920000617 = Patroclus, 120000617 = Menoetius), the plot
+marks each body's predicted position (✚) and gives the observed minus predicted against it. Patroclus 2026-01-04:
+Menoetius observed 84 km from its own prediction; Patroclus, predicted ~190 km east of the system point, had no
+station on its path (the archive's "Unseen primary"). A station with only a D or only an R
 (the recording began or ended inside the event) is a one-sided chord: a single point of the outline, in the fit.
 Planets and moons of the archive (e.g. Ganymede 2025-10-14) are fitted at their known size, as Occult does; comets
 and Venus are not supported yet.
