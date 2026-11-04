@@ -21,6 +21,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   size), noted; one chord at a fixed size takes the side nearer the body's own prediction (Patroclus 2024-10-18:
   center equal to Occult's within 0.3 km). Checked on (135) Hertha 2008 Dec 11: 101.9 ×
   60.7 km, PA 41.7° vs Occult's 103.6 × 59.9 km, PA 40.6°, centers within 0.4 km.
+- **Anywhere-on-Earth favorites get the event's own point as their site** (where the shadow's center is best seen:
+  "39.30° S, 22.74° E (ocean)"; land or ocean from the bundled Natural Earth outlines, offline), not the site chosen in
+  the header; favorites starred before are corrected at GUI start.
+- **Fixed:** the path debug files (`debug_save_paths`) of a binary's body were not written (the other bodies' lines).
 - **Catalog of another limit, built in the background** (System tab, Star catalog): G limit, folder, downloads at
   once, star names; a process of its own (`pysyzygos catalog build ... --xref`, new option: the star names and epoch
   proper motions too), detached from the GUI, progress on the page every 10 s (files done, the build's rate and time

@@ -1,6 +1,7 @@
 """geo.py - approximate observer positions: from the IP address (ipinfo.io), a place name (Open-Meteo geocoding),
 observatories with their MPC codes (Minor Planet Center), ground elevation and time zone (Open-Meteo). Used by setup.py and
-gui.py. Standard library only. parse_coords(): site coordinates pasted as text in the usual formats.
+gui.py. Standard library only. parse_coords(): site coordinates pasted as text in the usual formats. on_land(),
+earth_site(): an event's own point (anywhere on Earth searches) as a favorite's site, offline.
 
 All results are approximate: IP positions are city level (10-100 km off, wrong behind a VPN), place names give the town
 centre. Use an exact position (GPS, map) for observing.
@@ -118,6 +119,41 @@ def places(name, count=5):
         return []
     return [(r["latitude"], r["longitude"], r.get("elevation"),
              ", ".join(x for x in (r["name"], r.get("admin1"), r.get("country")) if x)) for r in res]
+
+
+# ---------------------------------------------------------------- an event's own point (anywhere on Earth)
+_LAND = None
+
+
+def on_land(lat, lon):
+    """True if the point is on land (Natural Earth 1:110m land polygons, data/ne_110m_earth.json; coasts to ~10 km)."""
+    global _LAND
+    if _LAND is None:
+        import os
+        try:
+            with open(os.path.join(os.path.dirname(__file__), "data", "ne_110m_earth.json"), encoding="utf-8") as fh:
+                _LAND = [list(zip(r[0::2], r[1::2])) for r in json.load(fh).get("land", [])]
+        except (OSError, ValueError):
+            _LAND = []
+    lon = (float(lon) + 180.0) % 360.0 - 180.0
+    lat = float(lat)
+    inside = False
+    for ring in _LAND:
+        n = len(ring)
+        for i in range(n):                                   # ray casting (even-odd), longitudes as given
+            (x1, y1), (x2, y2) = ring[i], ring[(i + 1) % n]
+            if (y1 > lat) != (y2 > lat) and lon < x1 + (lat - y1) * (x2 - x1) / (y2 - y1):
+                inside = not inside
+    return inside
+
+
+def earth_site(lat, lon):
+    """A favorite's site for an event of an anywhere-on-Earth search: the event's own point (where the shadow's
+    center is best seen), named by its coordinates, '(ocean)' off the land; not the site chosen in the header."""
+    lat, lon = float(lat), float(lon)
+    name = (f"{abs(lat):.2f}\u00b0 {'N' if lat >= 0 else 'S'}, {abs(lon):.2f}\u00b0 {'E' if lon >= 0 else 'W'}"
+            + ("" if on_land(lat, lon) else " (ocean)"))
+    return dict(name=name, lat=round(lat, 5), lon=round(lon, 5), ele=0.0, scope="earth")
 
 
 # ---------------------------------------------------------------- coordinates pasted as text

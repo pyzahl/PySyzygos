@@ -420,6 +420,7 @@ def main():
     favorites.backfill_globes(config.map_dir)                   # globe plots of later searches for older favorites
     favorites.backfill_doubles(local_double_check(config))      # close/double stars for favorites added before
     favorites.backfill_names(local_star_names(config))          # UCAC4 / TYC / HIP names (catalog part xref)
+    favorites.backfill_earth_sites()                            # anywhere-on-Earth favorites: the event's own point
     favorites.backfill_timezones(geo.timezone)                  # site time zones (online, once per site)
     favorites.backfill_event()                                  # OWC-style event data for older favorites (Horizons)
     import threading                                            # error ellipses (Horizons, one Gaia job): may be slow

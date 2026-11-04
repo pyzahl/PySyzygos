@@ -332,6 +332,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   data-fevt/data-fnres, `filter_bar(groups, nres)` (`event_select`, 'results per event' LIM nres), `group_mark`
   button (PICK_JS toggles the evt select); archive nres = n_observers, `_archive_events` cached by CSV mtime,
   ARCHIVE_PAGE_MAX 3000 without a search (30 MB / ~15 s for all 17k). inbox/reports keep the plain ui.table.
+- Anywhere-on-Earth favorites (2026-11-04): favorites.add takes `earth_site_of(record)` (scope 'earth': geo.earth_site
+  of ground_lat/lon = name 'lat° N, lon° E' + ' (ocean)' by `geo.on_land` (ray casting on data/ne_110m_earth.json
+  land rings), ele 0, scope 'earth') before the run's site; `backfill_earth_sites` at GUI start. tests/test_earth_site.py.
 - Background catalog build (2026-11-04, gui_system): `start_build` = detached Popen (start_new_session / Windows
   DETACHED_PROCESS) of `catalog build --dir D --gmax G --workers N [--xref]` (starcat main: build, xmatch, then
   build_xref), output logs/catalog_build_<D>.log, state HOME/catalog_build.json (pid, dir, gmax, log, t0; gitignored,

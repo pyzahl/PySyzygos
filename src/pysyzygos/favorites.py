@@ -141,6 +141,30 @@ def edited(folder=DIR):
             (e.get("status") or STATUSES[0]) != STATUSES[0]]
 
 
+def earth_site_of(record):
+    """An anywhere-on-Earth result's own point as the favorite's site (geo.earth_site), or None for a site's search."""
+    if str(record.get("scope") or "").strip() != "earth":
+        return None
+    try:
+        from pysyzygos import geo
+        return geo.earth_site(record["ground_lat"], record["ground_lon"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def backfill_earth_sites(folder=DIR):
+    """Favorites of anywhere-on-Earth searches starred before 1.5.2 carry the header's site: give them the event's own
+    point (earth_site_of). Returns the number updated."""
+    items, n = load(folder), 0
+    for e in items:
+        es = earth_site_of(e.get("record") or {})
+        if es and (e.get("site") or {}).get("scope") != "earth":
+            e["site"], n = es, n + 1
+    if n:
+        _save(items, folder)
+    return n
+
+
 def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None, key_suffix="", status="planned", note=""):
     """Add an event (record: a hits_log row as a dict; run: the run summary of its search, or None; sbdb: the
     asteroid's size-cache entry from sbdb, kept with the favorite). Copies its KML and preview from map_dir.
@@ -168,7 +192,7 @@ def add(record, run=None, map_dir="maps", folder=DIR, sbdb=None, key_suffix="", 
     run = run or {}
     entry = dict(key=key, added=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), version=__version__,
                  status=status if status in STATUSES else STATUSES[0], note=note,
-                 record=record, site=run.get("site"), files=files,
+                 record=record, site=earth_site_of(record) or run.get("site"), files=files,
                  phys=phys_of(sbdb), phys_src=(sbdb or {}).get("source", ""),
                  run={k: run.get(k) for k in ("run_utc", "window_start", "window_days", "limits", "earth_pck",
                                                "targets_from") if k in run})
