@@ -21,6 +21,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   size), noted; one chord at a fixed size takes the side nearer the body's own prediction (Patroclus 2024-10-18:
   center equal to Occult's within 0.3 km). Checked on (135) Hertha 2008 Dec 11: 101.9 ×
   60.7 km, PA 41.7° vs Occult's 103.6 × 59.9 km, PA 40.6°, centers within 0.4 km.
+- **Catalog of another limit, built in the background** (System tab, Star catalog): G limit, folder, downloads at
+  once, star names; a process of its own (`pysyzygos catalog build ... --xref`, new option: the star names and epoch
+  proper motions too), detached from the GUI, progress on the page every 10 s (files done, the build's rate and time
+  left), Log, Stop (resumable).
 - **Binary asteroids: each body.** JPL's orbit of a binary (e.g. (617) Patroclus) is the system's, a point between
   the bodies. For the 7 binaries with JPL ephemerides of each body (Horizons 9200xxxxx primary, 1200xxxxx
   satellites: Patroclus, Quaoar, Orcus, Salacia, Haumea, Eris, Kagara; 185 binaries checked) the search takes each

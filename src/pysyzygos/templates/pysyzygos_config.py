@@ -40,7 +40,8 @@ gaia_online_check = True   # after a search: check the event stars in the Gaia a
 min_mag_drop = 0.1         # mag; events with a smaller drop are not logged (also sets the Gaia magnitude cap per asteroid)
 corridor_step_s = 600      # s, coarse path step for the corridor candidate scan
 gaia_local_dir = "gaia_dr3_g16"  # folder of the local Gaia copy, required by corridor mode (pysyzygos setup, or pysyzygos gaia build)
-gaia_local_gmax = 16.0     # faintest G kept when building the local copy (~3 GB for 16, ~11 GB for 18; a new value needs a new folder)
+gaia_local_gmax = 16.0     # limit of a new catalog build (a new value needs a new folder); also caps MAG_MIN below for
+                           # runs without a limit of their own (command line); GUI runs and --cam-limit give their own
 gaia_supplement = True     # also use <catalog>/supplement (high-RUWE and 2-parameter stars, flagged) when it exists
                            # (pysyzygos gaia supplement --dir <catalog> --gmax 16; GUI header "+ high-RUWE stars")
 pm_alternatives = True     # 2-parameter stars (no Gaia proper motion): look up the other proper-motion estimates
@@ -93,7 +94,8 @@ pick_min_dur_s = site.get("min_dur_s", 0.4)        # shortest event, s (recorded
 pick_max_exp_s = site.get("max_exp_s", 0.64)       # longest usable exposure, s (25 cm: G 15.0, as OWC)
 _lim = (5 * __import__("math").log10(pick_aperture_cm) + 2.5 * __import__("math").log10(pick_max_exp_s)
         + 8.5 + pick_mag_adjust)
-MAG_MIN = min(site.get("mag_limit", round(_lim, 1)), gaia_local_gmax)   # faintest star searched
+MAG_MIN = min(site.get("mag_limit", round(_lim, 1)), gaia_local_gmax)   # faintest star searched: the default
+# (GUI runs pass their "Star G limit"; pick --cam-limit and run search '{"MAG_MIN": G}' give their own)
 pick_cam_limit = MAG_MIN                           # same limit for the pick tool
 
 # camera, for the event preview: field of view from the focal length and the sensor size

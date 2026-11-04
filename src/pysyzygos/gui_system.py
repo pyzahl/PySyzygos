@@ -4,12 +4,118 @@ copies, cache.
 Part of the GUI (gui.py builds the page): panel(pg) adds the tab's controls, handlers(pg) its functions, connect(pg)
 wires them up; pg holds the page's elements and functions shared between the tabs.
 """
-import json, os, shutil
+import json, os, shutil, signal, subprocess, sys, time
 
 from pysyzygos import home, starcat
 from pysyzygos.home import HOME as ROOT, PKG
 from nicegui import run, ui
 from pysyzygos.gui_common import PYSYZYGOS, catalog_options, run_process, save_ui_state, load_ui_state
+
+# A catalog build of another G limit from ESA's files (hours): a process of its own, detached from the GUI (it goes on
+# when the GUI restarts, and a search or pick can run meanwhile); its state in the data folder, its output in logs/.
+BUILD_STATE = "catalog_build.json"
+
+
+def build_state():
+    """The background catalog build (dict: pid, dir, gmax, workers, xref, log, started), or None."""
+    try:
+        with open(os.path.join(ROOT, BUILD_STATE), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def build_folder(g):
+    """A free folder name for a catalog of limit g: gaia_dr3_g18, else gaia_dr3_g18_v2, _v3, ... (an old-format or
+    other catalog keeps its folder; an unfinished build of the same name is offered again: it resumes)."""
+    base = f"gaia_dr3_g{float(g):g}".replace(".", "_")
+    for name in [base] + [f"{base}_v{k}" for k in range(2, 10)]:
+        d = os.path.join(ROOT, name)
+        if not os.path.exists(d) or (os.path.isfile(os.path.join(d, "build.json")) and not starcat.is_format2(d)):
+            return name
+    return base + "_new"
+
+
+def pid_alive(pid):
+    if os.name == "nt":
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/NH"], capture_output=True, text=True)
+        return str(int(pid)) in r.stdout
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def start_build(folder, gmax, workers=6, xref=True):
+    """Start `pysyzygos catalog build --dir folder --gmax G [--xref]` detached; returns its state."""
+    os.makedirs(os.path.join(ROOT, "logs"), exist_ok=True)
+    log = os.path.join("logs", f"catalog_build_{folder}.log")
+    args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "build", "--dir", folder, "--gmax", f"{gmax:g}",
+            "--workers", str(int(workers))] + (["--xref"] if xref else [])
+    env = {k: v for k, v in os.environ.items() if not k.startswith("NICEGUI_")}
+    env.update(PYSYZYGOS_HOME=ROOT, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    kw = (dict(creationflags=0x00000008 | 0x00000200) if os.name == "nt"          # DETACHED_PROCESS, NEW_PROCESS_GROUP
+          else dict(start_new_session=True))
+    with open(os.path.join(ROOT, log), "a", encoding="utf-8") as fh:
+        fh.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')}: {' '.join(args[3:])}\n")
+        fh.flush()
+        p = subprocess.Popen(args, cwd=ROOT, env=env, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **kw)
+    st = dict(pid=p.pid, dir=folder, gmax=gmax, workers=int(workers), xref=bool(xref), log=log,
+              started=time.strftime("%Y-%m-%d %H:%M:%S"), t0=time.time())
+    tmp = os.path.join(ROOT, BUILD_STATE + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(st, fh)
+    os.replace(tmp, os.path.join(ROOT, BUILD_STATE))
+    return st
+
+
+def stop_build(st):
+    """Stop the build (and its download workers); a later build of the same folder resumes."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(int(st["pid"]))], capture_output=True)
+    else:
+        try:
+            os.killpg(int(st["pid"]), signal.SIGTERM)                 # its own session: the workers too
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def log_tail(path, n=40):
+    """The last n lines of a log (a progress line rewritten with \\r counts once, as last shown)."""
+    try:
+        with open(os.path.join(ROOT, path), "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 64000))
+            text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    lines = [ln.split("\r")[-1].rstrip() for ln in text.split("\n")]
+    return [ln for ln in lines if ln.strip()][-n:]
+
+
+def build_progress(st):
+    """(running, text) of the background build."""
+    running = pid_alive(st["pid"])
+    d = os.path.join(ROOT, st["dir"])
+    done = starcat.is_format2(d)
+    s = starcat.status(d)
+    if done:
+        stage = (f"complete: {s.get('n_stars', 0) / 1e6:.1f} M stars, {s['gb']:.1f} GB"
+                 + (", star names still being added" if running else ""))
+    elif s["total"]:
+        stage = (f"{s['done']} of {s['total']} ESA files ({100.0 * s['done'] / s['total']:.0f} %)"
+                 + (": merging" if s["done"] == s["total"] else ""))
+    else:
+        stage = "starting (listing ESA's files)"
+    el = time.time() - float(st.get("t0") or time.time())
+    tail = log_tail(st["log"], 1)
+    return running, (f"{st['dir']} (G \u2264 {st['gmax']:g}): {stage} \u00b7 "
+                     + (f"running for {el / 3600:.1f} h" if running else
+                        "finished" if done and not running else "stopped: Build again to resume")
+                     + (f" \u00b7 {tail[0][:140]}" if tail else ""))
 
 
 def panel(pg):
@@ -267,7 +373,118 @@ def handlers(pg):
                 with ui.row().classes("items-center gap-2"):
                     ui.label(f"{old}: the catalog before the upgrade").classes("text-sm text-slate-600")
                     ui.button("Delete", on_click=lambda o=old: pg.cat_delete_old(o)).props("flat dense color=negative")
+            # another limit (G 18, ...): built from ESA's files in the background (build_state / start_build)
+            ui.label("Build a catalog with another limit (from ESA's files, in the background)").classes(
+                "text-sm font-medium mt-2")
+            ui.label("Reads all of ESA's Gaia DR3 files whatever the limit (753 GB of downloads): hours (G \u2264 16 "
+                     "took 1 h 49 min, G \u2264 18 holds ~4\u00d7 the stars). It runs on its own: searches and picks "
+                     "can run meanwhile, and it goes on when the GUI restarts; a stopped build resumes where it stopped. "
+                     "Then choose it in the header's catalog selector.").classes("text-xs text-slate-500")
+            with ui.row().classes("items-end gap-3"):
+                b_g = ui.number("G limit", value=18.0, min=12.0, max=21.0, step=0.5, format="%.1f").classes("w-24")
+                b_dir = ui.input("Folder", value=build_folder(18.0)).classes("w-48")
+                b_w = ui.number("Downloads at once", value=6, min=1, max=16, step=1, format="%d").classes("w-36")
+                b_x = ui.checkbox("star names (UCAC4 / Tycho / HIP)", value=True).props("dense")
+                b_g.on_value_change(lambda e: b_dir.set_value(build_folder(e.value or 18.0)))
+                ui.button("Build in the background", on_click=lambda: pg.cat_build_start(
+                    b_dir.value, b_g.value, b_w.value, b_x.value)).props("outline dense")
+            with ui.row().classes("items-center gap-2 w-full") as pg.cat_build_row:
+                pg.cat_build_lbl = ui.label("").classes("text-sm text-slate-700 grow")
+                ui.button("Log", on_click=lambda: pg.cat_build_log()).props("flat dense")
+                pg.cat_build_stop = ui.button("Stop", on_click=lambda: pg.cat_build_stop_ask()).props(
+                    "flat dense color=negative")
+                pg.cat_build_clear = ui.button("Clear", on_click=lambda: pg.cat_build_dismiss()).props("flat dense")
+            pg.cat_build_tick()
     pg.cat_refresh = cat_refresh
+
+    BUILD = {"running": None}                       # the last seen state: a finished build refreshes the header once
+
+    def cat_build_tick():
+        """The background build's progress line (every 10 s, and when the section is drawn)."""
+        st = build_state()
+        row = getattr(pg, "cat_build_row", None)
+        if row is None:
+            return
+        row.set_visibility(st is not None)
+        if st is None:
+            return
+        running, text = build_progress(st)
+        pg.cat_build_lbl.text = text
+        pg.cat_build_lbl.classes(replace="text-sm grow " + ("text-slate-700" if running else
+                                 "text-green-800" if starcat.is_format2(os.path.join(ROOT, st["dir"])) else "text-amber-800"))
+        pg.cat_build_stop.set_visibility(running)
+        pg.cat_build_clear.set_visibility(not running)
+        if BUILD["running"] and not running:          # just finished or stopped: the header lists it
+            opts = catalog_options()
+            pg.cat_sel.set_options(opts, value=pg.cat_sel.value if pg.cat_sel.value in opts else None)
+            ok = starcat.is_format2(os.path.join(ROOT, st["dir"]))
+            ui.notify(f"Catalog {st['dir']} is ready: choose it in the header" if ok else
+                      f"The build of {st['dir']} stopped (see Log); Build again to resume",
+                      type="positive" if ok else "warning", timeout=0, close_button=True)
+        BUILD["running"] = running
+    pg.cat_build_tick = cat_build_tick
+
+    def cat_build_start(folder, g, workers, xref):
+        folder = str(folder or "").strip()
+        st = build_state()
+        if st and pid_alive(st["pid"]):
+            ui.notify(f"A build is running ({st['dir']}): one at a time", type="warning")
+            return
+        if not folder.startswith("gaia_dr3_") or os.sep in folder or "/" in folder:
+            ui.notify("The folder's name starts with gaia_dr3_ (e.g. gaia_dr3_g18), in the data folder", type="warning")
+            return
+        d = os.path.join(ROOT, folder)
+        if starcat.is_format2(d):
+            ui.notify(f"{folder} is a complete catalog already", type="warning")
+            return
+        if os.path.isfile(os.path.join(d, "catalog.json")):
+            ui.notify(f"{folder} holds a catalog of the old format: choose another folder", type="warning")
+            return
+        st = start_build(folder, float(g or 18.0), int(workers or 6), bool(xref))
+        ui.notify(f"Building {folder} (G \u2264 {st['gmax']:g}) in the background; progress below, output in {st['log']}",
+                  type="positive", multi_line=True)
+        BUILD["running"] = True
+        pg.cat_build_tick()
+    pg.cat_build_start = cat_build_start
+
+    def cat_build_stop_ask():
+        st = build_state()
+        if not st:
+            return
+
+        def go():
+            d.close()
+            stop_build(st)
+            ui.notify(f"Stopping the build of {st['dir']}; Build again to resume", type="warning")
+            ui.timer(2.0, pg.cat_build_tick, once=True)
+        with ui.dialog() as d, ui.card():
+            ui.label(f"Stop the build of {st['dir']}? The files done so far are kept: building the same folder "
+                     f"again resumes.")
+            with ui.row():
+                ui.button("Stop the build", on_click=go).props("color=negative")
+                ui.button("Cancel", on_click=d.close).props("flat")
+        d.open()
+    pg.cat_build_stop_ask = cat_build_stop_ask
+
+    def cat_build_dismiss():
+        try:
+            os.remove(os.path.join(ROOT, BUILD_STATE))
+        except OSError:
+            pass
+        BUILD["running"] = None
+        pg.cat_build_tick()
+    pg.cat_build_dismiss = cat_build_dismiss
+
+    def cat_build_log():
+        st = build_state()
+        if not st:
+            return
+        with ui.dialog() as d, ui.card().classes("w-[90vw] max-w-[1100px]"):
+            ui.label(f"{st['log']} (last lines)").classes("font-semibold")
+            ui.code("\n".join(log_tail(st["log"], 60)) or "(empty)").classes("w-full text-xs")
+            ui.button("Close", on_click=d.close).props("flat")
+        d.open()
+    pg.cat_build_log = cat_build_log
 
     def planets_refresh(*_):
         from pysyzygos import bodies
@@ -621,4 +838,5 @@ def connect(pg):
     pg.planets_refresh()
     pg.occ_refresh()
     pg.cat_sel.on_value_change(pg.cat_refresh)
+    ui.timer(10.0, pg.cat_build_tick)                           # the background catalog build's progress
     pg.tabs.on_value_change(lambda e: pg.sys_info_refresh() if e.value in (pg.t_sys, "System") else None)

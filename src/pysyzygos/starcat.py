@@ -1360,6 +1360,8 @@ def main(argv=None):
     ap.add_argument("--groups", default="quality", help="fetch: optional parts, comma-separated (quality,extras; "
                                                         "'none' for the core only)")
     ap.add_argument("--no-xmatch", action="store_true", help="build: leave the 2-parameter stars without proper motion")
+    ap.add_argument("--xref", action="store_true", help="build: then the star names (UCAC4 / Tycho-2 / Hipparcos) and the "
+                    "epoch proper motions, as 'catalog xref' (the GUI's background build)")
     ap.add_argument("--keep-archive", action="store_true")
     ap.add_argument("--mirror", help="fetch/add: another folder address with the archives (as env "
                                      "PYSYZYGOS_CATALOG_MIRROR)")
@@ -1374,6 +1376,11 @@ def main(argv=None):
         st = build(a.dir, g0 if a.gmax is None else a.gmax, a.workers)
         if st["complete"] and not a.no_xmatch and not (st.get("pm_xmatch") or {}):
             xmatch(a.dir)
+        if st["complete"] and a.xref and "xref" not in groups_present(a.dir):
+            print("star names (xref) and epoch proper motions ...", flush=True)
+            build_xref(a.dir, log=functools.partial(print, flush=True), pm_epoch_wanted=not a.no_pm_epoch)
+        print(f"catalog build finished: {a.dir}" if is_format2(a.dir) else f"catalog build stopped: {a.dir} (run again "
+              f"to resume)", flush=True)
     elif a.cmd == "fetch":
         fetch(a.dir, 16.0 if a.gmax is None else a.gmax, groups, a.keep_archive)
     elif a.cmd == "add":

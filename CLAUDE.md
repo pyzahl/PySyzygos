@@ -332,6 +332,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   data-fevt/data-fnres, `filter_bar(groups, nres)` (`event_select`, 'results per event' LIM nres), `group_mark`
   button (PICK_JS toggles the evt select); archive nres = n_observers, `_archive_events` cached by CSV mtime,
   ARCHIVE_PAGE_MAX 3000 without a search (30 MB / ~15 s for all 17k). inbox/reports keep the plain ui.table.
+- Background catalog build (2026-11-04, gui_system): `start_build` = detached Popen (start_new_session / Windows
+  DETACHED_PROCESS) of `catalog build --dir D --gmax G --workers N [--xref]` (starcat main: build, xmatch, then
+  build_xref), output logs/catalog_build_<D>.log, state HOME/catalog_build.json (pid, dir, gmax, log, t0; gitignored,
+  cleanup OUTPUTS); `build_progress` (starcat.status done/total from build.json + the log's last line, \r-aware
+  `log_tail`), `pid_alive`, `stop_build` (killpg SIGTERM / taskkill /T; the pool exits in a few s), `build_folder`
+  (free name: gaia_dr3_g18_v2 when the old one exists); pg.cat_build_tick every 10 s (ui.timer in connect): a
+  finished build refreshes the header's catalog options once. Checked: a real start (13 files/min with 2 downloads,
+  ETA ~4 h for G 18), progress, stop (all processes gone).
 - `pysyzygos/components.py` (2026-11-04, `pysyzygos binary <favorite key> | --list`). Search (user, 2026-11-04,
   after first deciding "on request only"): for KNOWN (7 systems with JPL per-body ephemerides; + cache) each body is a
   target '617+P' / '617+S1' instead of the system (search.search_bodies in pass 1, BODIES, other_bodies -> paths

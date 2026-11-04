@@ -34,7 +34,7 @@ CACHE_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PySyzygos
                   "PyOccult_asteroid_*.bsp", "PyOccult_body_*.bsp", "PyOccult_sbdb_cache.json",   # names before 1.0.0
                   "PyOccult_sbdb_phys.json", "pyoccult_exports")
 ORBIT_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PySyzygos_component_*.bsp", "PyOccult_asteroid_*.bsp", "PyOccult_body_*.bsp")
-OUTPUTS = ("pysyzygos.db", "pysyzygos.db-wal", "pysyzygos.db-shm", "owc_check.db", "owc_check.db-wal", "owc_check.db-shm",
+OUTPUTS = ("catalog_build.json", "pysyzygos.db", "pysyzygos.db-wal", "pysyzygos.db-shm", "owc_check.db", "owc_check.db-wal", "owc_check.db-shm",
            "hits_log.csv", "hits_report.html", "hits_report.md", "bodies_log.csv", "bodies_report.html",
            "earth_log.csv", "earth_log.runs.jsonl", "earth_report.html", "observed_report.html", "obs_checks",
            "owc_check_hits.csv", "pick_events.csv", "pick_candidates.csv", "targets.py", "maps", "picks", "prescreen", "logs",

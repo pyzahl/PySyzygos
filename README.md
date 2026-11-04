@@ -421,9 +421,9 @@ a shadow can be only a few km wide). Without a terminal, setup copies `src/pysyz
 
 * `gaia_local_dir`: where the catalog goes (default `gaia_dr3_g16` in the data folder). Pick a disk with ~8 GB free
   for G 16 (while an archive is unpacked; it is saved next to the folder and deleted afterwards).
-* `gaia_local_gmax`: faintest star kept (default 16). Fainter stars are never searched; it also caps the site's star
-  limit, so set it to the catalog you have (18 with a `gaia_dr3_g18` you built).
-  A different value needs a new folder (`--gmax`, see below).
+* `gaia_local_gmax`: the limit of a new catalog build (default 16), and the cap of the star limit for command-line runs
+  that do not give one (see "The star limit: where it comes from"). Set it to the catalog you have (18 with a
+  `gaia_dr3_g18` you built). A different catalog limit needs a new folder (`--gmax`, see below).
 * `cache_path`: where the smaller caches go (asteroid orbits, SBDB data). Defaults to `/dev/shm` on Linux (RAM, emptied
   on reboot) and to the system temp folder elsewhere.
 
@@ -839,6 +839,24 @@ can also describe its view and its equipment; keys it leaves out take the defaul
 | `focal_mm` | 100 x `aperture_cm` (f/10) | focal length, mm: with `sensor_mm` gives the camera field of the event preview |
 | `sensor_mm` | (5.6, 3.2) | camera sensor width and height, mm |
 
+**The star limit: where it comes from.** The faintest star searched (Gaia G) is, first match wins:
+
+1. the run's own limit: in the GUI the "Star G limit" field of Pick, Search and Planets & Moons (filled from the site,
+   your override kept until ↺; every GUI run passes it), on the command line `pysyzygos pick --cam-limit G` or
+   `pysyzygos run search '{"MAG_MIN": G}'`;
+2. else the site's `mag_limit`, else the OWC criterion from its aperture, frames and longest exposure, at most
+   `gaia_local_gmax` (`MAG_MIN` in `pysyzygos_config.py`: plain `pysyzygos search` / `pysyzygos pick`).
+
+Either way at most the catalog's own limit (16 for the ready-made one). Path verification, the archive check at the
+observers' sites and the OWC check set their own limit from the event's star.
+
+```bash
+pysyzygos search                                        # the site's limit, at most gaia_local_gmax
+pysyzygos run search '{"MAG_MIN": 15.5}'                # this run: G <= 15.5
+pysyzygos pick --cam-limit 15.5                         # the pick's limit for this run
+PYSYZYGOS_CATALOG=gaia_dr3_g18_v2 pysyzygos run search '{"MAG_MIN": 17.5}'   # a deeper catalog, for one run
+```
+
 Events are judged with OWC's General Observability Criterion: an event is kept if
 
     StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust
@@ -868,7 +886,7 @@ for s in home field; do PYSYZYGOS_SITE=$s pysyzygos pick -o pick_$s.csv --target
 | `star_parallax`, `light_deflection` | `True`, `True` | astrometric corrections of the star: seen from the Earth (Gaia parallax), and the light bending by Sun, Jupiter and Saturn (ABOUT.md Part 6). Off reproduces the results before 0.10.0 |
 | `min_mag_drop` | `0.1` | events with a smaller magnitude drop are not logged; also caps the star magnitude searched per asteroid |
 | `corridor_step_s` | `600` | path step of the corridor candidate scan, s |
-| `gaia_local_dir`, `gaia_local_gmax` | `"gaia_dr3_g16"`, `16.0` | local Gaia catalog folder and its faintest G (see "Star catalog"); the environment variable `PYSYZYGOS_CATALOG=<folder>` chooses another catalog for one run |
+| `gaia_local_dir`, `gaia_local_gmax` | `"gaia_dr3_g16"`, `16.0` | local Gaia catalog folder, and the limit of a new build (also caps `MAG_MIN` for runs that give no limit of their own); the environment variable `PYSYZYGOS_CATALOG=<folder>` chooses another catalog for one run |
 
 **Observer**
 
@@ -876,7 +894,7 @@ for s in home field; do PYSYZYGOS_SITE=$s pysyzygos pick -o pick_$s.csv --target
 |---|---|---|
 | `LAT`, `LON`, `ELE` | from the site | the chosen site (see "Observing sites" above); `site_name` holds its name |
 | `MIN_STAR_ALT`, `MAX_SUN_ALT` | from the site | the site's `min_alt` and `max_sun_alt` |
-| `MAG_MIN` | from the site | faintest star (Gaia G) searched: the site's `mag_limit`, else from its aperture; at most `gaia_local_gmax` |
+| `MAG_MIN` | from the site | faintest star (Gaia G) searched: the site's `mag_limit`, else from its aperture; at most `gaia_local_gmax`. Only the default: a run's own limit wins (the GUI always gives one; see "The star limit: where it comes from") |
 | `pick_aperture_cm`, `pick_frames`, `pick_mag_adjust`, `pick_extinction`, `pick_min_dur_s` | from the site | the site's equipment (used by the pick tool) |
 | `ALT_MARGIN` | `3.0` | the early visibility gate is this much looser than the final test, so it never rejects a real event |
 | `atm_extinction` | `0.0` | atmospheric extinction for low altitudes, mag per airmass (0 = off, ~0.2 typical, ~0.3 hazy); a star at altitude h counts as fainter by `atm_extinction * (airmass - 1)`; a site's `extinction` overrides it |
@@ -928,11 +946,17 @@ once from ESA's files (any limit).
 ```
 pysyzygos setup                                   # does all of it (kernels, catalog)
 pysyzygos catalog fetch --dir gaia_dr3_g16        # the ready-made G <= 16 (core + --groups, default quality)
-pysyzygos catalog build --dir gaia_dr3_g18 --gmax 18 --workers 6   # a build from ESA's files, any limit
+pysyzygos catalog build --dir gaia_dr3_g18 --gmax 18 --workers 6 --xref   # a build from ESA's files, any limit
 pysyzygos catalog add quality                     # optional parts, any time (Zenodo catalog)
 pysyzygos catalog remove extras
 pysyzygos catalog status
 ```
+
+**Another limit from the GUI:** System tab, Star catalog, **Build a catalog with another limit**: G limit, folder
+(a free one is proposed), downloads at once, star names. The build runs as a process of its own (searches and picks
+can run meanwhile; it goes on when the GUI restarts) with its progress on the page (files done, rate, time left;
+**Log**, **Stop**; a stopped build resumes). Output in `logs/catalog_build_<folder>.log`. Then choose the catalog in
+the header.
 
 **What is in it.** All Gaia DR3 stars to the limit (G <= 16: 78.0 M stars, built in 1 h 49 min from 753 GB of ESA
 files), in one sort order (sky cells of 0.25 degrees, by G within a cell), so a search strip, a pick over all
@@ -975,8 +999,10 @@ your site, compare with other predictions before observing. Switch: GUI header *
 
 **Several catalogs** can sit side by side (e.g. the ready-made `gaia_dr3_g16` and a `gaia_dr3_g18` you built). Choose
 one per run with `PYSYZYGOS_CATALOG=gaia_dr3_g18 pysyzygos search` (the pick follows it too), or in the GUI header;
-`pysyzygos setup --status` lists the catalogs it finds. Stars fainter than `gaia_local_gmax` are not searched, whatever
-`MAG_MIN` says. A half-built catalog is not listed; rerun the same command, it resumes.
+`pysyzygos setup --status` lists the catalogs it finds. Stars fainter than the catalog's own limit are not searched,
+whatever `MAG_MIN` says (the search says so and uses the catalog's limit). A half-built catalog is not listed; rerun the
+same command, it resumes. A build running in the background (System tab) shows its progress in the GUI, or with
+`pysyzygos catalog status --dir gaia_dr3_g18_v2` (files done of 3386).
 
 **Catalog versions.** The System tab and the header's catalog list show each catalog's data version: **v2.1**
 (the current one, from PySyzygos 1.3.2: better proper motions for the 2-parameter stars, ABOUT.md 2.4.1, and the
