@@ -24,9 +24,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Anywhere-on-Earth favorites get the event's own point as their site** (where the shadow's center is best seen:
   "39.30° S, 22.74° E (ocean)"; land or ocean from the bundled Natural Earth outlines, offline), not the site chosen in
   the header; favorites starred before are corrected at GUI start.
-- **Fixed:** a catalog build whose last steps (proper motions of the 2-parameter stars via CDS XMatch, star names
-  from CDS) failed because CDS Strasbourg was unreachable ended with a traceback; now it says the stars are complete
-  and usable, and a new start of the build (the GUI offers the same folder again) goes straight to the missing steps.
+- **Catalog build: each step on its own, with a retry.** The proper motions of the 2-parameter stars (CDS
+  XMatch) and the star names (UCAC4 zone files, Tycho-2/Hipparcos) no longer wait on each other; the UCAC4 zone files
+  come from CDS's mirror at CfA when CDS is down. The System tab lists every step (done / pending, with counts) and
+  offers **Retry the missing steps**; the build's last lines list them too (`starcat.build_steps`). Before, a CDS
+  outage at the end of a build ended with a traceback, and the GUI would have proposed a new folder.
 - **Fixed:** the path debug files (`debug_save_paths`) of a binary's body were not written (the other bodies' lines).
 - **Catalog of another limit, built in the background** (System tab, Star catalog): G limit, folder, downloads at
   once, star names; a process of its own (`pysyzygos catalog build ... --xref`, new option: the star names and epoch

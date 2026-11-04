@@ -459,14 +459,19 @@ def _download(url, timeout=60, deadline=ZONE_DEADLINE_S):
         r.close()
 
 
+_ZONE_BASE = [0]                                                   # index of the zone source that answered last
+
+
 def ucac4_records(zone, fetch=None):
     """The records (UCAC4_REC) of a UCAC4 zone file, in file order: the running number is index+1. fetch(url) ->
     bytes stands in for the download (tests)."""
     if fetch is None:
         blob = None
+        bases = [U.URL_UCAC4_ZONES] + list(U.URL_UCAC4_ZONES_MIRRORS)    # CDS, then its mirrors in turn
         for k in range(5):
             try:
-                blob = _download(f"{U.URL_UCAC4_ZONES}z{zone:03d}")
+                blob = _download(f"{bases[(_ZONE_BASE[0] + k) % len(bases)]}z{zone:03d}")
+                _ZONE_BASE[0] = (_ZONE_BASE[0] + k) % len(bases)              # the next zones start there
                 break
             except Exception:
                 if k == 4:
@@ -854,6 +859,31 @@ def group_ok(d, g, man=None):
         return False
     return (m.get("build_id") == man.get("build_id") and m.get("n_stars") == man.get("n_stars")
             and os.path.isfile(os.path.join(d, f"{g}.npy")))
+
+
+def build_steps(d, xmatch=True, xref=True):
+    """The steps of a catalog build as [(step, 'done' | 'pending' | 'skipped', detail)]: the stars from ESA's files,
+    the proper motions of the 2-parameter stars (CDS XMatch: UCAC5/UCAC4), the star names (xref: UCAC4 zone files
+    from CDS or its CfA mirror, Tycho-2/Hipparcos from ESA's Gaia archive). For the GUI and the build's last lines."""
+    if not is_format2(d):
+        s = status(d)
+        detail = f"{s['done']} of {s['total']} ESA files" if s.get("total") else ""
+        return [("stars from ESA's Gaia files", "pending", detail),
+                ("proper motions of the 2-parameter stars", "pending" if xmatch else "skipped", "CDS XMatch"),
+                ("star names (UCAC4 / Tycho-2 / HIP)", "pending" if xref else "skipped", "")]
+    man = _manifest(d)
+    pm = man.get("pm_xmatch") or {}
+    have_x = "xref" in groups_present(d)
+    steps = [("stars from ESA's Gaia files", "done", f"{man.get('n_stars', 0) / 1e6:.1f} M stars")]
+    if pm:
+        steps.append(("proper motions of the 2-parameter stars", "done",
+                      f"{pm.get('ucac5', 0) + pm.get('ucac4', 0):,} of {pm.get('two_param', 0):,} from UCAC5/UCAC4"))
+    else:
+        steps.append(("proper motions of the 2-parameter stars", "pending" if xmatch else "skipped",
+                      "needs CDS XMatch (Strasbourg)"))
+    steps.append(("star names (UCAC4 / Tycho-2 / HIP)", "done" if have_x else "pending" if xref else "skipped",
+                  "" if have_x else "needs the UCAC4 zone files (CDS or its CfA mirror) and ESA's Gaia archive"))
+    return steps
 
 
 def groups_present(d):
@@ -1374,16 +1404,25 @@ def main(argv=None):
         os.environ["PYSYZYGOS_CATALOG_MIRROR"] = a.mirror
     if a.cmd == "build":
         st = build(a.dir, g0 if a.gmax is None else a.gmax, a.workers)
-        try:                                                       # both later steps need CDS (Strasbourg)
-            if st["complete"] and not a.no_xmatch and not (_manifest(a.dir).get("pm_xmatch") or {}):
+        failed = []                                                # each later step on its own: another may work
+        if st["complete"] and not a.no_xmatch and not (_manifest(a.dir).get("pm_xmatch") or {}):
+            try:
                 xmatch(a.dir)
-            if st["complete"] and a.xref and "xref" not in groups_present(a.dir):
-                print("star names (xref) and epoch proper motions ...", flush=True)
+            except (RuntimeError, OSError) as e:
+                failed.append(f"proper motions of the 2-parameter stars: {str(e)[:300]}")
+        if st["complete"] and a.xref and "xref" not in groups_present(a.dir):
+            print("star names (xref) and epoch proper motions ...", flush=True)
+            try:
                 build_xref(a.dir, log=functools.partial(print, flush=True), pm_epoch_wanted=not a.no_pm_epoch)
-        except (RuntimeError, OSError) as e:
-            sys.exit(f"{e}\ncatalog build stopped: the stars of {a.dir} are complete and usable; the proper motions "
-                     f"of the 2-parameter stars and/or the star names are missing (CDS not reachable). Start the "
-                     f"build again later: it goes straight to the missing steps.")
+            except (RuntimeError, OSError) as e:
+                failed.append(f"star names: {str(e)[:300]}")
+        if st["complete"]:
+            for step, state, detail in build_steps(a.dir, xmatch=not a.no_xmatch, xref=a.xref):
+                print(f"   {step}: {state}{' (' + detail + ')' if detail else ''}", flush=True)
+        if failed:
+            sys.exit("\n".join(failed) + f"\ncatalog build stopped: the stars of {a.dir} are complete and usable; "
+                     f"start the build again later (a network service was not reachable): it does only the steps "
+                     f"still pending.")
         print(f"catalog build finished: {a.dir}" if is_format2(a.dir) else f"catalog build stopped: {a.dir} (run again "
               f"to resume)", flush=True)
     elif a.cmd == "fetch":

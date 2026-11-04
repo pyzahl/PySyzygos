@@ -958,6 +958,12 @@ can run meanwhile; it goes on when the GUI restarts) with its progress on the pa
 **Log**, **Stop**; a stopped build resumes). Output in `logs/catalog_build_<folder>.log`. Then choose the catalog in
 the header.
 
+The last two steps need other services: the proper motions of the 2-parameter stars come from CDS XMatch
+(Strasbourg), the star names from the UCAC4 zone files (CDS, else its mirror at CfA) and ESA's Gaia archive. Each runs
+on its own, and the page lists every step as done or pending. If a service is down (CDS was unreachable for a day in
+November 2026), the stars are complete and usable already; **Retry the missing steps** (or the same `catalog build`
+command) later does only what is pending.
+
 **What is in it.** All Gaia DR3 stars to the limit (G <= 16: 78.0 M stars, built in 1 h 49 min from 753 GB of ESA
 files), in one sort order (sky cells of 0.25 degrees, by G within a cell), so a search strip, a pick over all
 asteroids, a pre-screen and a preview all read only the stars they need, without a separate index. Positions are

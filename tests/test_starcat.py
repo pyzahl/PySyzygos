@@ -137,6 +137,9 @@ def fake_fetch(rows, cat_name):
     return pd.DataFrame(dict(source_id=r.source_id, RAgaia=r.ra, DEgaia=r.dec, Gmag=r.g, g=r.g, ra=r.ra, dec=r.dec,
                              pmRAug=5.0, pmDEug=-3.0, e_pmRAug=1.2, e_pmDEug=0.8))
 GL.pick_ucac4 = lambda m: pd.DataFrame(columns=["source_id", "pmra", "pmdec", "pm_error"])
+steps = dict((k, v) for k, v, _ in SC.build_steps(d))                # stars done, the CDS steps pending
+assert list(steps.values()) == ["done", "pending", "pending"], steps
+assert [v for _, v, _ in SC.build_steps(d, xmatch=False, xref=False)] == ["done", "skipped", "skipped"]
 pmx = SC.xmatch(d, fetch=fake_fetch, log=lambda *a: None)
 n2 = int((kind == SC.KIND_2P).sum())
 assert pmx["ucac5"] == (n2 + 1) // 2 and pmx["none"] == n2 // 2 and SC.status(d)["pm_xmatch"]["ucac5"] == pmx["ucac5"]
@@ -190,6 +193,7 @@ def fake_query(q):
 gc.collect() if "gc" in globals() else None
 SC.build_xref(d, zones=sorted(zones), fetch=fetch, query=fake_query, log=lambda *a: None, tyc_parts=4)
 assert "xref" in SC.groups_present(d)
+assert [v for _, v, _ in SC.build_steps(d)] == ["done"] * 3
 cat = SC.StarCatalog(d, supplement=True)
 for xs, (z, k) in want.items():
     nm = cat.names(xs, keep.ra[xs], keep.dec[xs])

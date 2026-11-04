@@ -39,6 +39,7 @@ URL_PRESCREEN_MIRRORS = [
     "https://bnlbox.sdcc.bnl.gov/public.php/dav/files/2byYPzX4odRZRfR/world-prescreens/",   # temporary BNL box
 ]
 URL_UCAC4_ZONES = "https://cdsarc.cds.unistra.fr/ftp/I/322A/UCAC4/u4b/"        # UCAC4 zone files z001..z900 (xref)
+URL_UCAC4_ZONES_MIRRORS = ["https://vizier.cfa.harvard.edu/ftp/cats/I/322A/UCAC4/u4b/"]  # same files at CfA (CDS down)
 URL_CDS_XMATCH = "https://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync"             # CDS XMatch (supplement pm: UCAC5/4)
 
 # --- JPL Solar System Dynamics

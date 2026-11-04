@@ -341,7 +341,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   cleanup OUTPUTS); `build_progress` (starcat.status done/total from build.json + the log's last line, \r-aware
   `log_tail`), `pid_alive`, `stop_build` (killpg SIGTERM / taskkill /T; the pool exits in a few s), `build_folder`
   (free name: gaia_dr3_g18_v2 when the old one exists; `cds_missing`: a finished catalog of that limit without
-  pm_xmatch or xref is offered again; starcat main exits with a message, not a traceback, when CDS is down there); pg.cat_build_tick every 10 s (ui.timer in connect): a
+  pm_xmatch or xref is offered again). Steps (2026-11-04, CDS down a day): `starcat.build_steps(d)` [(step,
+  done|pending|skipped, detail)]; build main runs xmatch and xref each in its own try, prints the steps, exits with
+  the failures; GUI `steps_of`/`pending`, `pg.cat_build_steps` lines, `pg.cat_build_retry` (same build again);
+  UCAC4 zones fall back to `URL_UCAC4_ZONES_MIRRORS` (CfA /ftp/cats/I/322A/UCAC4/u4b/, `_ZONE_BASE` sticks); pg.cat_build_tick every 10 s (ui.timer in connect): a
   finished build refreshes the header's catalog options once. Checked: a real start (13 files/min with 2 downloads,
   ETA ~4 h for G 18), progress, stop (all processes gone).
 - `pysyzygos/components.py` (2026-11-04, `pysyzygos binary <favorite key> | --list`). Search (user, 2026-11-04,

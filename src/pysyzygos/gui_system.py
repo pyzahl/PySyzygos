@@ -4,7 +4,7 @@ copies, cache.
 Part of the GUI (gui.py builds the page): panel(pg) adds the tab's controls, handlers(pg) its functions, connect(pg)
 wires them up; pg holds the page's elements and functions shared between the tabs.
 """
-import json, os, shutil, signal, subprocess, sys, time
+import html, json, os, shutil, signal, subprocess, sys, time
 
 from pysyzygos import home, starcat
 from pysyzygos.home import HOME as ROOT, PKG
@@ -108,6 +108,15 @@ def log_tail(path, n=40):
     return [ln for ln in lines if ln.strip()][-n:]
 
 
+def steps_of(st):
+    """starcat.build_steps of the build in st (what it was started with)."""
+    return starcat.build_steps(os.path.join(ROOT, st["dir"]), xref=bool(st.get("xref", True)))
+
+
+def pending(st):
+    return [step for step, state, _ in steps_of(st) if state == "pending"]
+
+
 def build_progress(st):
     """(running, text) of the background build."""
     running = pid_alive(st["pid"])
@@ -115,8 +124,8 @@ def build_progress(st):
     done = starcat.is_format2(d)
     s = starcat.status(d)
     if done:
-        stage = (f"complete: {s.get('n_stars', 0) / 1e6:.1f} M stars, {s['gb']:.1f} GB"
-                 + (", star names still being added" if running else ""))
+        stage = (f"stars complete: {s.get('n_stars', 0) / 1e6:.1f} M, {s['gb']:.1f} GB"
+                 + (", the later steps are running" if running and pending(st) else ""))
     elif s["total"]:
         stage = (f"{s['done']} of {s['total']} ESA files ({100.0 * s['done'] / s['total']:.0f} %)"
                  + (": merging" if s["done"] == s["total"] else ""))
@@ -126,7 +135,8 @@ def build_progress(st):
     tail = log_tail(st["log"], 1)
     return running, (f"{st['dir']} (G \u2264 {st['gmax']:g}): {stage} \u00b7 "
                      + (f"running for {el / 3600:.1f} h" if running else
-                        "finished" if done and not running else "stopped: Build again to resume")
+                        "stopped: steps pending (below), Retry when the service is back" if done and pending(st) else
+                        "finished" if done else "stopped: Build again to resume")
                      + (f" \u00b7 {tail[0][:140]}" if tail else ""))
 
 
@@ -405,7 +415,10 @@ def handlers(pg):
                 ui.button("Log", on_click=lambda: pg.cat_build_log()).props("flat dense")
                 pg.cat_build_stop = ui.button("Stop", on_click=lambda: pg.cat_build_stop_ask()).props(
                     "flat dense color=negative")
+                pg.cat_build_retry = ui.button("Retry the missing steps", on_click=lambda: pg.cat_build_retry_go()
+                                               ).props("outline dense color=primary")
                 pg.cat_build_clear = ui.button("Clear", on_click=lambda: pg.cat_build_dismiss()).props("flat dense")
+            pg.cat_build_steps = ui.html("").classes("text-xs")
             pg.cat_build_tick()
     pg.cat_refresh = cat_refresh
 
@@ -426,6 +439,13 @@ def handlers(pg):
                                  "text-green-800" if starcat.is_format2(os.path.join(ROOT, st["dir"])) else "text-amber-800"))
         pg.cat_build_stop.set_visibility(running)
         pg.cat_build_clear.set_visibility(not running)
+        todo = starcat.is_format2(os.path.join(ROOT, st["dir"])) and pending(st)
+        pg.cat_build_retry.set_visibility(not running and bool(todo))
+        mark = {"done": ("\u2713", "text-green-800"), "pending": ("\u2026" if running else "\u2717", "text-amber-800"),
+                "skipped": ("\u2013", "text-slate-500")}
+        pg.cat_build_steps.set_content("<br>".join(
+            f'<span class="{mark[state][1]}">{mark[state][0]} {html.escape(step)}: {state}'
+            f'{" (" + html.escape(detail) + ")" if detail else ""}</span>' for step, state, detail in steps_of(st)))
         if BUILD["running"] and not running:          # just finished or stopped: the header lists it
             opts = catalog_options()
             pg.cat_sel.set_options(opts, value=pg.cat_sel.value if pg.cat_sel.value in opts else None)
@@ -446,7 +466,7 @@ def handlers(pg):
             ui.notify("The folder's name starts with gaia_dr3_ (e.g. gaia_dr3_g18), in the data folder", type="warning")
             return
         d = os.path.join(ROOT, folder)
-        if starcat.is_format2(d):
+        if starcat.is_format2(d) and not any(state == "pending" for _, state, _ in starcat.build_steps(d, xref=bool(xref))):
             ui.notify(f"{folder} is a complete catalog already", type="warning")
             return
         if os.path.isfile(os.path.join(d, "catalog.json")):
@@ -458,6 +478,13 @@ def handlers(pg):
         BUILD["running"] = True
         pg.cat_build_tick()
     pg.cat_build_start = cat_build_start
+
+    def cat_build_retry_go():
+        """The same build again: the finished steps are skipped, the pending ones tried once more."""
+        st = build_state()
+        if st:
+            pg.cat_build_start(st["dir"], st["gmax"], st.get("workers", 6), st.get("xref", True))
+    pg.cat_build_retry_go = cat_build_retry_go
 
     def cat_build_stop_ask():
         st = build_state()
