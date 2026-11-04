@@ -137,8 +137,8 @@ e.g. Menoetius for (617) Patroclus) are drawn in orange with their own fitted ou
 double (d/r) in teal, not fitted. The main body's fit uses only its own chords.
 
 **Binary asteroids: watch for several bodies.** JPL's orbit of a binary such as (617) Patroclus describes the
-*system* (one orbit for the pair), and that is the point predictions use (ours and Occult's "JPL#.."): no body is
-there. Where JPL also has the bodies' own ephemerides (Horizons 920000617 = Patroclus, 120000617 = Menoetius), the plot
+*system* (one orbit for the pair), the point a plain prediction uses (Occult's "JPL#.." too): no body need be there.
+PySyzygos' search takes each body as its own target where JPL has their ephemerides (ABOUT.md 4.2). Where JPL also has the bodies' own ephemerides (Horizons 920000617 = Patroclus, 120000617 = Menoetius), the plot
 marks each body's predicted position (✚) and gives the observed minus predicted against it. Patroclus 2026-01-04:
 Menoetius observed 84 km from its own prediction; Patroclus, predicted ~190 km east of the system point, had no
 station on its path (the archive's "Unseen primary"). A station with only a D or only an R

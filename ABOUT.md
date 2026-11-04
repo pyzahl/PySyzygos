@@ -69,7 +69,7 @@ Supporting modules: `pysyzygos/corridor.py` (per-asteroid star corridor and cand
 `pysyzygos/orbits.py` (fast orbit integration), `pysyzygos/paths.py` (shadow ground track), `pysyzygos/sbdb.py` (shared
 asteroid size cache), `pysyzygos/kernels.py` (kernel download, Earth orientation coverage), `pysyzygos/picks.py` (saved
 picks: which one a search uses), `pysyzygos/kstars.py` (points KStars at an event over D-Bus, Linux), `pysyzygos/favorites.py` (starred events with their
-own copies of map and preview).
+own copies of map and preview), `pysyzygos/components.py` (each body of a binary asteroid from JPL's own ephemerides).
 
 ---
 
@@ -707,9 +707,21 @@ PySyzygos ships an extract of both (`pysyzygos/binaries.py`, `data/binaries.json
 shows it as reference information: "+moon" (or "+2 moons"; "+moon?" when only reported in an occultation and not in
 Johnston's list) after the asteroid in the Results and Favorites tables, a "Satellites" line in the favorites panel,
 and on the event maps (KML, report map, globe plot) a dotted **satellite zone** at the primary's shadow edge plus
-the largest known moon distance plus its radius: a satellite's own shadow passes somewhere inside it. The satellite's
-position at the event is not predicted: that needs its orbit (orientation and phase), known well for only a few
-systems. Moons found after 2019 are not in the extract (Johnston's Archive has them).
+the largest known moon distance plus its radius: a satellite's own shadow passes somewhere inside it. Moons found
+after 2019 are not in the extract (Johnston's Archive has them).
+
+**Each body of a binary** (`pysyzygos/components.py`, 2026-11-04). JPL's orbit of a binary asteroid is the system's,
+a point between the bodies, where no body need be ((617) Patroclus and Menoetius are ~690 km apart). For a few
+binaries JPL also has an ephemeris of each body (Horizons k * 1e8 + 2e7 + number: 920000617 Patroclus, 120000617
+Menoetius; vectors only, made into a small SPK of type 13). On 2026-11-04 these were 7 of the 185 binaries with a
+satellite of 1 km or more: Patroclus, Quaoar, Orcus, Salacia, Haumea (two moons), Eris and Kagara (`pysyzygos binary
+--list` asks JPL anew; Pluto and Charon are planets and moons). For these the search takes each body as a target of
+its own (`617+P`, `617+S1`; Johnston's diameters, the system's H shared by the bodies' cross-sections; path
+uncertainty and orbit class from the system): a body passing within the reach is a hit, marked primary or satellite,
+and its map and KML show every body's path. The pick widens its screening margin for them by the moon's distance and
+keeps them past a pre-screen. For other binaries, the favorites panel computes each body on request where JPL has
+them ("Predict each body"). The Observation Manager's chord plot marks each body's own predicted position.
+Config `binary_bodies = False` searches the system only.
 
 ---
 
@@ -727,6 +739,8 @@ All checks, with their numbers and the discussion of the differences, are in
   were added (0.10.0).
 - **Internal and geometric checks:** the corridor search against the old windows search, the pick screen, the pick's
   orbits against Horizons, planet and moon ephemerides and contact times, and the test suite.
+- **Observed events:** chord fits against Occult's archive ((135) Hertha 2008: 102.2 x 60.6 km vs 103.6 x 59.9 km,
+  centers within 0.5 km); binaries body by body ((617) Patroclus: each body 84-148 km from JPL's own prediction of it).
 
 ---
 

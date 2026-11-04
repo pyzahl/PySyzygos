@@ -2,7 +2,7 @@
 
 How PySyzygos's predictions were checked: against OccultWatcher Cloud (OWC) search results and Occult's (occult.exe)
 event plots, against its own older code paths, and with independent geometry. What is computed and how: `ABOUT.md`;
-open items: `ABOUT.md`, Part 6. Updated 2026-10-30 (version 1.5.1). The observing sites are named Test site 1, 2, 3
+open items: `ABOUT.md`, Part 6. Updated 2026-11-04 (version 1.5.2). The observing sites are named Test site 1, 2, 3
 (real sites, not named here).
 
 Contents:
@@ -16,7 +16,8 @@ Contents:
 - [2. Against Occult's event plots: star positions](#2-against-occults-event-plots-star-positions)
 - [3. Against Occult's geodetic path: (3200) Phaethon, 2019-07-29](#3-against-occults-geodetic-path-3200-phaethon-2019-07-29)
 - [4. Internal and geometric checks](#4-internal-and-geometric-checks)
-- [5. What the differences mean](#5-what-the-differences-mean)
+- [5. Observed events: chord fits and binary bodies](#5-observed-events-chord-fits-and-binary-bodies)
+- [6. What the differences mean](#6-what-the-differences-mean)
 
 ---
 
@@ -47,7 +48,7 @@ and are kept with their check output, so every check can be rerun with a later v
 
 20 km reach, G <= 15, 25 cm, 4 frames. All 16 found with the same stars; times within 5.4 s (13 within 3 s). Drops
 agree within 0.25 mag below 5 mag. Durations agree within 10 % wherever both use the same diameter; 4 events differ
-only by diameter (sizes from H, or OWC using another source than NEOWISE). 218001 is the open case (section 5).
+only by diameter (sizes from H, or OWC using another source than NEOWISE). 218001 is the open case (section 6).
 
 ### 1.3 Test site 2, sets A and B (OWC data of 2026-10-02, events Oct 3-6 2026; checked 2026-10-03)
 
@@ -176,7 +177,7 @@ The 6 others, by cause:
 | (20370) 1998 KR29 | drop 5.14 | drop 4.48 | asteroid brightness; the star is also a close pair (Gaia: two peaks in 64 % of scans; companion G 18.9 at 2.8") |
 | (28336) 1999 DZ4 | drop 3.37 | drop 3.11 | asteroid brightness |
 
-The full list (484605's and 549201's kind of miss, and the 2-parameter stars, are discussed in section 5):
+The full list (484605's and 549201's kind of miss, and the 2-parameter stars, are discussed in section 6):
 
 | | Asteroid | OWC time (UT) | Δt (s) | Star G | Drop ours / OWC | Duration ours / OWC (s) | Diameter ours / OWC-implied (km) | Shadow dist (km) | Result |
 |---|---|---|---:|---:|---|---|---|---:|---|
@@ -515,7 +516,7 @@ listing's rounding. Along the track Occult's shadow is 0.011 s later (mean; -0.0
 in the plane). Fit in the plane: constant offset x +0.10, y -0.14 mas (0.12 km), rms 42 m (before 70 m), largest
 residual 152 m (before 313 m); the Earth-rotation term is gone (it had taken up this effect). The offset points
 against the shadow's motion (direction -0.60, +0.80 in the plane), so it is a pure timing difference of about 11 ms
-(on average; it depends on the star's altitude as z/c, see section 5).
+(on average; it depends on the star's altitude as z/c, see section 6).
 
 | PySyzygos | Offset in the plane x, y (mas) | Across (km) | Along (s) | rms |
 |---|---|---|---|---|
@@ -799,7 +800,40 @@ shown (77 mas apart). The x, y at the closest approach differ by 0.05 km across 
 
 ---
 
-## 5. What the differences mean
+## 5. Observed events: chord fits and binary bodies
+
+The Observation Manager's chord plot (`pysyzygos/chords.py`, OBSERVATION-MANAGER.md) puts each station of an event
+into the fundamental plane (axes of date, light time from the station, the asteroid from today's JPL orbit) and
+fits an outline to the chord ends. Checked against the fits in IOTA's / Occult's archive of observed occultations
+(2026-11-03/04, PySyzygos 1.5.2):
+
+| Event | Chords | PySyzygos | Occult's archive | Centers (km from our prediction) |
+|---|---:|---|---|---|
+| (135) Hertha 2008-12-11 | 21 | 102.2 x 60.6 km, PA 41.4 deg | 103.6 x 59.9 km, PA 40.6 deg | +14.3, +7.4 vs +14.0, +6.9 |
+| Ganymede 2025-10-14 (size fixed 5268.2 km) | 16 | circle, fixed | assumed size | +111.1, -35.5 vs +110.7, -34.3 |
+| (617) Patroclus 2024-10-18, primary (1 chord, size fixed 141.2 km) | 1 | circle, fixed | assumed size | -302.3, -34.2 vs -302.6, -34.2 |
+
+- **The same stations entered as our own reports** (one saved report per station, as from PyStarLight) give the same
+  points as the archive route within 1 mm, and the same fit.
+- **Satellite and second-star chords** (Occult codes G/B, d/r) are read as chords of their own; (617) Patroclus
+  2026-01-04: all 11 positive chords were Menoetius (117.5 x 91.5 km; Johnston's diameter 98-120 km).
+
+**Binary asteroids, each body** (`pysyzygos/components.py`). JPL's orbit of (617) is the system's, a point between
+Patroclus and Menoetius; JPL also has an ephemeris of each body (Horizons 920000617, 120000617). Observed minus JPL's
+own prediction of each body, from the chord fits:
+
+| Event | Patroclus | Menoetius |
+|---|---|---|
+| 2024-10-18 (both hit) | -146 km E, -24 km N (148 km) | -112 km E, -18 km N (113 km) |
+| 2026-01-04 (Menoetius only) | not seen (no station within its path) | +55 km E, -64 km N (84 km) |
+
+In 2024 both bodies were off by nearly the same amount, the error of the pair's common orbit (about 3 times its
+1-sigma of 41 km); the distance between them agreed to about 35 km. The search with each body as a target (Seewis,
+2026-01-04, reach 50 km) finds the Menoetius event at 22:43:53.10 UT, 14.3 km from its center line, exactly as the
+on-request computation of the same favorite; predicted D 22:43:41.1, R 22:44:05.1, observed 22:44:02.8, 22:44:22.9
+(the 84 km offset along the track, ~20 s).
+
+## 6. What the differences mean
 
 State of version 1.1.1 (2026-10-16: light deflection of the asteroid, Gaia proper-motion bias and the
 light time from each observer all fixed or added; sections 3 and 4).

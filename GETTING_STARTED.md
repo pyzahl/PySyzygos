@@ -137,6 +137,11 @@ The **Results** tab lists every event, best first. For each one:
 
 Star the events you like, or filter the list (below) and use **☆ Star all shown** to star everything the table shows.
 
+**+moon** after an asteroid: it has a known satellite, which casts its own shadow. For a few binaries (e.g. (617)
+Patroclus) JPL predicts each body, and the search lists each one as its own event, marked *primary* or *satellite*,
+with all bodies' paths on its map. For the other binaries the prediction is for the pair's common point; in the
+favorites, **Predict each body (binary)** computes each body where JPL can.
+
 A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
 twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it), "hide
 uncertain star", the asteroid **class** (a group such as NEO, main belt, Jupiter Trojans, or one JPL orbit class) and
