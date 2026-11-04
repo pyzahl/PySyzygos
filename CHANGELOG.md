@@ -24,6 +24,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Anywhere-on-Earth favorites get the event's own point as their site** (where the shadow's center is best seen:
   "39.30° S, 22.74° E (ocean)"; land or ocean from the bundled Natural Earth outlines, offline), not the site chosen in
   the header; favorites starred before are corrected at GUI start.
+- **Fixed:** a catalog build whose last steps (proper motions of the 2-parameter stars via CDS XMatch, star names
+  from CDS) failed because CDS Strasbourg was unreachable ended with a traceback; now it says the stars are complete
+  and usable, and a new start of the build (the GUI offers the same folder again) goes straight to the missing steps.
 - **Fixed:** the path debug files (`debug_save_paths`) of a binary's body were not written (the other bodies' lines).
 - **Catalog of another limit, built in the background** (System tab, Star catalog): G limit, folder, downloads at
   once, star names; a process of its own (`pysyzygos catalog build ... --xref`, new option: the star names and epoch

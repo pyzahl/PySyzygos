@@ -27,13 +27,25 @@ def build_state():
 
 def build_folder(g):
     """A free folder name for a catalog of limit g: gaia_dr3_g18, else gaia_dr3_g18_v2, _v3, ... (an old-format or
-    other catalog keeps its folder; an unfinished build of the same name is offered again: it resumes)."""
+    other catalog keeps its folder; an unfinished build of the same name is offered again: it resumes, also one with
+    all stars but without the CDS steps (proper motions of the 2-parameter stars, star names))."""
     base = f"gaia_dr3_g{float(g):g}".replace(".", "_")
     for name in [base] + [f"{base}_v{k}" for k in range(2, 10)]:
         d = os.path.join(ROOT, name)
-        if not os.path.exists(d) or (os.path.isfile(os.path.join(d, "build.json")) and not starcat.is_format2(d)):
+        if not os.path.exists(d) or (os.path.isfile(os.path.join(d, "build.json")) and not starcat.is_format2(d)) \
+                or cds_missing(d, g):
             return name
     return base + "_new"
+
+
+def cds_missing(d, g):
+    """A finished catalog of limit g whose CDS steps did not run (CDS down at the end of a build)."""
+    try:
+        m = starcat._manifest(d)
+        return (starcat.is_format2(d) and abs(float(m["gmax"]) - float(g)) < 1e-9
+                and (not m.get("pm_xmatch") or "xref" not in starcat.groups_present(d)))
+    except (OSError, ValueError, KeyError):
+        return False
 
 
 def pid_alive(pid):

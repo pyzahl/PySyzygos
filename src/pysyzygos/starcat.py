@@ -1374,11 +1374,16 @@ def main(argv=None):
         os.environ["PYSYZYGOS_CATALOG_MIRROR"] = a.mirror
     if a.cmd == "build":
         st = build(a.dir, g0 if a.gmax is None else a.gmax, a.workers)
-        if st["complete"] and not a.no_xmatch and not (st.get("pm_xmatch") or {}):
-            xmatch(a.dir)
-        if st["complete"] and a.xref and "xref" not in groups_present(a.dir):
-            print("star names (xref) and epoch proper motions ...", flush=True)
-            build_xref(a.dir, log=functools.partial(print, flush=True), pm_epoch_wanted=not a.no_pm_epoch)
+        try:                                                       # both later steps need CDS (Strasbourg)
+            if st["complete"] and not a.no_xmatch and not (_manifest(a.dir).get("pm_xmatch") or {}):
+                xmatch(a.dir)
+            if st["complete"] and a.xref and "xref" not in groups_present(a.dir):
+                print("star names (xref) and epoch proper motions ...", flush=True)
+                build_xref(a.dir, log=functools.partial(print, flush=True), pm_epoch_wanted=not a.no_pm_epoch)
+        except (RuntimeError, OSError) as e:
+            sys.exit(f"{e}\ncatalog build stopped: the stars of {a.dir} are complete and usable; the proper motions "
+                     f"of the 2-parameter stars and/or the star names are missing (CDS not reachable). Start the "
+                     f"build again later: it goes straight to the missing steps.")
         print(f"catalog build finished: {a.dir}" if is_format2(a.dir) else f"catalog build stopped: {a.dir} (run again "
               f"to resume)", flush=True)
     elif a.cmd == "fetch":
