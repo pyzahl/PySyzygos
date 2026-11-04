@@ -1198,13 +1198,17 @@ def save_path_debug(fname, paths, record, target_id, star_dir, sigma3):
     Occult's default output; Earth orientation ITRF93), centre-line duration (s,
     NaN where none); and the event: target_id, target_name, star (Gaia DR3 source_id), star_ra / star_dec (deg, the
     corrected direction the path uses), star_dir (J2000 unit vector), mag, best_utc, best_et, r_km, sigma3_km,
-    min_distance_km, site (lon, lat, ele m), version; 'center_height' is the centre line at the site's height (ele). Read: d = np.load(fname); d['center'][:, 1:3]; str(d['best_utc'])."""
-    plain = {k: v for k, v in paths.items() if k not in ("pm_alts", "center_height_name")}
+    min_distance_km, site (lon, lat, ele m), version; 'center_height' is the centre line at the site's height (ele);
+    a binary's other bodies (components.py) as 'body_1', ... with their names in body_labels. Read: d = np.load(fname);
+    d['center'][:, 1:3]; str(d['best_utc'])."""
+    plain = {k: v for k, v in paths.items() if k not in ("pm_alts", "bodies", "center_height_name")}
     plain.update({f"pm_{i}": pts for i, (_, pts) in enumerate(paths.get("pm_alts") or [], 1)})   # other proper motions
+    plain.update({f"body_{i}": pts for i, (_, pts) in enumerate(paths.get("bodies") or [], 1)})  # a binary's other bodies
     lines = {name: np.array([(et, lon, lat, np.nan if dur is None else dur) for et, lon, lat, dur in pts], float)
              .reshape(-1, 4) for name, pts in plain.items()}
     np.savez(fname, **lines, line_names=np.array(list(plain)),
-             pm_labels=np.array([lab for lab, _ in paths.get("pm_alts") or []] or [""]), columns=np.array(["et", "lon_deg", "lat_deg", "dur_s"]),
+             pm_labels=np.array([lab for lab, _ in paths.get("pm_alts") or []] or [""]),
+             body_labels=np.array([lab for lab, _ in paths.get("bodies") or []] or [""]), columns=np.array(["et", "lon_deg", "lat_deg", "dur_s"]),
              target_id=np.array(str(target_id)), target_name=np.array(str(record.get("target_name", ""))),
              star=np.array(int(record["star"]), dtype=np.int64), star_ra=float(record["star_ra"]),
              star_dec=float(record["star_dec"]), star_dir=np.asarray(star_dir, float), mag=float(record["mag"]),
