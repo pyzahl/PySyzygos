@@ -469,7 +469,7 @@ def handlers(pg):
         if starcat.is_format2(d) and not any(state == "pending" for _, state, _ in starcat.build_steps(d, xref=bool(xref))):
             ui.notify(f"{folder} is a complete catalog already", type="warning")
             return
-        if os.path.isfile(os.path.join(d, "catalog.json")):
+        if not starcat.is_format2(d) and os.path.isfile(os.path.join(d, "catalog.json")):
             ui.notify(f"{folder} holds a catalog of the old format: choose another folder", type="warning")
             return
         st = start_build(folder, float(g or 18.0), int(workers or 6), bool(xref))

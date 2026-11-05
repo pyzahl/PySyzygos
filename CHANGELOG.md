@@ -29,6 +29,15 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   come from CDS's mirror at CfA when CDS is down. The System tab lists every step (done / pending, with counts) and
   offers **Retry the missing steps**; the build's last lines list them too (`starcat.build_steps`). Before, a CDS
   outage at the end of a build ended with a traceback, and the GUI would have proposed a new folder.
+- **Fixed: the star-name step (xref) of a large catalog ran out of memory** (G 18.7, 476 M stars, 31 GB of RAM: it
+  sorted all source_ids and built the whole table in memory, ~14 GB more at the end). It now looks up the
+  Tycho-2/Hipparcos stars by a block scan, writes `xref.npy` through a memory map and keeps a checkpoint
+  (`xref.partial.npz`) after the UCAC4 zones and after the Tycho-2/Hipparcos queries, so an interrupted run does not
+  download them again.
+- **Fixed: the candidate scan's memory with a deep catalog** (`corridor.find_candidates`, used by pick, pre-screens
+  and search): it compared all stars near a path with at least 20 path samples at once, so a path with millions of
+  stars (G 18.7: a fast asteroid across the Milky Way) took several GB per worker. The stars are now scanned in
+  blocks within the same budget (`block_cells`); the candidates are identical.
 - **Fixed:** the path debug files (`debug_save_paths`) of a binary's body were not written (the other bodies' lines).
 - **Catalog of another limit, built in the background** (System tab, Star catalog): G limit, folder, downloads at
   once, star names; a process of its own (`pysyzygos catalog build ... --xref`, new option: the star names and epoch

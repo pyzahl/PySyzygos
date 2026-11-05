@@ -344,7 +344,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   pm_xmatch or xref is offered again). Steps (2026-11-04, CDS down a day): `starcat.build_steps(d)` [(step,
   done|pending|skipped, detail)]; build main runs xmatch and xref each in its own try, prints the steps, exits with
   the failures; GUI `steps_of`/`pending`, `pg.cat_build_steps` lines, `pg.cat_build_retry` (same build again);
-  UCAC4 zones fall back to `URL_UCAC4_ZONES_MIRRORS` (CfA /ftp/cats/I/322A/UCAC4/u4b/, `_ZONE_BASE` sticks); pg.cat_build_tick every 10 s (ui.timer in connect): a
+  UCAC4 zones fall back to `URL_UCAC4_ZONES_MIRRORS` (CfA /ftp/cats/I/322A/UCAC4/u4b/, `_ZONE_BASE` sticks). build_xref low
+  memory (2026-11-04, G 18.7 nearly OOM on 31 GB): `_rows_of_ids` block scan (XREF_BLOCK 16 M) instead of argsort of
+  all source_ids, xref.npy via open_memmap, checkpoint XREF_CHECKPOINT xref.partial.npz (`_xref_checkpoint`, by
+  build_id: ucac, 2-parameter records, then tyc/hip; removed at the end); find_candidates scans stars in blocks of
+  block_cells/20 (each star's minima are its own: identical pairs, test_corridor) so a G 18.7 path with millions of
+  stars stays within block_cells; pg.cat_build_tick every 10 s (ui.timer in connect): a
   finished build refreshes the header's catalog options once. Checked: a real start (13 files/min with 2 downloads,
   ETA ~4 h for G 18), progress, stop (all processes gone).
 - `pysyzygos/components.py` (2026-11-04, `pysyzygos binary <favorite key> | --list`). Search (user, 2026-11-04,

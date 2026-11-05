@@ -58,6 +58,8 @@ QUALITY = np.dtype([("ruwe", "<f2")] + [(c, "<f2") for c in ERR_COLS] + [(c, "i1
                    + [("nss", "u1"), ("multi_peak", "u1")])
 EXTRAS = np.dtype([("bp", "<u2"), ("rp", "<u2"), ("rv", "<f2"), ("rv_error", "<f2"), ("teff", "<f2")])
 XREF = np.dtype([("ucac4", "<u4"), ("tyc", "<u4"), ("hip", "<u4")])   # 0 = none; see ucac4_name, tyc_name
+XREF_CHECKPOINT = "xref.partial.npz"                              # build_xref: zone and TYC/HIP results so far
+XREF_BLOCK = 16_000_000                                           # rows per block (low memory)
 GROUPS = {"quality": QUALITY, "extras": EXTRAS, "xref": XREF}
 GROUP_TEXT = {"core": "positions, motions, G, flags (needed)",
               "quality": "RUWE, Gaia's errors and flags (error ellipse, double-star hints without network)",
@@ -740,29 +742,48 @@ def build_xref(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, query=None, log=p
     man = _manifest(d)
     log(f"   cross-references for {man['n_stars'] / 1e6:.1f} M stars: UCAC4 (CDS, 900 zone files), TYC and HIP "
         f"(Gaia archive)")
-    found = []
-    ucac, dist = match_ucac4(d, zones=zones, fetch=fetch, log=log, records=found)
-    tyc, hip = tyc_hip(log=log, query=query, parts=tyc_parts)
-    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
-    sid = np.asarray(core["source_id"])
-    core = None
-    order = np.argsort(sid, kind="stable")
-    xref = np.zeros(len(sid), XREF)
-    xref["ucac4"] = ucac
-    for col, m in (("tyc", tyc), ("hip", hip)):
-        if m:
-            ids = np.fromiter(m.keys(), np.int64, len(m))
-            vals = np.fromiter(m.values(), np.int64, len(m))
-            pos = np.searchsorted(sid, ids, sorter=order)
-            pos = np.minimum(pos, len(sid) - 1)
-            hit = sid[order[pos]] == ids
-            xref[col][order[pos[hit]]] = vals[hit]
-    tmp = os.path.join(d, "xref.npy.tmp")
-    np.save(open(tmp, "wb"), xref)
+    ck = os.path.join(d, XREF_CHECKPOINT)                         # the downloads' results, kept until xref.npy is in
+    saved = _xref_checkpoint(ck, man["build_id"])
+    if "ucac" in saved:
+        log(f"   UCAC4 matches from the checkpoint {XREF_CHECKPOINT} (zones not downloaded again)")
+        ucac = saved["ucac"]
+        found = [(saved["rows"], saved["nums"], saved["recs"])] if len(saved["rows"]) else []
+    else:
+        found = []
+        ucac, dist = match_ucac4(d, zones=zones, fetch=fetch, log=log, records=found)
+        dist = None                                                # 4 bytes per star, not needed any more
+        saved = dict(ucac=ucac, rows=np.concatenate([f[0] for f in found]) if found else np.zeros(0, np.int64),
+                     nums=np.concatenate([f[1] for f in found]) if found else np.zeros(0, np.int64),
+                     recs=np.concatenate([f[2] for f in found]) if found else np.zeros(0, UCAC4_REC))
+        found = [(saved["rows"], saved["nums"], saved["recs"])] if len(saved["rows"]) else []
+        _save_xref_checkpoint(ck, man["build_id"], saved)
+    if "tyc_ids" in saved:
+        log("   Tycho-2 / Hipparcos numbers from the checkpoint")
+        tyc = dict(zip(saved["tyc_ids"].tolist(), saved["tyc_vals"].tolist()))
+        hip = dict(zip(saved["hip_ids"].tolist(), saved["hip_vals"].tolist()))
+    else:
+        tyc, hip = tyc_hip(log=log, query=query, parts=tyc_parts)
+        for col, m in (("tyc", tyc), ("hip", hip)):
+            saved[f"{col}_ids"] = np.fromiter(m.keys(), np.int64, len(m))
+            saved[f"{col}_vals"] = np.fromiter(m.values(), np.int64, len(m))
+        _save_xref_checkpoint(ck, man["build_id"], saved)
+    saved = None
+    rows_of = _rows_of_ids(d, [np.fromiter(m.keys(), np.int64, len(m)) for m in (tyc, hip)])
+    tmp = os.path.join(d, "xref.npy.tmp")                          # written through a memmap: low memory
+    xref = np.lib.format.open_memmap(tmp, mode="w+", dtype=XREF, shape=(len(ucac),))
+    for i in range(0, len(ucac), XREF_BLOCK):
+        xref["ucac4"][i:i + XREF_BLOCK] = ucac[i:i + XREF_BLOCK]
+    n_named = dict(ucac4=int((ucac > 0).sum()))
+    for col, m, (pos, ids) in zip(("tyc", "hip"), (tyc, hip), rows_of):
+        vals = np.array([m[int(x)] for x in ids], np.int64)
+        xref[col][pos] = vals
+        n_named[col] = int((vals > 0).sum())
+    xref.flush()
+    xref = None                                                    # unmapped before the rename (Windows)
     GL.replace_file(tmp, os.path.join(d, "xref.npy"))
     _write_json(os.path.join(d, "xref.json"), dict(group="xref", build_id=man["build_id"], n_stars=man["n_stars"],
-                                                  ucac4=int((xref["ucac4"] > 0).sum()), tyc=int((xref["tyc"] > 0).sum()),
-                                                  hip=int((xref["hip"] > 0).sum()), radius_arcsec=XREF_RADIUS_ARCSEC,
+                                                  ucac4=n_named["ucac4"], tyc=n_named["tyc"],
+                                                  hip=n_named["hip"], radius_arcsec=XREF_RADIUS_ARCSEC,
                                                   dmag=XREF_DMAG, created=time.strftime("%Y-%m-%d %H:%M:%S")))
     man["groups"] = [g for g in ["core"] + list(GROUPS) if g == "core" or g in man.get("groups", []) or g == "xref"]
     _write_json(os.path.join(d, "catalog.json"), man)
@@ -778,9 +799,48 @@ def build_xref(d, zones=range(1, UCAC4_ZONES + 1), fetch=None, query=None, log=p
         _write_json(os.path.join(d, "catalog.json"), man)
         log(f"   epoch proper motions: {sum(counts['replaced'].values())} replaced (old kind: {counts['replaced']}), "
             f"{counts['kept']} kept their UCAC5/UCAC4 motion (smaller error)")
-    log(f"   xref: UCAC4 for {int((xref['ucac4'] > 0).sum()) / 1e6:.1f} M stars, TYC {int((xref['tyc'] > 0).sum())}, "
-        f"HIP {int((xref['hip'] > 0).sum())}")
+    try:
+        os.remove(ck)
+    except OSError:
+        pass
+    log(f"   xref: UCAC4 for {n_named['ucac4'] / 1e6:.1f} M stars, TYC {n_named['tyc']}, HIP {n_named['hip']}")
     return status(d)
+
+
+def _rows_of_ids(d, id_sets):
+    """For each array of Gaia source_ids: (rows, ids) of those in catalog d, by a block scan of the core (no sort of
+    all source_ids: 8 bytes per star twice, ~8 GB at G 18.7)."""
+    core = np.load(os.path.join(d, "core.npy"), mmap_mode="r")
+    keys = [np.unique(ids) for ids in id_sets]
+    out = [([], []) for _ in keys]
+    for i in range(0, len(core), XREF_BLOCK):
+        sid = np.array(core["source_id"][i:i + XREF_BLOCK])
+        for k, u in enumerate(keys):
+            if len(u):
+                p = np.minimum(np.searchsorted(u, sid), len(u) - 1)
+                hit = np.where(u[p] == sid)[0]
+                out[k][0].append(i + hit)
+                out[k][1].append(sid[hit])
+    core = None
+    return [(np.concatenate(r) if r else np.zeros(0, np.int64), np.concatenate(v) if v else np.zeros(0, np.int64))
+            for r, v in out]
+
+
+def _xref_checkpoint(path, build_id):
+    """The arrays of an earlier, interrupted build_xref of the same core (build_id), else {}."""
+    try:
+        with np.load(path) as z:
+            if str(z["build_id"]) != build_id:
+                return {}
+            return {k: z[k] for k in z.files if k != "build_id"}
+    except (OSError, KeyError, ValueError):
+        return {}
+
+
+def _save_xref_checkpoint(path, build_id, arrays):
+    tmp = path + ".tmp.npz"
+    np.savez(tmp, build_id=np.array(build_id), **arrays)
+    os.replace(tmp, path)
 
 
 # ----------------------------------------------------------------------------------------------- data version

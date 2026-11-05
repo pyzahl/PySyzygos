@@ -93,4 +93,18 @@ slow2 = dict(plan, path=dict(path, u=(lambda w: w/np.linalg.norm(w, axis=1, keep
 v2 = np.linalg.norm(slow2['path']['u'][11] - slow2['path']['u'][9]) / (2*STEP) * delta[10]
 b2 = C.solver_bracket_s(slow2, 10); print("slow path %.1f km/s, bracket %.0f s" % (v2, b2))
 assert 2*STEP < b2 < 4*3600 and abs(b2 - 2*1.3*plan['margin_km']/v2) < 1e-6
+# a deep catalog's path can hold millions of stars: scanned in star blocks, the same candidates
+rng = np.random.default_rng(1)
+m = 400
+ets_b = np.arange(m) * 600.0
+ra_b, de_b = np.radians(np.linspace(10, 14, m)), np.radians(np.linspace(5, 6, m))
+U_b = np.stack([np.cos(de_b) * np.cos(ra_b), np.cos(de_b) * np.sin(ra_b), np.sin(de_b)], 1)
+path_b = dict(ets=ets_b, u=U_b, delta_km=np.full(m, 3e8), step_s=600.0)
+nb = 20000
+st_b = pd.DataFrame(dict(ra=rng.uniform(9.9, 14.1, nb), dec=rng.uniform(4.95, 6.05, nb), pmra=0.0, pmdec=0.0,
+                         phot_g_mean_mag=15.0, source_id=np.arange(nb)))
+one = C.find_candidates(st_b, path_b, 8000.0).sort_values(["star", "j"]).reset_index(drop=True)
+blk = C.find_candidates(st_b, path_b, 8000.0, block_cells=20 * 777).sort_values(["star", "j"]).reset_index(drop=True)
+assert len(one) > 20 and one.equals(blk), (len(one), len(blk))
+
 print("ALL CORRIDOR TESTS PASSED")

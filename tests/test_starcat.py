@@ -191,7 +191,21 @@ def fake_query(q):
         rows = [(hip_sid, "12345")] if lo <= hip_sid <= hi else []
     return pd.DataFrame(rows, columns=["source_id", "original_ext_source_id"])
 gc.collect() if "gc" in globals() else None
-SC.build_xref(d, zones=sorted(zones), fetch=fetch, query=fake_query, log=lambda *a: None, tyc_parts=4)
+def broken_query(q):                                               # the archive fails after the UCAC4 zones
+    raise RuntimeError("archive down")
+_sleep, SC.time.sleep = SC.time.sleep, lambda s: None              # no retry pauses
+try:
+    SC.build_xref(d, zones=sorted(zones), fetch=fetch, query=broken_query, log=lambda *a: None, tyc_parts=4)
+    raise AssertionError("build_xref should have failed")
+except RuntimeError:
+    pass
+finally:
+    SC.time.sleep = _sleep
+assert os.path.isfile(os.path.join(d, SC.XREF_CHECKPOINT)) and "xref" not in SC.groups_present(d)
+def no_fetch(url):                                                 # the rerun takes the zones from the checkpoint
+    raise AssertionError(f"zone downloaded again: {url}")
+SC.build_xref(d, zones=sorted(zones), fetch=no_fetch, query=fake_query, log=lambda *a: None, tyc_parts=4)
+assert not os.path.isfile(os.path.join(d, SC.XREF_CHECKPOINT))
 assert "xref" in SC.groups_present(d)
 assert [v for _, v, _ in SC.build_steps(d)] == ["done"] * 3
 cat = SC.StarCatalog(d, supplement=True)

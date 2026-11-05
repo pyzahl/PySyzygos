@@ -139,26 +139,30 @@ def find_candidates(stars, path, margin_km, slack=1.05, block_cells=2.5e7):
     ang_speed = np.linalg.norm(np.diff(U, axis=0), axis=1) / step
     vmax = float((ang_speed * 0.5 * (D[:-1] + D[1:])).max()) + 0.5       # km/s, + Earth rotation
     margin_c = math.hypot(margin_km, vmax * step / 2.0)
-    n, m = len(S), len(ets)
-    block = max(20, int(block_cells // max(n, 1)))
+    m = len(ets)
+    per = max(1, int(block_cells // 20))           # stars per block: a deep catalog's path can hold millions (G 18.7)
     out = []
-    for a in range(0, m, block):
-        b = min(m, a + block)
-        lo, hi = max(0, a - 1), min(m, b + 1)
-        d2 = np.maximum(2.0 - 2.0 * (S @ U[lo:hi].T), 0.0) * (D[lo:hi] ** 2)[None, :]     # squared plane distance (km^2)
-        pad_l = np.full((n, 1), np.inf) if lo == 0 else None
-        pad_r = np.full((n, 1), np.inf) if hi == m else None
-        full = np.hstack([x for x in (pad_l, d2, pad_r) if x is not None])
-        # full column c corresponds to grid index (lo - 1 + c) when a left pad was added, else lo + c
-        left = 1 if lo == 0 else 0
-        idx = np.arange(full.shape[1]) + lo - left
-        cmid = full[:, 1:-1]
-        is_min = (cmid <= full[:, :-2]) & (cmid < full[:, 2:]) & (cmid < margin_c ** 2)
-        js = idx[1:-1]
-        keep = (js >= a) & (js < b)
-        is_min &= keep[None, :]
-        si, cj = np.nonzero(is_min)
-        out.extend(zip(si.tolist(), js[cj].tolist()))
+    for s0 in range(0, len(S), per):               # each star's minima are its own: blocks of stars give the same pairs
+        Sb = S[s0:s0 + per]
+        n = len(Sb)
+        block = max(20, int(block_cells // max(n, 1)))
+        for a in range(0, m, block):
+            b = min(m, a + block)
+            lo, hi = max(0, a - 1), min(m, b + 1)
+            d2 = np.maximum(2.0 - 2.0 * (Sb @ U[lo:hi].T), 0.0) * (D[lo:hi] ** 2)[None, :]  # squared plane distance (km^2)
+            pad_l = np.full((n, 1), np.inf) if lo == 0 else None
+            pad_r = np.full((n, 1), np.inf) if hi == m else None
+            full = np.hstack([x for x in (pad_l, d2, pad_r) if x is not None])
+            # full column c corresponds to grid index (lo - 1 + c) when a left pad was added, else lo + c
+            left = 1 if lo == 0 else 0
+            idx = np.arange(full.shape[1]) + lo - left
+            cmid = full[:, 1:-1]
+            is_min = (cmid <= full[:, :-2]) & (cmid < full[:, 2:]) & (cmid < margin_c ** 2)
+            js = idx[1:-1]
+            keep = (js >= a) & (js < b)
+            is_min &= keep[None, :]
+            si, cj = np.nonzero(is_min)
+            out.extend(zip((si + s0).tolist(), js[cj].tolist()))
     return _refine_candidates(S, U, D, ets, step, np.array(out, dtype=int).reshape(-1, 2), margin_km * slack)
 
 
