@@ -194,7 +194,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `has_supplement`); old-format folders keep the old code. `doubles.star_flags` (shared with the online check) gives
   Gaia's flags + error ellipse locally when the cone has the columns. Zenodo: G 16 and (2026-11-05, Zenodo only, no
   mirror) G 18.7 (`ZENODO_STEM` gaia_dr3_g18_7_v2, ARCHIVE_SHA256 with sizes; `pack` stem '.' -> '_'; GUI
-  start_build fetches a ready-made limit into a new folder; release/upload_g18_7.sh = new Zenodo version),
+  start_build(fetch=, groups=) fetches a ready-made limit into a new folder (state fetch/groups: progress
+  "downloading", pending ['download'], Retry resumes); System tab block "Ready-made catalogs" (`pg.cat_ready_draw`,
+  `cat_ready_check` -> `starcat.ready_made(online)`: {gmax: {part: size, zenodo, mirrors}}, Zenodo's list once +
+  _remote_size per mirror archive, new limits by ARCHIVE_PATTERN; `stem_of(g)`; fetch takes any limit; READY cache,
+  `installed(g)`, `cat_ready_get` disk check 2.4x); release/upload_g18_7.sh = new Zenodo version),
   `<stem>_<group>.tar.xz`), other limits are local ESA builds. Upgrade: `staging_dir` (<d>.new) + `swap_in` (old ->
   <d>.old; cleanup lists it). Data versions (2026-10-19): `data_version(d)` (catalog.json data_version, else 2.1 if
   pm_epoch, else 2.0; old format "1"), DATA_LATEST {16: "2.1"}, DATA_TEXT, `update_available`, `update(d)` (fetch

@@ -959,6 +959,11 @@ can run meanwhile; it goes on when the GUI restarts) with its progress on the pa
 **Log**, **Stop**; a stopped build resumes). Output in `logs/catalog_build_<folder>.log`. Then choose the catalog in
 the header.
 
+**Ready-made catalogs.** The System tab lists the catalogs published on Zenodo (and the mirror) with the size of
+each part; **Check online** asks the newest Zenodo version and the mirrors (it also finds limits published after
+your version), and **Download** installs one with the parts you choose, in the background like a build (progress,
+Stop, Retry resumes a stopped download).
+
 The last two steps need other services: the proper motions of the 2-parameter stars come from CDS XMatch
 (Strasbourg; when it does not answer, the build matches the UCAC5 and UCAC4 zone files itself, 5.5 GB streamed from
 CDS or its mirror at CfA, the same rules as the cross-match), the star names from the UCAC4 zone files (CDS, else its mirror at CfA) and ESA's Gaia archive. Each runs

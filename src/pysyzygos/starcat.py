@@ -1391,9 +1391,56 @@ class StarCatalog:
 
 
 # ----------------------------------------------------------------------------------------------- Zenodo
+def stem_of(gmax):
+    """The archives' file stem of a limit: the known one, else gaia_dr3_g<G>_v2 with '_' for '.' (as pack writes it)."""
+    return ZENODO_STEM.get(float(gmax)) or f"gaia_dr3_g{float(gmax):g}_v2".replace(".", "_")
+
+
 def archive_name(gmax, group):
-    stem = ZENODO_STEM.get(float(gmax))
-    return f"{stem}_{group}.tar.xz" if stem else None
+    return f"{stem_of(gmax)}_{group}.tar.xz"
+
+
+ARCHIVE_PATTERN = r"gaia_dr3_g(\d+(?:_\d+)?)_v2_(core|quality|extras|xref)\.tar\.xz"
+
+
+def ready_made(online=True, listing=None, mirror_list=None):
+    """The ready-made catalogs: {gmax: {group: {"size": bytes or None, "zenodo": bool|None, "mirrors": [host]}}}.
+    Offline: the known limits (ZENODO_STEM) with the sizes stored in ARCHIVE_SHA256 (None: unknown, availability
+    None). Online: the newest Zenodo version's files (one request; also limits this version does not know, by
+    ARCHIVE_PATTERN) and each mirror per known archive (a mirror folder cannot be listed). listing: [(name, size)]
+    stands in for Zenodo's file list, mirror_list for mirrors() (tests). Raises OSError when Zenodo does not answer
+    (the mirrors are still asked first only when online)."""
+    import re
+    out = {}
+    for g in ZENODO_STEM:
+        out[g] = {p: dict(size=(ARCHIVE_SHA256.get(archive_name(g, p)) or (None,))[0],
+                          zenodo=None, mirrors=[]) for p in ["core"] + list(GROUPS)}
+    if not online:
+        return out
+    if listing is None:
+        import requests
+        from pysyzygos import gaia_local as GL
+        r = requests.get(GL.ZENODO_API, timeout=60)
+        r.raise_for_status()
+        listing = [(f["key"], f["size"]) for f in r.json()["files"]]
+    names = dict(listing)
+    for name, size in listing:
+        m = re.fullmatch(ARCHIVE_PATTERN, name)
+        if m:
+            g = float(m.group(1).replace("_", "."))
+            out.setdefault(g, {p: dict(size=None, zenodo=False, mirrors=[]) for p in ["core"] + list(GROUPS)})
+    for g, parts in out.items():
+        for p, e in parts.items():
+            name = archive_name(g, p)
+            e["zenodo"] = name in names and name + ".sha256" in names
+            if e["zenodo"]:
+                e["size"] = names[name]
+            for mirror in (mirrors() if mirror_list is None else mirror_list):
+                size = _remote_size(mirror + name, timeout=30)
+                if size:
+                    e["mirrors"].append(mirror.split("/")[2] if "://" in mirror else mirror)
+                    e["size"] = e["size"] or size
+    return dict(sorted(out.items()))
 
 
 GROUP_FILES = {"core": ("catalog.json", "offsets.npy", "core.npy", "hpm.npy")}
@@ -1408,7 +1455,7 @@ def pack(d, out_folder, groups=None, xz_threads=0):
     threads where installed (-T0), else Python's lzma. Returns the archive paths."""
     import tarfile, hashlib
     man = _manifest(d)
-    stem = ZENODO_STEM.get(float(man["gmax"])) or f"gaia_dr3_g{man['gmax']:g}_v2".replace(".", "_")   # g18_7
+    stem = stem_of(man["gmax"])
     os.makedirs(out_folder, exist_ok=True)
     out = []
     for g in groups or groups_present(d):
@@ -1535,9 +1582,7 @@ def fetch(d, gmax=16.0, groups=("quality",), keep_archive=False, files=None, mir
     core is kept; groups already there are skipped. files / mirror_list stand in for Zenodo / mirrors() (tests).
     Returns status(d)."""
     from pysyzygos import gaia_local as GL
-    if float(gmax) not in ZENODO_STEM:
-        sys.exit(f"the ready-made catalog is for G <= {', '.join(f'{g:g}' for g in ZENODO_STEM)} only, not {gmax:g}; "
-                 f"build it from ESA's files instead")
+    # any limit: the known ones (ZENODO_STEM) and newer ones on Zenodo (ready_made); none there: exit below
     want = (["core"] if not is_format2(d) else []) + [g for g in groups
                                                       if not (is_format2(d) and group_ok(d, g))]
     for g in want:

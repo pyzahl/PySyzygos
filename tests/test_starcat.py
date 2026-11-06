@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import numpy as np
 import pandas as pd
 from pysyzygos import gaia_local as GL, starcat as SC
+STEMS, SHAS = dict(SC.ZENODO_STEM), dict(SC.ARCHIVE_SHA256)        # the published tables (later tests change them)
 
 rng = np.random.default_rng(7)
 N = 30000
@@ -401,4 +402,23 @@ prev = SC.update(d20, log=lambda *a: None, files={}, mirror_list=["file://" + ou
 assert prev == d20 + ".old" and SC.data_version(d20) == "2.1" and SC.update_available(d20) is None
 assert SC.groups_present(d20) == ["core", "quality", "extras", "xref"], SC.groups_present(d20)
 assert SC.data_version(prev) == "2.0" and not os.path.exists(SC.staging_dir(d20))
+# the ready-made catalogs: known limits offline (stored sizes), online Zenodo's list (a new limit G 20 found by its
+# file names) and a mirror folder (file://) per archive
+SC.ZENODO_STEM.clear(); SC.ZENODO_STEM.update(STEMS); SC.ARCHIVE_SHA256.clear(); SC.ARCHIVE_SHA256.update(SHAS)
+assert SC.stem_of(18.7) == "gaia_dr3_g18_7_v2" and SC.stem_of(20) == "gaia_dr3_g20_v2"
+off = SC.ready_made(online=False)
+assert set(off) >= {16.0, 18.7} and off[18.7]["core"]["size"] == 12144185628 and off[18.7]["core"]["zenodo"] is None
+mir = os.path.join(root, "readymirror")
+os.makedirs(mir)
+with open(os.path.join(mir, "gaia_dr3_g16_v2_xref.tar.xz"), "wb") as fh:
+    fh.write(b"x" * 1000)
+listing = [("gaia_dr3_g16_v2_core.tar.xz", 2035404320), ("gaia_dr3_g16_v2_core.tar.xz.sha256", 94),
+           ("gaia_dr3_g20_v2_core.tar.xz", 5e10), ("gaia_dr3_g20_v2_core.tar.xz.sha256", 94),
+           ("gaia_dr3_g18.tar.xz", 8e9)]
+on = SC.ready_made(listing=listing, mirror_list=["file://" + mir + "/"])
+assert on[16.0]["core"]["zenodo"] and not on[16.0]["quality"]["zenodo"] and on[16.0]["xref"]["mirrors"]
+assert on[16.0]["xref"]["size"] == 124126432                  # the stored size wins over the mirror's file
+assert 20.0 in on and on[20.0]["core"]["zenodo"] and on[20.0]["core"]["size"] == 5e10
+assert not on[18.7]["core"]["zenodo"] and not on[18.7]["core"]["mirrors"]
+assert list(on) == sorted(on)
 print("STARCAT TESTS PASSED")

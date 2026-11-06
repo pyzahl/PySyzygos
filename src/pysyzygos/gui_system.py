@@ -61,14 +61,18 @@ def pid_alive(pid):
         return True
 
 
-def start_build(folder, gmax, workers=6, xref=True):
+def start_build(folder, gmax, workers=6, xref=True, fetch=None, groups=None):
     """Start `pysyzygos catalog build --dir folder --gmax G [--xref]` detached; returns its state. A limit that is
-    ready-made (starcat.ZENODO_STEM: 16, 18.7) is downloaded instead (`catalog fetch`, all parts) into a new folder."""
+    ready-made (fetch True; None: starcat.ZENODO_STEM, 16 and 18.7) is downloaded instead (`catalog fetch`, the parts
+    groups, default all) into a new folder."""
     os.makedirs(os.path.join(ROOT, "logs"), exist_ok=True)
     log = os.path.join("logs", f"catalog_build_{folder}.log")
-    if float(gmax) in starcat.ZENODO_STEM and not os.path.exists(os.path.join(ROOT, folder)):
+    if fetch is None:                               # explicit True: also into a folder a stopped download left
+        fetch = float(gmax) in starcat.ZENODO_STEM and not os.path.exists(os.path.join(ROOT, folder))
+    if fetch:
+        groups = groups or ("quality,extras" + (",xref" if xref else ""))
         args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "fetch", "--dir", folder, "--gmax", f"{gmax:g}",
-                "--groups", "quality,extras" + (",xref" if xref else "")]
+                "--groups", groups]
     else:
         args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "build", "--dir", folder, "--gmax", f"{gmax:g}",
                 "--workers", str(int(workers))] + (["--xref"] if xref else [])
@@ -81,6 +85,7 @@ def start_build(folder, gmax, workers=6, xref=True):
         fh.flush()
         p = subprocess.Popen(args, cwd=ROOT, env=env, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, **kw)
     st = dict(pid=p.pid, dir=folder, gmax=gmax, workers=int(workers), xref=bool(xref), log=log,
+              fetch=bool(fetch), groups=args[-1] if fetch else None,
               started=time.strftime("%Y-%m-%d %H:%M:%S"), t0=time.time())
     tmp = os.path.join(ROOT, BUILD_STATE + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -119,6 +124,8 @@ def steps_of(st):
 
 
 def pending(st):
+    if st.get("fetch") and not starcat.is_format2(os.path.join(ROOT, st["dir"])):
+        return ["download"]                         # a stopped download: Retry resumes it
     return [step for step, state, _ in steps_of(st) if state == "pending"]
 
 
@@ -131,6 +138,8 @@ def build_progress(st):
     if done:
         stage = (f"stars complete: {s.get('n_stars', 0) / 1e6:.1f} M, {s['gb']:.1f} GB"
                  + (", the later steps are running" if running and pending(st) else ""))
+    elif st.get("fetch"):
+        stage = "downloading the ready-made catalog (Zenodo / mirror)"
     elif s["total"]:
         stage = (f"{s['done']} of {s['total']} ESA files ({100.0 * s['done'] / s['total']:.0f} %)"
                  + (": merging" if s["done"] == s["total"] else ""))
@@ -141,7 +150,8 @@ def build_progress(st):
     return running, (f"{st['dir']} (G \u2264 {st['gmax']:g}): {stage} \u00b7 "
                      + (f"running for {el / 3600:.1f} h" if running else
                         "stopped: steps pending (below), Retry when the service is back" if done and pending(st) else
-                        "finished" if done else "stopped: Build again to resume")
+                        "finished" if done else "stopped: Retry to resume" if st.get("fetch") else
+                        "stopped: Build again to resume")
                      + (f" \u00b7 {tail[0][:140]}" if tail else ""))
 
 
@@ -400,6 +410,12 @@ def handlers(pg):
                 with ui.row().classes("items-center gap-2"):
                     ui.label(f"{old}: the catalog before the upgrade").classes("text-sm text-slate-600")
                     ui.button("Delete", on_click=lambda o=old: pg.cat_delete_old(o)).props("flat dense color=negative")
+            # the ready-made catalogs (Zenodo / mirrors): sizes, installed or not, download (ready_made / start_build)
+            with ui.row().classes("items-center gap-3 mt-2"):
+                ui.label("Ready-made catalogs (Zenodo, mirror)").classes("text-sm font-medium")
+                ui.button("Check online", on_click=lambda: pg.cat_ready_check()).props("flat dense")
+            pg.cat_ready = ui.column().classes("w-full gap-1")
+            pg.cat_ready_draw(READY["info"] or starcat.ready_made(online=False), READY["online"])
             # another limit (G 18, ...): built from ESA's files in the background (build_state / start_build)
             ui.label("Build a catalog with another limit (from ESA's files, in the background; G \u2264 16 and "
                      "18.7 are ready-made: downloaded from Zenodo instead, all parts)").classes(
@@ -428,6 +444,78 @@ def handlers(pg):
             pg.cat_build_tick()
     pg.cat_refresh = cat_refresh
 
+    READY = {"info": None, "online": False}         # the last check of the ready-made catalogs (for redraws)
+    PARTS = {"quality,xref": "core + quality + star names (recommended)", "quality": "core + quality",
+             "none": "core only", "quality,extras,xref": "all parts"}
+
+    def installed(g):
+        """Folders in the data folder holding a format-2 catalog of limit g."""
+        return [f for f in sorted(os.listdir(ROOT)) if f.startswith("gaia_dr3_") and not f.endswith((".old", ".new"))
+                and starcat.is_format2(os.path.join(ROOT, f))
+                and abs(float(starcat._manifest(os.path.join(ROOT, f)).get("gmax", -1)) - g) < 1e-9]
+
+    def cat_ready_draw(info, online):
+        """One line per ready-made limit: part sizes, where it is (after Check online), installed folder or
+        Download with a choice of parts."""
+        pg.cat_ready.clear()
+        with pg.cat_ready:
+            for g, parts in info.items():
+                have = installed(g)
+                sizes = " \u00b7 ".join(f"{p} {e['size'] / 1e9:.1f} GB" if e["size"] else f"{p} ?"
+                                         for p, e in parts.items())
+                if online:
+                    core = parts["core"]
+                    where = ", ".join((["Zenodo"] if core["zenodo"] else []) + core["mirrors"]) or "not available"
+                else:
+                    where = "Check online for availability"
+                known = g in starcat.ZENODO_STEM
+                with ui.row().classes("items-center gap-3"):
+                    ui.label(f"G \u2264 {g:g}").classes("text-sm font-medium w-16")
+                    ui.label(f"{sizes} \u2014 {where}" + ("" if known else " (new: not known to this version)")
+                             ).classes("text-sm " + ("text-slate-700" if not online or where != "not available"
+                                                     else "text-slate-400"))
+                    if have:
+                        ui.label(f"installed: {', '.join(have)}").classes("text-sm text-green-800")
+                    elif not online or where != "not available":
+                        sel = ui.select(PARTS, value="quality,xref").props("dense outlined").classes("w-72")
+                        ui.button("Download", on_click=lambda g=g, sel=sel: pg.cat_ready_get(g, sel.value, info)
+                                  ).props("outline dense color=primary")
+    pg.cat_ready_draw = cat_ready_draw
+
+    async def cat_ready_check():
+        """Ask Zenodo (newest version) and the mirrors what is ready-made."""
+        n = ui.notification("Asking Zenodo and the mirror \u2026", spinner=True, timeout=None)
+        try:
+            READY["info"] = await run.io_bound(starcat.ready_made, True)
+            READY["online"] = True
+        except Exception as e:                       # Zenodo down: the mirrors were not asked either
+            n.dismiss()
+            ui.notify(f"Zenodo did not answer ({str(e)[:100]}); sizes as known to this version", type="warning")
+            return
+        n.dismiss()
+        pg.cat_ready_draw(READY["info"], True)
+    pg.cat_ready_check = cat_ready_check
+
+    def cat_ready_get(g, parts, info):
+        """Download a ready-made catalog into a new folder in the background (as a build: progress, Stop, Log)."""
+        gb = sum((info[g][p]["size"] or 0) for p in ["core"] + [p for p in parts.split(",") if p != "none"]) / 1e9
+        free = shutil.disk_usage(ROOT).free / 1e9
+        if gb and free < 2.4 * gb:
+            ui.notify(f"Not enough disk space: about {2.4 * gb:.0f} GB needed while unpacking, {free:.0f} GB free",
+                      type="warning")
+            return
+        st = build_state()
+        if st and pid_alive(st["pid"]):
+            ui.notify(f"A build or download is running ({st['dir']}): one at a time", type="warning")
+            return
+        folder = build_folder(g)
+        st = start_build(folder, g, xref="xref" in parts, fetch=True, groups=parts)
+        ui.notify(f"Downloading G \u2264 {g:g} ({gb:.1f} GB) into {folder} in the background; progress below",
+                  type="positive", multi_line=True)
+        BUILD["running"] = True
+        pg.cat_build_tick()
+    pg.cat_ready_get = cat_ready_get
+
     BUILD = {"running": None}                       # the last seen state: a finished build refreshes the header once
 
     def cat_build_tick():
@@ -445,13 +533,14 @@ def handlers(pg):
                                  "text-green-800" if starcat.is_format2(os.path.join(ROOT, st["dir"])) else "text-amber-800"))
         pg.cat_build_stop.set_visibility(running)
         pg.cat_build_clear.set_visibility(not running)
-        todo = starcat.is_format2(os.path.join(ROOT, st["dir"])) and pending(st)
+        todo = (starcat.is_format2(os.path.join(ROOT, st["dir"])) or st.get("fetch")) and pending(st)
         pg.cat_build_retry.set_visibility(not running and bool(todo))
         mark = {"done": ("\u2713", "text-green-800"), "pending": ("\u2026" if running else "\u2717", "text-amber-800"),
                 "skipped": ("\u2013", "text-slate-500")}
         pg.cat_build_steps.set_content("<br>".join(
             f'<span class="{mark[state][1]}">{mark[state][0]} {html.escape(step)}: {state}'
-            f'{" (" + html.escape(detail) + ")" if detail else ""}</span>' for step, state, detail in steps_of(st)))
+            f'{" (" + html.escape(detail) + ")" if detail else ""}</span>' for step, state, detail in steps_of(st))
+            if not (st.get("fetch") and not starcat.is_format2(os.path.join(ROOT, st["dir"]))) else "")
         if BUILD["running"] and not running:          # just finished or stopped: the header lists it
             opts = catalog_options()
             pg.cat_sel.set_options(opts, value=pg.cat_sel.value if pg.cat_sel.value in opts else None)
@@ -488,7 +577,11 @@ def handlers(pg):
     def cat_build_retry_go():
         """The same build again: the finished steps are skipped, the pending ones tried once more."""
         st = build_state()
-        if st:
+        if st and st.get("fetch"):                    # a stopped download: resumed (the .part file is kept)
+            start_build(st["dir"], st["gmax"], xref=st.get("xref", True), fetch=True, groups=st.get("groups"))
+            BUILD["running"] = True
+            pg.cat_build_tick()
+        elif st:
             pg.cat_build_start(st["dir"], st["gmax"], st.get("workers", 6), st.get("xref", True))
     pg.cat_build_retry_go = cat_build_retry_go
 
