@@ -72,10 +72,10 @@ CSV_COLS = ["source_id", "ra", "dec", "parallax", "pmra", "pmdec", "phot_g_mean_
 # common output layout of near_path (as gaia_local.COMMON_DTYPE: the pick screen's star rows)
 ROWS = np.dtype([("source_id", "<i8"), ("ra", "<f8"), ("dec", "<f8"), ("parallax", "<f4"), ("pmra", "<f4"),
                  ("pmdec", "<f4"), ("phot_g_mean_mag", "<f4"), ("ruwe", "<f4"), ("kind", "u1")])
-ZENODO_STEM = {16.0: "gaia_dr3_g16_v2"}                        # archives <stem>_<group>.tar.xz on the catalog record
+ZENODO_STEM = {16.0: "gaia_dr3_g16_v2", 18.7: "gaia_dr3_g18_7_v2"}    # archives <stem>_<group>.tar.xz on the record
 # the catalog's DATA version: <format>.<update>; 2.0 = format 2 as published with 1.3.0, 2.1 = with the epoch proper
 # motions of the 2-parameter stars (1.3.2). Mirror folders are named after it (catalog_v2.1/). Published: LATEST.
-DATA_LATEST = {16.0: "2.1"}
+DATA_LATEST = {16.0: "2.1", 18.7: "2.1"}
 DATA_TEXT = {"1": "the old format (before 1.3.0)", "2.0": "format 2 as published with 1.3.0",
              "2.1": "with the epoch proper motions of the 2-parameter stars (1.3.2)"}
 # the published archives (build d242c96ed70f63b3, 2026-10-16): size and SHA-256, so a mirror's copy is checked without
@@ -85,6 +85,11 @@ ARCHIVE_SHA256 = {
     "gaia_dr3_g16_v2_quality.tar.xz": (None, "46d11d3a7f6fc717b27e71fe3ed4378dba907656b69e9d1cc2f44024273bc278"),
     "gaia_dr3_g16_v2_extras.tar.xz": (None, "1262480f747c207fc868727e6f110da63f62d64f3f57a96dc91ad87a9f38ba10"),
     "gaia_dr3_g16_v2_xref.tar.xz": (124126432, "e9cda32869ae96753ab95e966d2a19b2488d7ca19363cf580ab22395436ff16d"),
+    # G 18.7 (build of 2026-11-04/05, 476.4 M stars; pm of the 2-parameter stars from the UCAC5/UCAC4 zone files)
+    "gaia_dr3_g18_7_v2_core.tar.xz": (12144185628, "27f3715d62948aa7d021a3a4a711f85a195006fd0328476f5b59c538ac2a8db9"),
+    "gaia_dr3_g18_7_v2_quality.tar.xz": (6820661104, "82f5eab021b0dd3a4b40e13952ec4ab1e6cdf7c3948a7169635ffe33aae7c21d"),
+    "gaia_dr3_g18_7_v2_extras.tar.xz": (2241741620, "f5ea968efef6a5a1eaaeaca9c3b692923003bc31a3726c653c02953c34bdc668"),
+    "gaia_dr3_g18_7_v2_xref.tar.xz": (212749760, "5a1cea492d2ce02b71af192dd49058482588137a074923a04dfb9328cae8ae06"),
 }
 
 
@@ -1403,7 +1408,7 @@ def pack(d, out_folder, groups=None, xz_threads=0):
     threads where installed (-T0), else Python's lzma. Returns the archive paths."""
     import tarfile, hashlib
     man = _manifest(d)
-    stem = ZENODO_STEM.get(float(man["gmax"])) or f"gaia_dr3_g{man['gmax']:g}_v2"
+    stem = ZENODO_STEM.get(float(man["gmax"])) or f"gaia_dr3_g{man['gmax']:g}_v2".replace(".", "_")   # g18_7
     os.makedirs(out_folder, exist_ok=True)
     out = []
     for g in groups or groups_present(d):

@@ -387,6 +387,7 @@ def ask_gmax(default):
     """Ask for the catalog's magnitude limit (terminal only). Returns a float G."""
     print("   Faintest star (Gaia G) kept in the local catalog; fainter stars are never searched:")
     print(f"     16   2.4-4.8 GB on disk; ready-made on Zenodo; enough for most telescopes")
+    print(f"     18.7 29-35 GB on disk (476 M stars); ready-made on Zenodo (19-21 GB download); large apertures")
     print("     other limits (e.g. 17, 18 for large apertures) are built here from ESA's files (753 GB streamed, about "
           "2 h; G <= 18: ~300 M stars, 9-18 GB)")
     while True:

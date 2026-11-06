@@ -940,12 +940,13 @@ limits, as one line to `hits_log.runs.jsonl`; the report shows the latest one in
 
 The corridor search (the default) needs the Gaia stars along each asteroid's path. The Gaia archive took many minutes
 per asteroid for that, or hung, so the stars come from a local, magnitude-limited catalog that you download
-ready-made from Zenodo ([doi:10.5281/zenodo.23113337](https://doi.org/10.5281/zenodo.23113337), G <= 16) or build
-once from ESA's files (any limit).
+ready-made from Zenodo ([doi:10.5281/zenodo.23113337](https://doi.org/10.5281/zenodo.23113337), G <= 16, and
+G <= 18.7 for large apertures: 476 M stars, 21 GB download, 35 GB on disk) or build once from ESA's files (any limit).
 
 ```
 pysyzygos setup                                   # does all of it (kernels, catalog)
 pysyzygos catalog fetch --dir gaia_dr3_g16        # the ready-made G <= 16 (core + --groups, default quality)
+pysyzygos catalog fetch --dir gaia_dr3_g18_7 --gmax 18.7 --groups quality,extras,xref   # the ready-made G <= 18.7
 pysyzygos catalog build --dir gaia_dr3_g18 --gmax 18 --workers 6 --xref   # a build from ESA's files, any limit
 pysyzygos catalog add quality                     # optional parts, any time (Zenodo catalog)
 pysyzygos catalog remove extras

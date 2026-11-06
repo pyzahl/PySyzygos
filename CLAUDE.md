@@ -192,7 +192,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (cone with quality/extras columns under Gaia's names, corridor_stars, near_path -> ROWS, high_pm, frame); supplement
   switch filters kind 0. gaia_local hands format-2 folders over (`LocalGaia.__new__`, `open_index`, `status`,
   `has_supplement`); old-format folders keep the old code. `doubles.star_flags` (shared with the online check) gives
-  Gaia's flags + error ellipse locally when the cone has the columns. Zenodo: G 16 only (`ZENODO_STEM`,
+  Gaia's flags + error ellipse locally when the cone has the columns. Zenodo: G 16 and (2026-11-05, Zenodo only, no
+  mirror) G 18.7 (`ZENODO_STEM` gaia_dr3_g18_7_v2, ARCHIVE_SHA256 with sizes; `pack` stem '.' -> '_'; GUI
+  start_build fetches a ready-made limit into a new folder; release/upload_g18_7.sh = new Zenodo version),
   `<stem>_<group>.tar.xz`), other limits are local ESA builds. Upgrade: `staging_dir` (<d>.new) + `swap_in` (old ->
   <d>.old; cleanup lists it). Data versions (2026-10-19): `data_version(d)` (catalog.json data_version, else 2.1 if
   pm_epoch, else 2.0; old format "1"), DATA_LATEST {16: "2.1"}, DATA_TEXT, `update_available`, `update(d)` (fetch
@@ -219,6 +221,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `supplement_pm_step` (3c). `star_sigma_mas` -> search: star_sigma_km combined into path sigma (lines, p_site,
   star_err_* ellipse); report `star_uncertain` red badge when > r_km. Pre-screens built before this used pm 0 for
   2-parameter stars: rebuild. The Zenodo supplement (version 2) has no pm yet: setup adds it locally.
+  Catalog record version 2.2 (2026-11-05, doi 10.5281/zenodo.23993894, 22 files: + gaia_dr3_g18_7_v2_* core/
+  quality/extras/xref + .sha256, Zenodo only, uploaded by release/upload_g18_7.sh; download checked). Note: the
+  2.1 record's metadata was edited by mistake to say 2.2 / "G <= 16 and G <= 18.7" (it holds the G 16 files only).
   Catalog record version 2.1 (published 2026-10-19, doi 10.5281/zenodo.23428079, 14 files: the four
   gaia_dr3_g16_v2_* parts of data version 2.1, checked against ARCHIVE_SHA256, + the version-2 old-format archives
   for PySyzygos < 1.3.0, which reads the newest version). Before:

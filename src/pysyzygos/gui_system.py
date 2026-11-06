@@ -62,11 +62,16 @@ def pid_alive(pid):
 
 
 def start_build(folder, gmax, workers=6, xref=True):
-    """Start `pysyzygos catalog build --dir folder --gmax G [--xref]` detached; returns its state."""
+    """Start `pysyzygos catalog build --dir folder --gmax G [--xref]` detached; returns its state. A limit that is
+    ready-made (starcat.ZENODO_STEM: 16, 18.7) is downloaded instead (`catalog fetch`, all parts) into a new folder."""
     os.makedirs(os.path.join(ROOT, "logs"), exist_ok=True)
     log = os.path.join("logs", f"catalog_build_{folder}.log")
-    args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "build", "--dir", folder, "--gmax", f"{gmax:g}",
-            "--workers", str(int(workers))] + (["--xref"] if xref else [])
+    if float(gmax) in starcat.ZENODO_STEM and not os.path.exists(os.path.join(ROOT, folder)):
+        args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "fetch", "--dir", folder, "--gmax", f"{gmax:g}",
+                "--groups", "quality,extras" + (",xref" if xref else "")]
+    else:
+        args = [sys.executable, "-u", "-m", "pysyzygos", "catalog", "build", "--dir", folder, "--gmax", f"{gmax:g}",
+                "--workers", str(int(workers))] + (["--xref"] if xref else [])
     env = {k: v for k, v in os.environ.items() if not k.startswith("NICEGUI_")}
     env.update(PYSYZYGOS_HOME=ROOT, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
     kw = (dict(creationflags=0x00000008 | 0x00000200) if os.name == "nt"          # DETACHED_PROCESS, NEW_PROCESS_GROUP
@@ -396,14 +401,15 @@ def handlers(pg):
                     ui.label(f"{old}: the catalog before the upgrade").classes("text-sm text-slate-600")
                     ui.button("Delete", on_click=lambda o=old: pg.cat_delete_old(o)).props("flat dense color=negative")
             # another limit (G 18, ...): built from ESA's files in the background (build_state / start_build)
-            ui.label("Build a catalog with another limit (from ESA's files, in the background)").classes(
+            ui.label("Build a catalog with another limit (from ESA's files, in the background; G \u2264 16 and "
+                     "18.7 are ready-made: downloaded from Zenodo instead, all parts)").classes(
                 "text-sm font-medium mt-2")
             ui.label("Reads all of ESA's Gaia DR3 files whatever the limit (753 GB of downloads): hours (G \u2264 16 "
                      "took 1 h 49 min, G \u2264 18 holds ~4\u00d7 the stars). It runs on its own: searches and picks "
                      "can run meanwhile, and it goes on when the GUI restarts; a stopped build resumes where it stopped. "
                      "Then choose it in the header's catalog selector.").classes("text-xs text-slate-500")
             with ui.row().classes("items-end gap-3"):
-                b_g = ui.number("G limit", value=18.0, min=12.0, max=21.0, step=0.5, format="%.1f").classes("w-24")
+                b_g = ui.number("G limit", value=18.0, min=12.0, max=21.0, step=0.1, format="%.1f").classes("w-24")
                 b_dir = ui.input("Folder", value=build_folder(18.0)).classes("w-48")
                 b_w = ui.number("Downloads at once", value=6, min=1, max=16, step=1, format="%d").classes("w-36")
                 b_x = ui.checkbox("star names (UCAC4 / Tycho / HIP)", value=True).props("dense")
@@ -783,8 +789,10 @@ def handlers(pg):
             how = (f"A finished new catalog is already there ({os.path.basename(new)}, parts: "
                    f"{', '.join(starcat.groups_present(new))}): it is only swapped in, with all its parts.")
         elif gmax in starcat.ZENODO_STEM:
-            how = (f"The ready-made G \u2264 {gmax:g} catalog is downloaded (about 3 GB for core + quality, from the "
-                   f"fastest of Zenodo and the mirrors), checked and unpacked: a few minutes to half an hour.")
+            gb = sum((starcat.ARCHIVE_SHA256.get(starcat.archive_name(gmax, g)) or (0,))[0] or 0
+                     for g in ("core", "quality")) / 1e9 or 3.0
+            how = (f"The ready-made G \u2264 {gmax:g} catalog is downloaded (about {gb:.0f} GB for core + quality, from "
+                   f"the fastest of Zenodo and the mirrors), checked and unpacked: minutes to an hour or more.")
         else:
             how = (f"G \u2264 {gmax:g} is built from ESA's Gaia files: 753 GB streamed, about 2 hours, all parts "
                    f"(a build cannot add parts later). Your computer must stay on and online.")

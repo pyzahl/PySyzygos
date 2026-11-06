@@ -29,6 +29,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   come from CDS's mirror at CfA when CDS is down. The System tab lists every step (done / pending, with counts) and
   offers **Retry the missing steps**; the build's last lines list them too (`starcat.build_steps`). Before, a CDS
   outage at the end of a build ended with a traceback, and the GUI would have proposed a new folder.
+- **Ready-made G <= 18.7 catalog on Zenodo** (476.4 M stars; core 12.1 GB, quality 6.8, extras 2.2, star names
+  0.2 GB; 35 GB on disk): `pysyzygos catalog fetch --gmax 18.7`, setup's limit question, and the System tab's
+  background build downloads it instead of building from ESA's files (G 16 likewise).
 - **Catalog build without CDS XMatch.** When CDS XMatch does not answer (probed first), the proper motions of the
   2-parameter stars come from the UCAC5 zone files (900 files, 5.5 GB streamed from CDS or CfA, none kept; Gaia DR1
   position within 0.2", G within 0.5 mag, as the cross-match) and the UCAC4 zone files (J2000 + own motion within
