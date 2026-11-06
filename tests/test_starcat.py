@@ -156,11 +156,21 @@ for i in range(0, len(r5), 3):
     rec5["phgm"] = round((SC._mag(c5["g"][r5[i]]) + (1.0 if i % 12 == 9 else 0.1)) * 1000)
     rec5["pmir"], rec5["pmid"], rec5["pmer"], rec5["pmed"] = 70, -20, 15, 25
     z5.setdefault(int((de5[i] + 90) // 0.2) + 1, []).append(rec5)
-zone_fetch = lambda url: (np.concatenate(z5[int(url[-3:])]).tobytes() if int(url[-3:]) in z5 and "u5z" in url
-                          else b"")
+z4 = {}                                     # UCAC4: the ones UCAC5 refused, at J2000 = 2016 - 16 yr of its motion
+for i in range(9, len(r5), 12):
+    rec4 = np.zeros(1, SC.UCAC4_REC)
+    rec4["pmrac"], rec4["pmdc"], rec4["sigpmr"], rec4["sigpmd"] = 100, 0, -98, -98     # 10 mas/yr, error 3
+    rec4["ra"] = round((ra5[i] - 10.0 * 16 / 3.6e6 / np.cos(np.radians(de5[i]))) * 3.6e6)
+    rec4["spd"] = round((de5[i] + 90) * 3.6e6)
+    rec4["magm"] = round(SC._mag(c5["g"][r5[i]]) * 1000)
+    z4.setdefault(int((de5[i] + 90) // 0.2) + 1, []).append(rec4)
+def zone_fetch(url):
+    zs = z5 if "u5z" in url else z4
+    return np.concatenate(zs[int(url[-3:])]).tobytes() if int(url[-3:]) in zs else b""
 pm5 = SC.xmatch(d5, local=True, zone_fetch=zone_fetch, log=lambda *a: None)
 want5 = len(range(0, len(r5), 3)) - len(range(9, len(r5), 12))
 assert pm5["ucac5"] == want5 and pm5["source"] == "zone files", (pm5, want5)
+assert pm5["ucac4"] == len(range(9, len(r5), 12)) > 0, pm5
 c5 = np.load(os.path.join(d5, "core.npy"))
 got5 = SC.kind_of(c5["flags"]) == SC.KIND_2P_UCAC5
 assert np.allclose(c5["pmra"][got5], 7.0) and np.allclose(c5["pmdec"][got5], -2.0)

@@ -346,11 +346,12 @@ def cds_up(timeout=15):
         return False
 
 
-def xmatch(out_dir, chunk=50000, log=print, fetch=None, local=None, zone_fetch=None, zones=None):
+def xmatch(out_dir, chunk=50000, log=print, fetch=None, local=None, zone_fetch=None, zones=None,
+           stages=("ucac5", "ucac4")):
     """Proper motions for the 2-parameter stars (Gaia has none): UCAC5, then UCAC4 via CDS XMatch, as
     gaia_local.supplement_pm. When CDS does not answer (local None: probed; True: always), the same matches are made
-    here from the UCAC5 zone files (xmatch_ucac5_local, CDS or its CfA mirror) and the UCAC4 records of the stars'
-    UCAC4 numbers (xmatch_ucac4_local, needs the xref part; without it the xref step's epoch motions cover them).
+    here from the UCAC5 and UCAC4 zone files (xmatch_ucac5_local, xmatch_ucac4_local; CDS or its CfA mirror).
+    stages: which of the two (a redo of one: the other's matches stay as stored).
     Written into core.npy in place (pmra/pmdec, kind 3/4) and, if present, quality.npy (the UCAC proper-motion
     errors as pmra_error/pmdec_error). Stars with an epoch motion (kind 5, when xref ran first) take a UCAC one only
     where its error is smaller (choose_pm's rule). fetch(rows, cat) stands in for the XMatch call, zone_fetch(url)
@@ -375,8 +376,10 @@ def xmatch(out_dir, chunk=50000, log=print, fetch=None, local=None, zone_fetch=N
            else f"(CDS XMatch, {chunk} per request)"))
     fetch = fetch or GL._xmatch
     found, method = {}, "CDS XMatch"
-    for cat, pick, kind in (("vizier:I/340/ucac5", GL.pick_ucac5, KIND_2P_UCAC5),
-                            ("vizier:I/322A/out", GL.pick_ucac4, KIND_2P_UCAC4)):
+    for stage, cat, pick, kind in (("ucac5", "vizier:I/340/ucac5", GL.pick_ucac5, KIND_2P_UCAC5),
+                                   ("ucac4", "vizier:I/322A/out", GL.pick_ucac4, KIND_2P_UCAC4)):
+        if stage not in stages:
+            continue
         left = todo[~todo.source_id.isin(found)]
         try:
             if local:
@@ -392,7 +395,7 @@ def xmatch(out_dir, chunk=50000, log=print, fetch=None, local=None, zone_fetch=N
                 log(f"   {str(e)[:160]}: from the zone files instead")
             local, method = True, "zone files"
             left = left[~left.source_id.isin(found)]
-            get = xmatch_ucac5_local if kind == KIND_2P_UCAC5 else xmatch_ucac4_local
+            get = xmatch_ucac5_local if stage == "ucac5" else xmatch_ucac4_local
             for sid, v in get(out_dir, left, fetch=zone_fetch, log=log, zones=zones).items():
                 found[sid] = v + (kind,)
     qpath = os.path.join(out_dir, "quality.npy")
@@ -520,57 +523,61 @@ def xmatch_ucac5_local(d, todo, fetch=None, log=print, zones=None):
 
 
 def xmatch_ucac4_local(d, todo, fetch=None, log=print, zones=None):
-    """UCAC4 proper motions for the stars todo from the records of their UCAC4 numbers (xref part), checked as
-    gaia_local.pick_ucac4 does: J2000 position moved with UCAC4's motion to 2016.0 within 0.5" of ours and the
-    magnitude (fit model, else APASS V) within 1 mag of G. Streams only the zone files holding such stars. Without
-    the xref part: {} (the xref step's epoch motions cover these stars). Returns {source_id: (pmra*, pmdec, err)}."""
-    if not group_ok(d, "xref") or len(todo) == 0:
-        log("   UCAC4: no star names (xref) yet: left to the epoch proper motions of the xref step")
-        return {}
-    xref = np.load(os.path.join(d, "xref.npy"), mmap_mode="r")
-    rows = todo.row.to_numpy(np.int64)
-    order = np.argsort(rows)
-    u = np.empty(len(rows), np.int64)
-    u[order] = np.asarray(xref["ucac4"][rows[order]]).astype(np.int64)
-    xref = None
-    m = u > 0
-    ra, de, g, sid, u = (todo.ra.to_numpy(float)[m], todo.dec.to_numpy(float)[m], todo.g.to_numpy(float)[m],
-                         todo.source_id.to_numpy(np.int64)[m], u[m])
-    zone_of = u // 1_000_000
-    zl = sorted(set(zone_of.tolist()) & set(range(1, UCAC4_ZONES + 1) if zones is None else zones))
-    log(f"   UCAC4: {len(sid)} of the {len(todo)} stars have a UCAC4 number ({len(zl)} zone files)")
+    """UCAC4 proper motions for the stars todo (DataFrame source_id, ra, dec, g at 2016.0) from the zone files, as
+    gaia_local.pick_ucac4 does with CDS XMatch's pairs: the nearest UCAC4 star whose J2000 position moved with its
+    own motion to 2016.0 is within 0.5" and whose magnitude (fit model, else APASS V) is within 1 mag of G. A
+    position match of its own, not the star names (xref): those give each UCAC4 star to one Gaia star only, and a
+    2-parameter star is often the fainter one of a close pair (checked 2026-11-05: 89 matches in one zone, none
+    named). Streams the 900 files (~9 GB, none kept); checkpointed every 25 zones. Returns {source_id: (pmra*,
+    pmdec, larger pm error)} in mas/yr."""
+    from scipy.spatial import cKDTree
+    zones = list(range(1, UCAC4_ZONES + 1) if zones is None else zones)
+    ra, de = todo.ra.to_numpy(float), todo.dec.to_numpy(float)
+    g, sid = todo.g.to_numpy(float), todo.source_id.to_numpy(np.int64)
+    order = np.argsort(de, kind="stable")
+    ra, de, g, sid = ra[order], de[order], g[order], sid[order]
+    best = np.full(len(sid), np.inf)
     start, found = _pm_checkpoint(d, "ucac4", len(sid))
+    chord = 2 * np.sin(np.radians(UCAC4_PM_RADIUS_ARCSEC / 3600.0) / 2)
+    pad = 0.02                                                 # deg: filed by J2000, fast stars moved since
     t0 = time.time()
-    for k, z in enumerate(zl, 1):
+    for k, z in enumerate(zones, 1):
         if k <= start:
             continue
-        recs = ucac4_records(z, fetch)
-        sel = np.where(zone_of == z)[0]
-        idx = u[sel] % 1_000_000 - 1
-        sel, idx = sel[idx < len(recs)], idx[idx < len(recs)]
-        r = recs[idx]
-        has = (r["pmrac"] != 32767) & (r["pmdc"] != 32767)
-        dra = r["pmrac"] / 10.0 * 16.0 / 3.6e6 / np.maximum(np.cos(np.radians(de[sel])), 1e-6)
-        sep = _sep_arcsec(ra[sel], de[sel], r["ra"] / 3.6e6 + dra,
-                          (r["spd"] - 324000000) / 3.6e6 + r["pmdc"] / 10.0 * 16.0 / 3.6e6)
-        v = np.frombuffer(np.ascontiguousarray(r["rest"]).tobytes(), np.uint8).reshape(len(r), 48)[:, 18:20]
-        vmag = np.ascontiguousarray(v).view("<i2").ravel()
-        mag = np.where(r["magm"] < 20000, r["magm"], vmag) / 1000.0
-        ok = has & (sep <= UCAC4_PM_RADIUS_ARCSEC) & (np.abs(mag - g[sel]) <= UCAC4_PM_DMAG) & (mag < 20.0)
-        err = np.maximum(r["sigpmr"].astype(float), r["sigpmd"].astype(float)) + 128.0
-        for i in np.where(ok)[0]:
-            found[int(sid[sel[i]])] = (r["pmrac"][i] / 10.0, r["pmdc"][i] / 10.0, err[i] / 10.0)
-        if k % 25 == 0 or k == len(zl):
+        lo, hi = -90.0 + (z - 1) * 0.2, -90.0 + z * 0.2
+        a, b = np.searchsorted(de, lo - pad), np.searchsorted(de, hi + pad, side="right")
+        if b > a:
+            recs = ucac4_records(z, fetch)
+            has = (recs["pmrac"] != 32767) & (recs["pmdc"] != 32767)
+            recs = recs[has]
+            if len(recs):
+                de_u = (recs["spd"] - 324000000) / 3.6e6
+                cosd = np.maximum(np.cos(np.radians(de_u)), 1e-6)
+                ra16 = recs["ra"] / 3.6e6 + recs["pmrac"] / 10.0 * 16.0 / 3.6e6 / cosd
+                de16 = de_u + recs["pmdc"] / 10.0 * 16.0 / 3.6e6
+                v = np.frombuffer(np.ascontiguousarray(recs["rest"]).tobytes(), np.uint8).reshape(len(recs), 48)
+                vmag = np.ascontiguousarray(v[:, 18:20]).view("<i2").ravel()
+                mag = np.where(recs["magm"] < 20000, recs["magm"], vmag) / 1000.0
+                tree = cKDTree(_unit(ra16 % 360.0, de16))
+                kk = min(4, len(recs))
+                dist, j = tree.query(_unit(ra[a:b], de[a:b]), k=kk, distance_upper_bound=chord)
+                dist, j = dist.reshape(b - a, kk), j.reshape(b - a, kk)
+                jj = np.minimum(j, len(recs) - 1)
+                ok = np.isfinite(dist) & (np.abs(mag[jj] - g[a:b, None]) <= UCAC4_PM_DMAG) & (mag[jj] < 20.0)
+                first = np.argmax(ok, axis=1)                  # the nearest that passes
+                i = np.where(ok[np.arange(b - a), first])[0]
+                jsel, dsel = jj[i, first[i]], dist[i, first[i]]
+                better = dsel < best[a + i]
+                err = (np.maximum(recs["sigpmr"].astype(float), recs["sigpmd"].astype(float)) + 128.0) / 10.0
+                for ii, jb, db in zip(i[better], jsel[better], dsel[better]):
+                    found[int(sid[a + ii])] = (recs["pmrac"][jb] / 10.0, recs["pmdc"][jb] / 10.0, float(err[jb]))
+                    best[a + ii] = db
+        if k % 25 == 0 or k == len(zones):
             _save_pm_checkpoint(d, "ucac4", len(sid), k, found)
             el = time.time() - t0
-            log(f"   UCAC4 zone files: {k}/{len(zl)}, {len(found)} with a proper motion, {el / 60:.0f} min, "
-                f"ETA {el / max(k - start, 1) * (len(zl) - k) / 60:.0f} min")
+            log(f"   UCAC4 zone files: {k}/{len(zones)}, {len(found)} with a proper motion, {el / 60:.0f} min, "
+                f"ETA {el / max(k - start, 1) * (len(zones) - k) / 60:.0f} min")
     return found
-
-
-def _sep_arcsec(ra1, de1, ra2, de2):
-    u1, u2 = _unit(ra1, de1), _unit(ra2 % 360.0, de2)
-    return 2 * np.degrees(np.arcsin(np.clip(np.linalg.norm(u1 - u2, axis=-1) / 2, 0, 1))) * 3600.0
 
 
 # ----------------------------------------------------------------------------------------------- cross-references

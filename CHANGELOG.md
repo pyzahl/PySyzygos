@@ -31,8 +31,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   outage at the end of a build ended with a traceback, and the GUI would have proposed a new folder.
 - **Catalog build without CDS XMatch.** When CDS XMatch does not answer (probed first), the proper motions of the
   2-parameter stars come from the UCAC5 zone files (900 files, 5.5 GB streamed from CDS or CfA, none kept; Gaia DR1
-  position within 0.2", G within 0.5 mag, as the cross-match) and the UCAC4 records of the stars' UCAC4 numbers
-  (J2000 + own motion within 0.5" at 2016, 1 mag), checkpointed every 25 zones. Stars that already have an epoch
+  position within 0.2", G within 0.5 mag, as the cross-match) and the UCAC4 zone files (J2000 + own motion within
+  0.5" at 2016, 1 mag; a position match of its own: the star names give each UCAC4 star to one Gaia star only, and
+  a 2-parameter star is often the fainter one of a pair), checkpointed every 25 zones. G18.7 (2026-11-05): to G 16
+  about the same as the G16 catalog's CDS run (no motion: 94,295 vs 95,972 stars). Stars that already have an epoch
   motion take a UCAC one only where its error is smaller. Fixed with it: Retry on a finished catalog with a pending
   step said "holds a catalog of the old format".
 - **Fixed: the star-name step (xref) of a large catalog ran out of memory** (G 18.7, 476 M stars, 31 GB of RAM: it
