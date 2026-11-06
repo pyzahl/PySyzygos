@@ -29,6 +29,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   come from CDS's mirror at CfA when CDS is down. The System tab lists every step (done / pending, with counts) and
   offers **Retry the missing steps**; the build's last lines list them too (`starcat.build_steps`). Before, a CDS
   outage at the end of a build ended with a traceback, and the GUI would have proposed a new folder.
+- **Catalog build without CDS XMatch.** When CDS XMatch does not answer (probed first), the proper motions of the
+  2-parameter stars come from the UCAC5 zone files (900 files, 5.5 GB streamed from CDS or CfA, none kept; Gaia DR1
+  position within 0.2", G within 0.5 mag, as the cross-match) and the UCAC4 records of the stars' UCAC4 numbers
+  (J2000 + own motion within 0.5" at 2016, 1 mag), checkpointed every 25 zones. Stars that already have an epoch
+  motion take a UCAC one only where its error is smaller. Fixed with it: Retry on a finished catalog with a pending
+  step said "holds a catalog of the old format".
 - **Fixed: the star-name step (xref) of a large catalog ran out of memory** (G 18.7, 476 M stars, 31 GB of RAM: it
   sorted all source_ids and built the whole table in memory, ~14 GB more at the end). It now looks up the
   Tycho-2/Hipparcos stars by a block scan, writes `xref.npy` through a memory map and keeps a checkpoint

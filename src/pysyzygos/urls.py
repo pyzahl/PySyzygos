@@ -40,6 +40,8 @@ URL_PRESCREEN_MIRRORS = [
 ]
 URL_UCAC4_ZONES = "https://cdsarc.cds.unistra.fr/ftp/I/322A/UCAC4/u4b/"        # UCAC4 zone files z001..z900 (xref)
 URL_UCAC4_ZONES_MIRRORS = ["https://vizier.cfa.harvard.edu/ftp/cats/I/322A/UCAC4/u4b/"]  # same files at CfA (CDS down)
+URL_UCAC5_ZONES = "https://cdsarc.cds.unistra.fr/ftp/I/340/UCAC5/u5z/"          # UCAC5 zone files (pm without CDS XMatch)
+URL_UCAC5_ZONES_MIRRORS = ["https://vizier.cfa.harvard.edu/ftp/cats/I/340/UCAC5/u5z/"]  # same files at CfA
 URL_CDS_XMATCH = "https://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync"             # CDS XMatch (supplement pm: UCAC5/4)
 
 # --- JPL Solar System Dynamics

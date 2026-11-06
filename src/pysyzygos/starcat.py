@@ -335,31 +335,66 @@ def _save(path, arr):
     GL._save_atomic(path, arr)
 
 
-def xmatch(out_dir, chunk=50000, log=print, fetch=None):
+def cds_up(timeout=15):
+    """Does CDS XMatch answer at all? (one short request: an unreachable server otherwise costs ~7 min of timeouts
+    before the zone-file fallback starts)"""
+    import requests
+    try:
+        requests.head(U.URL_CDS_XMATCH, timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def xmatch(out_dir, chunk=50000, log=print, fetch=None, local=None, zone_fetch=None, zones=None):
     """Proper motions for the 2-parameter stars (Gaia has none): UCAC5, then UCAC4 via CDS XMatch, as
-    gaia_local.supplement_pm. Written into core.npy in place (pmra/pmdec, kind 3/4) and, if present, quality.npy (the
-    UCAC proper-motion errors as pmra_error/pmdec_error). fetch(rows, cat) stands in for the XMatch call (tests).
-    Recorded in catalog.json (pm_xmatch); a rerun only looks at stars still without. Returns the counts."""
+    gaia_local.supplement_pm. When CDS does not answer (local None: probed; True: always), the same matches are made
+    here from the UCAC5 zone files (xmatch_ucac5_local, CDS or its CfA mirror) and the UCAC4 records of the stars'
+    UCAC4 numbers (xmatch_ucac4_local, needs the xref part; without it the xref step's epoch motions cover them).
+    Written into core.npy in place (pmra/pmdec, kind 3/4) and, if present, quality.npy (the UCAC proper-motion
+    errors as pmra_error/pmdec_error). Stars with an epoch motion (kind 5, when xref ran first) take a UCAC one only
+    where its error is smaller (choose_pm's rule). fetch(rows, cat) stands in for the XMatch call, zone_fetch(url)
+    for the zone downloads (tests). Recorded in catalog.json (pm_xmatch); a rerun only looks at stars still
+    without. Returns the counts."""
     import pandas as pd
     from pysyzygos import gaia_local as GL
     man = _manifest(out_dir)
     core = np.load(os.path.join(out_dir, "core.npy"), mmap_mode="r+")
     offsets = np.load(os.path.join(out_dir, "offsets.npy"))
-    rows = np.where(kind_of(core["flags"]) == KIND_2P)[0]
-    c = core[rows]
+    kinds = kind_of(np.asarray(core["flags"]))
+    rows = np.where((kinds == KIND_2P) | (kinds == KIND_2P_EPOCH))[0]
+    kinds = None
+    c = np.array(core[rows])
     ra, dec = decode(np.searchsorted(offsets, rows, side="right") - 1, c["dra"], c["ddec"])
     todo = pd.DataFrame(dict(source_id=c["source_id"], ra=ra, dec=dec, g=_mag(c["g"]), row=rows))
-    log(f"   {len(todo)} 2-parameter stars: proper motions from UCAC5, then UCAC4 (CDS XMatch, {chunk} per request)")
+    c = ra = dec = None
+    if local is None:
+        local = fetch is None and not cds_up()
+    log(f"   {len(todo)} 2-parameter stars: proper motions from UCAC5, then UCAC4 "
+        + ("(CDS XMatch not reachable: from the UCAC5/UCAC4 zone files)" if local
+           else f"(CDS XMatch, {chunk} per request)"))
     fetch = fetch or GL._xmatch
-    found = {}
+    found, method = {}, "CDS XMatch"
     for cat, pick, kind in (("vizier:I/340/ucac5", GL.pick_ucac5, KIND_2P_UCAC5),
                             ("vizier:I/322A/out", GL.pick_ucac4, KIND_2P_UCAC4)):
         left = todo[~todo.source_id.isin(found)]
-        for i in range(0, len(left), chunk):
-            p = pick(fetch(left.iloc[i:i + chunk], cat))
-            for sid, pa, pd_, pe in zip(p.source_id.astype("int64"), p.pmra, p.pmdec, p.pm_error):
-                found[int(sid)] = (float(pa), float(pd_), float(pe), kind)
-            log(f"   {cat.split(':')[1]}: {min(i + chunk, len(left))}/{len(left)} stars, {len(found)} with a proper motion")
+        try:
+            if local:
+                raise RuntimeError("CDS XMatch not reachable")
+            for i in range(0, len(left), chunk):
+                p = pick(fetch(left.iloc[i:i + chunk], cat))
+                for sid, pa, pd_, pe in zip(p.source_id.astype("int64"), p.pmra, p.pmdec, p.pm_error):
+                    found[int(sid)] = (float(pa), float(pd_), float(pe), kind)
+                log(f"   {cat.split(':')[1]}: {min(i + chunk, len(left))}/{len(left)} stars, {len(found)} with a "
+                    f"proper motion")
+        except RuntimeError as e:                               # CDS down: the zone files instead
+            if not local:
+                log(f"   {str(e)[:160]}: from the zone files instead")
+            local, method = True, "zone files"
+            left = left[~left.source_id.isin(found)]
+            get = xmatch_ucac5_local if kind == KIND_2P_UCAC5 else xmatch_ucac4_local
+            for sid, v in get(out_dir, left, fetch=zone_fetch, log=log, zones=zones).items():
+                found[sid] = v + (kind,)
     qpath = os.path.join(out_dir, "quality.npy")
     q = np.load(qpath, mmap_mode="r+") if os.path.isfile(qpath) else None
     if found:
@@ -368,6 +403,15 @@ def xmatch(out_dir, chunk=50000, log=print, fetch=None):
         v = np.array(list(found.values()), float)                  # pmra, pmdec, pm_error, kind
         order = np.argsort(r)
         r, v = r[order], v[order]
+        old = kind_of(np.asarray(core["flags"][r]))
+        cur = np.full(len(r), np.inf)                              # stored motion's error (none: infinite)
+        if q is not None:
+            e = np.maximum(np.asarray(q["pmra_error"][r], float), np.asarray(q["pmdec_error"][r], float))
+            cur = np.where((old == KIND_2P_EPOCH) & np.isfinite(e) & (e > 0), e, cur)
+        else:
+            cur = np.where(old == KIND_2P_EPOCH, 0.0, cur)          # unknown: keep the epoch motion
+        take = v[:, 2] < cur
+        r, v = r[take], v[take]
         core["pmra"][r], core["pmdec"][r] = v[:, 0], v[:, 1]
         core["flags"][r] = (core["flags"][r] & np.uint8(0xFF ^ FLAG_KIND)) | v[:, 3].astype(np.uint8)
         if q is not None:
@@ -379,11 +423,154 @@ def xmatch(out_dir, chunk=50000, log=print, fetch=None):
     n5, n4, n0 = int((k == KIND_2P_UCAC5).sum()), int((k == KIND_2P_UCAC4).sum()), int((k == KIND_2P).sum())
     core = q = None
     man["pm_xmatch"] = dict(two_param=n5 + n4 + n0, ucac5=n5, ucac4=n4, none=n0, date=time.strftime("%Y-%m-%d"),
-                            method="CDS XMatch: UCAC5 (Gaia DR1 2015.0 pos <= 0.2\", dG <= 0.5), then UCAC4 "
+                            source=method,
+                            method=f"{method}: UCAC5 (Gaia DR1 2015.0 pos <= 0.2\", dG <= 0.5), then UCAC4 "
                                    "(pos at 2016 <= 0.5\", dmag <= 1)")
     _write_json(os.path.join(out_dir, "catalog.json"), man)
+    for f in (PM_CHECKPOINT.format("ucac5"), PM_CHECKPOINT.format("ucac4")):
+        if os.path.isfile(os.path.join(out_dir, f)):
+            os.remove(os.path.join(out_dir, f))
     log(f"   proper motions: {n5} from UCAC5, {n4} from UCAC4, {n0} still without (of {n5 + n4 + n0})")
     return man["pm_xmatch"]
+
+
+UCAC5_REC = np.dtype([("srcid", "<i8"), ("rag", "<i4"), ("dcg", "<i4"), ("erg", "<i2"), ("edg", "<i2"),
+                      ("flg", "i1"), ("nu1", "i1"), ("epi", "<i2"), ("ira", "<i4"), ("idc", "<i4"), ("pmir", "<i2"),
+                      ("pmid", "<i2"), ("pmer", "<i2"), ("pmed", "<i2"), ("phgm", "<i2"),
+                      ("rest", "V10")])                       # 52 B (UCAC5 readme 4c: zone files u5z/z001..z900)
+UCAC5_ZONES = 900                                              # 0.2 deg zones from the south pole
+UCAC5_RADIUS_ARCSEC, UCAC5_DMAG = 0.2, 0.5                     # as gaia_local.pick_ucac5
+UCAC4_PM_RADIUS_ARCSEC, UCAC4_PM_DMAG = 0.5, 1.0               # as gaia_local.pick_ucac4
+PM_CHECKPOINT = "pm_local_{}.partial.npz"                      # zone-file matches so far per stage (by build_id)
+
+
+def ucac5_records(zone, fetch=None):
+    """The records (UCAC5_REC) of a UCAC5 zone file. fetch(url) -> bytes stands in for the download (tests)."""
+    return np.frombuffer(_zone_blob([U.URL_UCAC5_ZONES] + list(U.URL_UCAC5_ZONES_MIRRORS), f"z{zone:03d}", fetch),
+                         dtype=UCAC5_REC)
+
+
+def _pm_checkpoint(d, stage, n):
+    """(zones done, {source_id: (pmra, pmdec, pm_error)}) of an interrupted zone-file match of this build and stage."""
+    p = os.path.join(d, PM_CHECKPOINT.format(stage))
+    try:
+        z = np.load(p)
+        if str(z["build_id"]) == _manifest(d).get("build_id") and str(z["stage"]) == stage and int(z["n"]) == n:
+            return int(z["done"]), dict(zip(z["sid"].tolist(), map(tuple, z["v"].tolist())))
+    except (OSError, KeyError, ValueError):
+        pass
+    return 0, {}
+
+
+def _save_pm_checkpoint(d, stage, n, done, found):
+    p = os.path.join(d, PM_CHECKPOINT.format(stage))
+    tmp = p + ".tmp.npz"
+    np.savez(tmp, build_id=_manifest(d).get("build_id", ""), stage=stage, n=n, done=done,
+             sid=np.array(list(found), np.int64), v=np.array(list(found.values()), float).reshape(-1, 3))
+    os.replace(tmp, p)
+
+
+def xmatch_ucac5_local(d, todo, fetch=None, log=print, zones=None):
+    """UCAC5 proper motions for the stars todo (DataFrame source_id, ra, dec, g at 2016.0) from the zone files, as
+    gaia_local.pick_ucac5 does with CDS XMatch's pairs: the nearest UCAC5 star whose Gaia DR1 position (2015.0) is
+    within 0.2" and whose DR1 G is within 0.5 mag. Streams the 900 files (5.5 GB, none kept); checkpointed every 25
+    zones. Returns {source_id: (pmra*, pmdec, larger pm error)} in mas/yr."""
+    from scipy.spatial import cKDTree
+    zones = list(range(1, UCAC5_ZONES + 1) if zones is None else zones)
+    ra, de = todo.ra.to_numpy(float), todo.dec.to_numpy(float)
+    g, sid = todo.g.to_numpy(float), todo.source_id.to_numpy(np.int64)
+    order = np.argsort(de, kind="stable")
+    ra, de, g, sid = ra[order], de[order], g[order], sid[order]
+    best = np.full(len(sid), np.inf)
+    start, found = _pm_checkpoint(d, "ucac5", len(sid))
+    chord = 2 * np.sin(np.radians(UCAC5_RADIUS_ARCSEC / 3600.0) / 2)
+    pad = 0.01                                                 # deg: a star filed by its UCAC position
+    t0 = time.time()
+    for k, z in enumerate(zones, 1):
+        if k <= start:
+            continue
+        lo, hi = -90.0 + (z - 1) * 0.2, -90.0 + z * 0.2
+        a, b = np.searchsorted(de, lo - pad), np.searchsorted(de, hi + pad, side="right")
+        if b > a:
+            recs = ucac5_records(z, fetch)
+            if len(recs):
+                tree = cKDTree(_unit(recs["rag"] / 3.6e6, recs["dcg"] / 3.6e6))
+                kk = min(4, len(recs))
+                dist, j = tree.query(_unit(ra[a:b], de[a:b]), k=kk, distance_upper_bound=chord)
+                dist, j = dist.reshape(b - a, kk), j.reshape(b - a, kk)
+                ok = np.isfinite(dist)
+                jj = np.minimum(j, len(recs) - 1)
+                ok &= np.abs(recs["phgm"][jj] / 1000.0 - g[a:b, None]) <= UCAC5_DMAG
+                first = np.argmax(ok, axis=1)                  # the nearest that passes (query sorts by distance)
+                hit = ok[np.arange(b - a), first]
+                i = np.where(hit)[0]
+                jsel, dsel = jj[i, first[i]], dist[i, first[i]]
+                better = dsel < best[a + i]
+                for ii, jb, db in zip(i[better], jsel[better], dsel[better]):
+                    r = recs[jb]
+                    pe = max(float(r["pmer"]), float(r["pmed"])) / 10.0
+                    found[int(sid[a + ii])] = (r["pmir"] / 10.0, r["pmid"] / 10.0, pe if pe > 0 else 9.9)
+                    best[a + ii] = db
+        if k % 25 == 0 or k == len(zones):
+            _save_pm_checkpoint(d, "ucac5", len(sid), k, found)
+            el = time.time() - t0
+            log(f"   UCAC5 zone files: {k}/{len(zones)}, {len(found)} with a proper motion, {el / 60:.0f} min, "
+                f"ETA {el / max(k - start, 1) * (len(zones) - k) / 60:.0f} min")
+    return found
+
+
+def xmatch_ucac4_local(d, todo, fetch=None, log=print, zones=None):
+    """UCAC4 proper motions for the stars todo from the records of their UCAC4 numbers (xref part), checked as
+    gaia_local.pick_ucac4 does: J2000 position moved with UCAC4's motion to 2016.0 within 0.5" of ours and the
+    magnitude (fit model, else APASS V) within 1 mag of G. Streams only the zone files holding such stars. Without
+    the xref part: {} (the xref step's epoch motions cover these stars). Returns {source_id: (pmra*, pmdec, err)}."""
+    if not group_ok(d, "xref") or len(todo) == 0:
+        log("   UCAC4: no star names (xref) yet: left to the epoch proper motions of the xref step")
+        return {}
+    xref = np.load(os.path.join(d, "xref.npy"), mmap_mode="r")
+    rows = todo.row.to_numpy(np.int64)
+    order = np.argsort(rows)
+    u = np.empty(len(rows), np.int64)
+    u[order] = np.asarray(xref["ucac4"][rows[order]]).astype(np.int64)
+    xref = None
+    m = u > 0
+    ra, de, g, sid, u = (todo.ra.to_numpy(float)[m], todo.dec.to_numpy(float)[m], todo.g.to_numpy(float)[m],
+                         todo.source_id.to_numpy(np.int64)[m], u[m])
+    zone_of = u // 1_000_000
+    zl = sorted(set(zone_of.tolist()) & set(range(1, UCAC4_ZONES + 1) if zones is None else zones))
+    log(f"   UCAC4: {len(sid)} of the {len(todo)} stars have a UCAC4 number ({len(zl)} zone files)")
+    start, found = _pm_checkpoint(d, "ucac4", len(sid))
+    t0 = time.time()
+    for k, z in enumerate(zl, 1):
+        if k <= start:
+            continue
+        recs = ucac4_records(z, fetch)
+        sel = np.where(zone_of == z)[0]
+        idx = u[sel] % 1_000_000 - 1
+        sel, idx = sel[idx < len(recs)], idx[idx < len(recs)]
+        r = recs[idx]
+        has = (r["pmrac"] != 32767) & (r["pmdc"] != 32767)
+        dra = r["pmrac"] / 10.0 * 16.0 / 3.6e6 / np.maximum(np.cos(np.radians(de[sel])), 1e-6)
+        sep = _sep_arcsec(ra[sel], de[sel], r["ra"] / 3.6e6 + dra,
+                          (r["spd"] - 324000000) / 3.6e6 + r["pmdc"] / 10.0 * 16.0 / 3.6e6)
+        v = np.frombuffer(np.ascontiguousarray(r["rest"]).tobytes(), np.uint8).reshape(len(r), 48)[:, 18:20]
+        vmag = np.ascontiguousarray(v).view("<i2").ravel()
+        mag = np.where(r["magm"] < 20000, r["magm"], vmag) / 1000.0
+        ok = has & (sep <= UCAC4_PM_RADIUS_ARCSEC) & (np.abs(mag - g[sel]) <= UCAC4_PM_DMAG) & (mag < 20.0)
+        err = np.maximum(r["sigpmr"].astype(float), r["sigpmd"].astype(float)) + 128.0
+        for i in np.where(ok)[0]:
+            found[int(sid[sel[i]])] = (r["pmrac"][i] / 10.0, r["pmdc"][i] / 10.0, err[i] / 10.0)
+        if k % 25 == 0 or k == len(zl):
+            _save_pm_checkpoint(d, "ucac4", len(sid), k, found)
+            el = time.time() - t0
+            log(f"   UCAC4 zone files: {k}/{len(zl)}, {len(found)} with a proper motion, {el / 60:.0f} min, "
+                f"ETA {el / max(k - start, 1) * (len(zl) - k) / 60:.0f} min")
+    return found
+
+
+def _sep_arcsec(ra1, de1, ra2, de2):
+    u1, u2 = _unit(ra1, de1), _unit(ra2 % 360.0, de2)
+    return 2 * np.degrees(np.arcsin(np.clip(np.linalg.norm(u1 - u2, axis=-1) / 2, 0, 1))) * 3600.0
 
 
 # ----------------------------------------------------------------------------------------------- cross-references
@@ -461,27 +648,32 @@ def _download(url, timeout=60, deadline=ZONE_DEADLINE_S):
         r.close()
 
 
-_ZONE_BASE = [0]                                                   # index of the zone source that answered last
+_ZONE_BASE = {}                                                    # per zone set: the source that answered last
+
+
+def _zone_blob(bases, name, fetch=None):
+    """The bytes of zone file name from the first of bases that answers (CDS, then its mirrors in turn; the next
+    files start at the one that answered). fetch(url) -> bytes stands in for the download (tests)."""
+    if fetch is not None:
+        return fetch(bases[0] + name)
+    key = bases[0]
+    for k in range(5):
+        i = (_ZONE_BASE.get(key, 0) + k) % len(bases)
+        try:
+            blob = _download(bases[i] + name)
+            _ZONE_BASE[key] = i
+            return blob
+        except Exception:
+            if k == 4:
+                raise
+            time.sleep(10 * (k + 1))
 
 
 def ucac4_records(zone, fetch=None):
     """The records (UCAC4_REC) of a UCAC4 zone file, in file order: the running number is index+1. fetch(url) ->
     bytes stands in for the download (tests)."""
-    if fetch is None:
-        blob = None
-        bases = [U.URL_UCAC4_ZONES] + list(U.URL_UCAC4_ZONES_MIRRORS)    # CDS, then its mirrors in turn
-        for k in range(5):
-            try:
-                blob = _download(f"{bases[(_ZONE_BASE[0] + k) % len(bases)]}z{zone:03d}")
-                _ZONE_BASE[0] = (_ZONE_BASE[0] + k) % len(bases)              # the next zones start there
-                break
-            except Exception:
-                if k == 4:
-                    raise
-                time.sleep(10 * (k + 1))
-    else:
-        blob = fetch(f"{U.URL_UCAC4_ZONES}z{zone:03d}")
-    return np.frombuffer(blob, dtype=UCAC4_REC)
+    return np.frombuffer(_zone_blob([U.URL_UCAC4_ZONES] + list(U.URL_UCAC4_ZONES_MIRRORS), f"z{zone:03d}", fetch),
+                         dtype=UCAC4_REC)
 
 
 def ucac4_zone(zone, fetch=None, records=None):
@@ -940,7 +1132,7 @@ def build_steps(d, xmatch=True, xref=True):
                       f"{pm.get('ucac5', 0) + pm.get('ucac4', 0):,} of {pm.get('two_param', 0):,} from UCAC5/UCAC4"))
     else:
         steps.append(("proper motions of the 2-parameter stars", "pending" if xmatch else "skipped",
-                      "needs CDS XMatch (Strasbourg)"))
+                      "CDS XMatch, else the UCAC5/UCAC4 zone files (CDS or its CfA mirror)"))
     steps.append(("star names (UCAC4 / Tycho-2 / HIP)", "done" if have_x else "pending" if xref else "skipped",
                   "" if have_x else "needs the UCAC4 zone files (CDS or its CfA mirror) and ESA's Gaia archive"))
     return steps

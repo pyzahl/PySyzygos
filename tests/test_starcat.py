@@ -140,6 +140,33 @@ GL.pick_ucac4 = lambda m: pd.DataFrame(columns=["source_id", "pmra", "pmdec", "p
 steps = dict((k, v) for k, v, _ in SC.build_steps(d))                # stars done, the CDS steps pending
 assert list(steps.values()) == ["done", "pending", "pending"], steps
 assert [v for _, v, _ in SC.build_steps(d, xmatch=False, xref=False)] == ["done", "skipped", "skipped"]
+# CDS down: the same UCAC5 matches from (made-up) zone files: every third 2-parameter star has a partner 0.1" away,
+# the fourth of those is 1 mag off (no match); a copy of the catalog, the CDS route runs on d below
+import shutil
+d5 = os.path.join(root, "zonecopy")
+shutil.copytree(d, d5)
+c5 = np.load(os.path.join(d5, "core.npy"))
+off5 = np.load(os.path.join(d5, "offsets.npy"))
+r5 = np.where(SC.kind_of(c5["flags"]) == SC.KIND_2P)[0]
+ra5, de5 = SC.decode(np.searchsorted(off5, r5, side="right") - 1, c5["dra"][r5], c5["ddec"][r5])
+z5 = {}
+for i in range(0, len(r5), 3):
+    rec5 = np.zeros(1, SC.UCAC5_REC)
+    rec5["rag"], rec5["dcg"] = round(ra5[i] * 3.6e6), round(de5[i] * 3.6e6 + 100)
+    rec5["phgm"] = round((SC._mag(c5["g"][r5[i]]) + (1.0 if i % 12 == 9 else 0.1)) * 1000)
+    rec5["pmir"], rec5["pmid"], rec5["pmer"], rec5["pmed"] = 70, -20, 15, 25
+    z5.setdefault(int((de5[i] + 90) // 0.2) + 1, []).append(rec5)
+zone_fetch = lambda url: (np.concatenate(z5[int(url[-3:])]).tobytes() if int(url[-3:]) in z5 and "u5z" in url
+                          else b"")
+pm5 = SC.xmatch(d5, local=True, zone_fetch=zone_fetch, log=lambda *a: None)
+want5 = len(range(0, len(r5), 3)) - len(range(9, len(r5), 12))
+assert pm5["ucac5"] == want5 and pm5["source"] == "zone files", (pm5, want5)
+c5 = np.load(os.path.join(d5, "core.npy"))
+got5 = SC.kind_of(c5["flags"]) == SC.KIND_2P_UCAC5
+assert np.allclose(c5["pmra"][got5], 7.0) and np.allclose(c5["pmdec"][got5], -2.0)
+assert not any(f.startswith("pm_local") for f in os.listdir(d5))       # checkpoints gone at the end
+c5 = None
+
 pmx = SC.xmatch(d, fetch=fake_fetch, log=lambda *a: None)
 n2 = int((kind == SC.KIND_2P).sum())
 assert pmx["ucac5"] == (n2 + 1) // 2 and pmx["none"] == n2 // 2 and SC.status(d)["pm_xmatch"]["ucac5"] == pmx["ucac5"]

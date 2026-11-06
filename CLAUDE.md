@@ -344,6 +344,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   pm_xmatch or xref is offered again). Steps (2026-11-04, CDS down a day): `starcat.build_steps(d)` [(step,
   done|pending|skipped, detail)]; build main runs xmatch and xref each in its own try, prints the steps, exits with
   the failures; GUI `steps_of`/`pending`, `pg.cat_build_steps` lines, `pg.cat_build_retry` (same build again);
+  xmatch without CDS (2026-11-05, CDS down 2 days): `cds_up()` probe, else (or on
+  RuntimeError per stage) `xmatch_ucac5_local` (UCAC5_REC 52 B zone files URL_UCAC5_ZONES(+_MIRRORS CfA), cKDTree
+  k=4 <= 0.2", dG 0.5) and `xmatch_ucac4_local` (records of the xref UCAC4 numbers; no xref -> {}, left to the
+  epoch pm), checkpoints PM_CHECKPOINT pm_local_<stage>.partial.npz; kind-5 rows take a UCAC pm only with a smaller
+  error; pm_xmatch 'source'; `_zone_blob(bases, name)` shared with ucac4_records (`_ZONE_BASE` dict per set);
   UCAC4 zones fall back to `URL_UCAC4_ZONES_MIRRORS` (CfA /ftp/cats/I/322A/UCAC4/u4b/, `_ZONE_BASE` sticks). build_xref low
   memory (2026-11-04, G 18.7 nearly OOM on 31 GB): `_rows_of_ids` block scan (XREF_BLOCK 16 M) instead of argsort of
   all source_ids, xref.npy via open_memmap, checkpoint XREF_CHECKPOINT xref.partial.npz (`_xref_checkpoint`, by
