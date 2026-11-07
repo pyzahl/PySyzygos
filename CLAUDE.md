@@ -832,7 +832,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   astrometry, solver and PG slides: inputs, intermediate symbols, outputs with record field names (keep in step)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
   library tags; shared), `figures/` (Besselian elements, CC BY-SA 3.0, credit on its slide), `Makefile`
   (check_xref then latexmk), `check_xref.py` -> `xref_table.tex` (generated appendix "Code references"). The
-  private talk (slides/, gitignored) \input's preamble and math_slides from here; personal slides and the Galbraith
+  private talk (slides/, gitignored) \input's preamble and math_slides from here, and PyStarLight's method slides
+  from ../../PyStarLight/docs/math/math_slides.tex (single source there, 2026-11-07); personal slides and the Galbraith
   globe (names the site) stay private. Convention: math slides carry \slideid{ID}; key formulas are numbered
   ID.n (\tag in displays, \eqtag in text lines); the function implementing one gets a comment block right above
   its def: `# Math: FP.1, FP.2 (slide FP): ...` (ranges ST2.1-ST2.3, "slide X" refs). After changing a formula or
