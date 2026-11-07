@@ -970,6 +970,12 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   from `file://`. Map dialog reopen bug fixed 2026-10-02 (the box was cleared on every open, removing Leaflet's panes).
 
 ## Ideas not built yet
+- Python version catch-ups (to-do 2026-11-07): `.python-version` pins 3.12 here and in PyStarLight (a fresh clone
+  there picked 3.15, which has no scikit-image wheels). Plan: a check script (`uv pip compile --python-version X
+  --python-platform <linux x86_64/aarch64, windows, macOS arm64/x86_64> --only-binary :all:`) naming the newest
+  Python every platform resolves with wheels only; then bump `.python-version`, `uv lock --upgrade`, tests,
+  CHANGELOG (about yearly; 2026-11: 3.13/3.14 covered, 3.15 partly). CI: none here yet (minimal: uv sync --locked
+  + stand-in tests on 3 OS); PyStarLight's ci.yml: add 3.14 + a 3.15 canary. Never cap requires-python from above.
 - Maps on demand (user, 2026-10-20): a 400-asteroid search (430 hits) spent 32.7 of 70.6 s on maps (KML, preview,
   globe SVG; ~0.08 s per hit). A switch for big searches to skip them (config write_maps/write_globes exist, but no
   GUI choice), and make them only for favorites (when a hit is starred: KML + preview + globe from the record and the
