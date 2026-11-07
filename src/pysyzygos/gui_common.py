@@ -133,6 +133,9 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
     if env_catalog:
         env["PYSYZYGOS_CATALOG"] = env_catalog
     env["PYSYZYGOS_SUPPLEMENT"] = "1" if SUPPLEMENT["on"] else "0"
+    nima_mode = load_ui_state().get("orbit_nima")             # System tab: NIMA orbits (search.nima_mode)
+    if nima_mode:
+        env["PYSYZYGOS_NIMA"] = nima_mode
     env["PYSYZYGOS_T0"] = repr(time.time())               # this run's start (not the GUI's: start-up times)
     def push(text):
         # the page can be gone (browser closed, reloaded or stalled past the reconnect timeout): keep going without it,

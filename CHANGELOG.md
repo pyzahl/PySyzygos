@@ -32,6 +32,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Ready-made G <= 18.7 catalog on Zenodo** (476.4 M stars; core 12.1 GB, quality 6.8, extras 2.2, star names
   0.2 GB; 35 GB on disk): `pysyzygos catalog fetch --gmax 18.7`, setup's limit question, and the System tab's
   background build downloads it instead of building from ESA's files (G 16 likewise).
+- **NIMA orbits for TNOs and Centaurs** (Lucky Star project, LESIA): System tab "Orbits of TNOs and Centaurs":
+  JPL Horizons (default), NIMA when its fit has the newer last observation, or NIMA whenever it has the object
+  (`pysyzygos/nima.py`; config `orbit_nima`). The NIMA .bsp is loaded over JPL's (same body id), the path uncertainty
+  comes from NIMA's table, records carry `orbit_source` / `orbit_choice`, the run summary `orbits_nima`, the hover
+  names the orbit. Binaries searched body by body: every body moved with NIMA (the moons keep their JPL offsets).
+  Checked 2026-11-06: 2007 JJ43 (NIMA a year more data) moves 1,700 km (events ~34 s earlier, 13-15 deg north),
+  1 sigma 554 km instead of 2,876; Quaoar 140 km instead of 450.
 - **System tab: ready-made catalogs.** A list of the published catalogs (G <= 16, G <= 18.7, and any limit a newer
   Zenodo version adds, found by the archive names) with the size of each part, **Check online** (Zenodo's newest
   version and the mirrors, ~3 s) and **Download** with a choice of parts into a new folder in the background

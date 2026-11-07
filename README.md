@@ -648,6 +648,14 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    Horizons does not answer, the search says so at once and takes the cached orbit files that cover the window, however
    old, naming their download date in the log. *Download orbits again* deletes the cached orbit files at once, *Empty
    cache* also the asteroid list and size data (`pysyzygos cleanup --orbits` / `--cache`; the offline copies stay).
+   **Orbits of TNOs and Centaurs**: JPL Horizons (default), *NIMA when it has newer data*, or *NIMA whenever it has the
+   object*. NIMA is the Lucky Star project's ephemeris (LESIA, Paris Observatory; [list](https://lesia.obspm.fr/lucky-star/nima.php))
+   of ~400 TNOs, Centaurs and some Trojans, fitted with stellar-occultation positions and unpublished astrometry; for
+   many TNOs it is several times more precise than JPL's, for others JPL has newer observations ("newer data" compares
+   the last observation of the two fits; the same date: NIMA). The search names the orbit used per object, the results
+   show it in the asteroid's hover, and the path uncertainty then comes from NIMA's own table. For a binary with
+   per-body ephemerides (Quaoar, Haumea, ...) NIMA moves the primary and each moon keeps its JPL offset from it.
+   Config: `orbit_nima = "off" | "auto" | "always"`.
 
 Settings changed in the GUI apply to that run only; `pysyzygos_config.py` is not changed. Details: "Web interface
 (GUI)" below; a walk-through with screenshots: [GETTING_STARTED.md](GETTING_STARTED.md).

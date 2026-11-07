@@ -203,6 +203,22 @@ def panel(pg):
                 "fundamental plane: perpendicular to the star, as the solver and the chance use it. The hover of each "
                 "distance shows both.")
             pg.sys_dist.on_value_change(lambda e: pg.set_distance(e.value))
+        with ui.row().classes("gap-2 items-center"):
+            ui.label("Orbits of TNOs and Centaurs:").classes("text-sm")
+            pg.sys_nima = ui.select({"off": "JPL Horizons (default)", "auto": "NIMA when it has newer data",
+                                     "always": "NIMA whenever it has the object"},
+                                    value=load_ui_state().get("orbit_nima") or "off").props("dense").classes(
+                "w-72").tooltip(
+                "NIMA: the Lucky Star project's ephemerides (Paris Observatory) of ~400 TNOs, Centaurs and some "
+                "Trojans. They include stellar-occultation positions and unpublished astrometry, and for many TNOs "
+                "they are several times more precise than JPL's; for others JPL has newer observations. 'Newer "
+                "data' compares the dates of the last observation in each fit (the same date: NIMA). All other "
+                "asteroids keep JPL. Every search says per object which orbit it used, and the results show it "
+                "(the path uncertainty then comes from NIMA's own table).")
+            pg.sys_nima.on_value_change(lambda e: (save_ui_state(orbit_nima=e.value), ui.notify(
+                "Orbits of TNOs: " + {"off": "JPL Horizons", "auto": "NIMA when it has newer data",
+                                      "always": "NIMA whenever it has the object"}[e.value] + " (from the next search)",
+                type="info")))
         ui.separator()
         with ui.row().classes("items-center gap-2"):
             ui.label("Data in use").classes("font-semibold")

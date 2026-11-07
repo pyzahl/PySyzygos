@@ -457,6 +457,20 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   port/host/--server/--no-auth (checked: same port, page reconnects); `port_free` sets SO_REUSEADDR (not on
   Windows) so a restart's TIME_WAIT does not count as taken. The two apps restart independently. PyStarLight instructions (for the
   user's PyStarLight session) were given as a scratch file, not in the repo.
+- `pysyzygos/nima.py` (2026-11-06, user's request after a NIMA vs JPL check of our TNO targets: 2007 JJ43 56 mas
+  apart, Achlys 103 mas, Quaoar 2.7): Lucky Star's NIMA ephemerides. `index` (URL_NIMA_INDEX page's `var Mtable`:
+  [page, name, label, version, updated y/m0/d, last obs y/m0/d, a, H], months from 0; `target_key` number or
+  designation; cache PySyzygos_nima_index.json 1 day, old list when offline), `details` (obj.php?p=: bsp path,
+  last_obs, n_obs, rms, sigma table [YYYY-MM, s_ra, s_dec] arcsec 1 sigma; cached per page:version), `kernel`
+  (PySyzygos_nima_<id>_v<n>.bsp; type 3, Sun-centred, body id = JPL's 20000000+n), `choose(mode, nima_last,
+  jpl_last)` (auto: newer last observation, tie or JPL unknown -> NIMA), `jpl_last_obs` (sbdb phys 'orbit' ref),
+  `sigma_arcsec` / `path_error`, `shift_components` (binaries: all body states + (NIMA - JPL primary) as type-13 SPKs,
+  states taken before loading any). search: `nima_mode()` (env PYSYZYGOS_NIMA from GUI gui_state orbit_nima via
+  run_process, else config orbit_nima), `nima_orbit(t, naif)` after the Horizons file in fetch_target_orbit (furnsh
+  after: SPICE last loaded wins; id check; failure -> run_note nima_failed), NIMA_USED; search_bodies shifts within
+  (PAD_DAYS - 1) d (the bodies' files end on whole days); finish: perr from NIMA, sigma_source "NIMA", record
+  orbit_source/orbit_choice at the END; summary orbits_nima; report hover "orbit ...". GUI System `pg.sys_nima`.
+  cleanup patterns. tests/test_nima.py. Only TNOs? No: whatever NIMA lists (TNOs, Centaurs, some Trojans).
 - `pysyzygos/weather.py` (2026-10-29, user's wish: "will it be clear?"): Open-Meteo forecast (URL_OPEN_METEO, no key,
   hourly cloud_cover + low/mid/high, precipitation_probability, visibility; 16 days, model best_match) per site
   (`site_key` = lat/lon to 0.01 deg) -> <data folder>/weather_cache.json (gitignored, cleanup DOWNLOADS); `check(favs)`

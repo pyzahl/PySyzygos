@@ -48,6 +48,9 @@ URL_CDS_XMATCH = "https://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync"            
 URL_JPL_HORIZONS_API = "https://ssd.jpl.nasa.gov/api/horizons.api"              # asteroid orbits as SPK (search.py)
 URL_JPL_SBDB_API = "https://ssd-api.jpl.nasa.gov/sbdb.api"                      # one asteroid's data (search.py)
 URL_JPL_SBDB_QUERY_API = "https://ssd-api.jpl.nasa.gov/sbdb_query.api"          # all asteroids in bulk (pick tool)
+URL_NIMA_INDEX = "https://lesia.obspm.fr/lucky-star/nima.php"                  # NIMA ephemerides (Lucky Star): list
+URL_NIMA_OBJECT = "https://lesia.obspm.fr/lucky-star/obj.php?p="                 # one object's page (+ page id)
+URL_NIMA_BASE = "https://lesia.obspm.fr/lucky-star/"                             # + data/nima/<obj>/<file>.bsp
 URL_JPL_SBDB_PAGE = "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr="   # web page, + asteroid number (report)
 
 # --- earlier occultation results (pysyzygos/occultations.py): NASA PDS Small Bodies Node archive

@@ -333,7 +333,8 @@ NOTED = {}               # kind -> [targets]: per-target fallbacks and skips (ru
 NOTE_TEXT = {"size_stale": "with size data from an older cache (JPL SBDB did not answer)",
              "size_offline": "with size data from the offline copy (JPL SBDB did not answer)",
              "skip_size": "skipped without size data",
-             "skip_body": "skipped without an ephemeris"}
+             "skip_body": "skipped without an ephemeris",
+             "nima_failed": "on JPL's orbit: the NIMA ephemeris could not be loaded"}
 
 
 def run_note(kind, item):
@@ -472,7 +473,51 @@ def fetch_target_orbit(target_id, epochs, cache_dir=config.cache_path):
         _loaded[target_id] = int(spice.spkobj(str(fn))[0])
         from pysyzygos import kernels as K_
         K_.body_alias(spice, target_id, _loaded[target_id])     # the number as a SPICE name (not boddef: ~161 max)
+        nima_orbit(target_id, _loaded[target_id])
     return _loaded[target_id]                           # NAIF id, safe to use directly in spkpos
+
+
+NIMA_USED = {}           # target -> dict(version, reason, det): the targets on a NIMA ephemeris (Lucky Star) this run
+NIMA_STATE = {}          # "index": the NIMA list (once per run), "mode"
+
+
+def nima_mode():
+    """off | auto | always: env PYSYZYGOS_NIMA (GUI System tab), else config orbit_nima."""
+    m = (os.environ.get("PYSYZYGOS_NIMA") or getattr(config, "orbit_nima", "off") or "off").strip().lower()
+    return m if m in ("off", "auto", "always") else "off"
+
+
+def nima_orbit(target_id, naif):
+    """Load the NIMA ephemeris (nima.py) of this target over JPL's when the mode and the data choose it (auto: the
+    newer last observation). Same body id as JPL's file, loaded after it: SPICE then takes NIMA. Never fatal: any
+    problem keeps JPL (printed, and a run note). Returns True when NIMA is used."""
+    mode = nima_mode()
+    if mode == "off" or bodies.is_body(target_id):
+        return False
+    from pysyzygos import nima
+    try:
+        if "index" not in NIMA_STATE:
+            NIMA_STATE["index"] = nima.index(config.cache_path)
+        entry = NIMA_STATE["index"].get(str(target_id))
+        if not entry:
+            return False
+        use, why = nima.choose(mode, entry["last_obs"], nima.jpl_last_obs(sbdb_phys(target_id)))
+        if not use:
+            print(f"orbit of {target_id}: JPL Horizons ({why})", flush=True)
+            return False
+        det = nima.details(entry, config.cache_path)
+        path = nima.kernel(str(target_id), entry, det, config.cache_path)
+        if int(spice.spkobj(path)[0]) != int(naif):
+            raise ValueError(f"its body id {int(spice.spkobj(path)[0])} is not JPL's {naif}")
+        spice.furnsh(path)
+        NIMA_USED[str(target_id)] = dict(version=det.get("version") or f"NIMAv{entry['version']}", reason=why, det=det)
+        print(f"orbit of {target_id}: {NIMA_USED[str(target_id)]['version']} (Lucky Star) instead of JPL: {why}",
+              flush=True)
+        return True
+    except Exception as e:
+        print(f"orbit of {target_id}: NIMA not used ({type(e).__name__}: {str(e)[:100]}); JPL Horizons", flush=True)
+        run_note("nima_failed", target_id)
+        return False
 
 SIZE_OVERRIDES = {}   # curate best values here: {"19": (r_km, r_sigma_km, "source note")}; they take priority
 
@@ -1293,13 +1338,20 @@ def search_bodies(t, et0, et1, system_size):
     try:
         found = components.available(t, config.cache_path)
         out = []
-        for b in found:
-            tid = components.ensure_kernel(spice, t, b, et0, et1, config.cache_path)
+        tids = [components.ensure_kernel(spice, t, b, et0, et1, config.cache_path) for b in found]
+        primary = next((b["naif"] for b in found if b["kind"] == "primary"), None)
+        if str(t) in NIMA_USED and primary:                # NIMA for the system: every body moved with it
+            from pysyzygos import nima
+            pad = (bodies.PAD_DAYS - 1.0) * 86400.0        # inside the bodies' files (they end on whole days)
+            nima.shift_components(spice, [b["naif"] for b in found], primary, _loaded[str(t)], et0 - pad, et1 + pad,
+                                  config.cache_path, NIMA_USED[str(t)]["version"])
+        for tid in tids:
             size = components.body_size(tid, system_size)
             if size:
                 out.append((tid, size))
     except Exception as ex:
-        WARNINGS[f"bodies:{t}"] = f"{t}: its bodies' ephemerides not available ({str(ex)[:80]}): the system searched"
+        WARNINGS[f"bodies:{t}"] = (f"{t}: its bodies' ephemerides not available ({' '.join(str(ex).split())[:120]}): "
+                                   f"the system searched")
         return []
     BODIES[str(t)] = out
     return out
@@ -1420,8 +1472,15 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         chance, star fields, database, maps. Asteroid hits are collected and finished after pass 2 (finish_pending:
         the Horizons queries in parallel, then this in the main thread, SPICE), planets and moons at once."""
         # chance that the shadow covers the site, from the path uncertainty (Horizons 3-sigma RSS, else the default)
+        nu = NIMA_USED.get(components.system(target_id))
+        if nu and not bodies.is_body(target_id):             # on NIMA's orbit: its own uncertainty, not JPL's
+            from pysyzygos import nima
+            d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', 'EARTH')[0]))
+            perr = nima.path_error(nu["det"], res['best_utc'], d_km) or perr
         if bodies.is_body(target_id):                        # planet or moon: no Horizons RSS; rough per-body value
             sigma3_h, src = bodies.sigma3_km(target_id), "ephemeris estimate"
+        elif nu:
+            sigma3_h, src = (perr or {}).get("sigma3_km"), "NIMA"
         else:
             sigma3_h, src = (perr or {}).get("sigma3_km"), "Horizons"
         sigma3 = sigma3_h or config.default_sigma3_km
@@ -1471,6 +1530,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             record.update(event_context(res['best_et'], star_dir, target_id, size['r_km'], row.phot_g_mean_mag, m_ast))
         except Exception as ex:
             print(f"(event data skipped: {ex})")
+        if nu and not bodies.is_body(target_id):             # the orbit's source (new fields at the end)
+            record.update(orbit_source=nu["version"] + " (Lucky Star)", orbit_choice=nu["reason"])
         RUN_RECORDS.append(record)
         # supplement stars (gaia_local: RUWE >= 1.4 or 2-parameter): flagged; new fields at the end of the record
         kind_, ruwe_ = int(getattr(row, "star_kind", 0) or 0), getattr(row, "ruwe", float("nan"))
@@ -1640,6 +1701,9 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     if SKIPPED:
         s["skipped_targets"] = list(SKIPPED)
         print(f"  skipped (no orbit from JPL Horizons, e.g. a mistyped number): {', '.join(SKIPPED)}")
+    if NIMA_USED:
+        s["orbits_nima"] = {t: f"{v['version']}: {v['reason']}" for t, v in NIMA_USED.items()}
+        print("  NIMA orbits (Lucky Star): " + ", ".join(f"{t} {v['version']}" for t, v in NIMA_USED.items()))
     warn = run_warnings()
     if warn:
         s["warnings"] = warn
