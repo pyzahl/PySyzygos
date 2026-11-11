@@ -970,6 +970,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   from `file://`. Map dialog reopen bug fixed 2026-10-02 (the box was cleared on every open, removing Leaflet's panes).
 
 ## Ideas not built yet
+- I think important to adjust: make "reach" distance to 1s (or 3s) shadow extends vs shadow center line.
 - Python version catch-ups (to-do 2026-11-07): `.python-version` pins 3.12 here and in PyStarLight (a fresh clone
   there picked 3.15, which has no scikit-image wheels). Plan: a check script (`uv pip compile --python-version X
   --python-platform <linux x86_64/aarch64, windows, macOS arm64/x86_64> --only-binary :all:`) naming the newest
