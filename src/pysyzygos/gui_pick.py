@@ -113,6 +113,12 @@ def panel(pg):
                     "far everywhere). Around one site the poleward edge is a little narrower in km (about 465 of "
                     "500 km at 41 N). Events count if the shadow path comes within the asteroid's radius + 200 km "
                     "(reach) of the box, so the effective region is the box widened by 200 km or more")
+                pg.ps_reach = ui.number("Reach / edge (km)", value=200, min=0, step=100).classes("w-36").tooltip(
+                    "Whole Earth: how far beyond the Earth's edge (and the day/night line) an event is still kept, "
+                    "any pick reach then fits; 200 km by default, e.g. 1000 to keep main-belt events whose path "
+                    "misses the Earth but whose n-sigma band still reaches a site (ABOUT 2.7.1; ~1.5 % more events "
+                    "per 100 km). Region: the largest reach a pick will use. Asteroids outside the main belt get "
+                    "their own wide margin anyway")
                 pg.ps_where.on_value_change(lambda e: pg.ps_km.set_visibility(e.value in ("site", "sites")))
                 pg.ps_fresh = ui.checkbox("Start over").tooltip(
                     "Discard a stopped build of the same name and window instead of resuming it (needed when "
@@ -223,7 +229,8 @@ def handlers(pg):
                                                                   f"lon {reg['lon_min']:.0f}..{reg['lon_max']:.0f}",
                              sites=", ".join(inside) or "-",
                              limits=f"G \u2264 {m['cam_limit']:g}, H < {m.get('hmax')}"
-                                    + (f", reach \u2264 {m['reach_km']:g} km" if reg else "")
+                                    + (f", reach \u2264 {m['reach_km']:g} km" if reg else
+                                       f", edge {m.get('reach_km', 200):g} km")
                                     + (f"; only {pg.picks.selection_text(PS.meta_selection(m))}"
                                        if pg.picks.restricted(PS.meta_selection(m)) else ""),
                              found=f"{n_ast} / {n_ev}",
@@ -416,7 +423,8 @@ def handlers(pg):
                  {"site": ["--around-site", f"{float(pg.ps_km.value or 300):g}"],
                   "sites": ["--around-sites", f"{float(pg.ps_km.value or 300):g}"], "global": ["--global"]}[v])
         args = PYSYZYGOS + ["prescreen", "build", "--start", pg.ps_start.value, "--days", str(int(pg.ps_days.value)),
-                           *where, "--workers", str(int(pg.p_workers.value))]
+                           *where, "--workers", str(int(pg.p_workers.value)),
+                           "--reach", f"{float(pg.ps_reach.value if pg.ps_reach.value is not None else 200):g}"]
         args += ["--all"] if pg.p_all.value else ["--hmax", str(pg.p_hmax.value)]
         args += ["--cam-limit", f"{max(16.0, float(pg.p_mag.value or 0)):g}"]
         sel = pg.selection_args()                                  # the same asteroid filter as the pick

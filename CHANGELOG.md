@@ -22,6 +22,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   entries older than 30 days), else a generous allowance (5,000 km per σ; Centaurs and TNOs 150,000 km). Whole-Earth
   pre-screens keep their events out to 3 σ off the Earth's disk. The main belt (98.6 % of all events) uses a fixed
   200 mas and the 200 km pre-screen edge: the documented compromise (ABOUT 2.7.1).
+- **The whole-Earth pre-screen's edge in the GUI**: Pick tab, Pre-screens, "Reach / edge (km)" (command line
+  `prescreen build --global --reach KM`, default 200): how far beyond the Earth's edge main-belt events are kept,
+  e.g. 1000 for their n-sigma band (each 100 km ~1.5 % more events); shown as "edge ... km" in the list.
 - **The reach on the Site tab's map**: a dotted circle of the reach around the site, redrawn as the position or the
   reach changes (the site's reach_km, else max_shadow_dist).
 - **"pm ?" after the star magnitude** when a 2-parameter star's proper-motion check (VizieR: UCAC5, UCAC4) was not

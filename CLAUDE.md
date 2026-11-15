@@ -144,7 +144,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   everywhere; `box_around` (single site) uses cos(site lat): ~7 % narrower at the north edge for 500 km at 41 N,
   documented, change only between builds: resume compares the stored region); targets.py line "# asteroids screened:".
   GUI Pick tab: p_pre "auto"/"all"/path (PRE_FIXED), `pre_info` line, expansion "Pre-screens" (ps_start, ps_days,
-  ps_where site/sites/global, ps_km, `run_prescreen`, ps_table with fit reasons, `delete_prescreens`);
+  ps_where site/sites/global, ps_km, ps_reach (1.5.4: --reach; global = the edge beyond the Earth, list "edge N km"), `run_prescreen`, ps_table with fit reasons, `delete_prescreens`);
   prescreen_options() mirrors PS.check without SPICE (`_day_et`: both windows start 00:00 UTC).
 - `pysyzygos/shadowtrack.py` (2026-10-10): shadow elements per event (DTYPE 80 B: number, star, et=tc, g, m_ast,
   geo_miss, star dir sx/sy/sz f4, x0/y0/vx/vy/ax/ay f4 quadratic in dt=t-tc over +-half, half, r_km, err = misfit at 9

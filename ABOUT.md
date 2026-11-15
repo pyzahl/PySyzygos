@@ -368,8 +368,9 @@ path.
   applies its real sigma;
 - a whole-Earth pre-screen keeps main-belt events only while the shadow touches the Earth's disk + 200 km (EDGE_KM). A
   center line farther off, whose n-sigma band still reaches a site, is not in it: such a site sees the star near the
-  horizon (at plane radius R cos h), below most altitude limits (10 deg: R cos h = 6,281 km). A build with
-  `--reach 500` covers 3 sigma of the typical main-belt asteroid for ~+5 % events.
+  horizon (at plane radius R cos h), below most altitude limits (10 deg: R cos h = 6,281 km). The edge is a build
+  option (`pysyzygos prescreen build --global --reach 1000`, GUI Pick tab "Reach / edge (km)"): 500 km covers 3 sigma
+  of the typical main-belt asteroid, each 100 km costs ~1.5 % more events.
 
 Cost (400 targets, 3 days, 2026-11-15): candidates and exact solves unchanged (the corridor is dominated by the
 Earth's radius), 25 s with the uncertainties cached, ~70 s more on the first run of the day; hits 200 -> 226 (all

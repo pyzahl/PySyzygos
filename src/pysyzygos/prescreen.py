@@ -1135,7 +1135,7 @@ def describe(path, meta=None):
     from pysyzygos import picks as PK
     only = PK.selection_text(meta_selection(m))
     return (f"{m.get('name', '?')}: {m['start']} + {m['days']:g} d, {where}, for picks up to G {m['cam_limit']:g}, "
-            + (f"reach {m['reach_km']:g} km, " if reg else "") + f"H {m.get('hmax')}" + (f", only {only}" if only else "")
+            + (f"reach {m['reach_km']:g} km, " if reg else f"edge {m.get('reach_km', EDGE_KM):g} km, ") + f"H {m.get('hmax')}" + (f", only {only}" if only else "")
             + f"; built {m.get('built', '?')[:16]}")
 
 
