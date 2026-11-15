@@ -140,13 +140,12 @@
       \begin{equation*}
         \tcbhighmath{x(t) = x_0 + v_x \Delta t + a_x \Delta t^2,\quad y(t) = y_0 + v_y \Delta t + a_y \Delta t^2} \tag{PS.1}
       \end{equation*}
-      {\scriptsize $\Delta t = t - t_c$, while it crosses the Earth; misfit $\le$ \SI{0.3}{km}.}\\[0.4ex]
+      {\scriptsize $\Delta t = t - t_c$, while it crosses the Earth; misfit $\le$ \SI{0.3}{km}.}\\[0.1ex]
       \textbf{Site test} (any site, seconds; star up, Sun down there):
       \begin{equation*}
-        \tcbhighmath{|\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + n\hat\sigma + \mathrm{err}} \tag{PS.2}
+        \tcbhighmath{|\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + n\hat\sigma + \mathrm{err}^{\,a}} \tag{PS.2}
       \end{equation*}
-      \textbf{Pick}: own orbits (\SI{\sim 2}{km}), corridor scan, site solve $\to$ targets.
-      \textbf{Search}: Horizons orbits, full astrometry, exact solver.
+      \textbf{Pick}: own orbits (\SI{\sim 2}{km}), scan, site solve $\to$ targets. \textbf{Search}: Horizons, exact.
     \end{column}
     \begin{column}{0.42\textwidth}
       \centering
@@ -169,6 +168,9 @@
       range of $a$. No main belt: 464{,}740 $\to$ 14{,}714 asteroids, a 7-day pick in \SI{14}{s}.\par}
     \end{column}
   \end{columns}
+  {\tiny $^{a}$\,err: the event's misfit of PS.1, the stored quadratic vs the exact shadow positions at 9 points
+  ($\le$ \SI{0.3}{km}): the test on the quadratic keeps all the exact track would. The code adds \SI{10}{km} (TOL\_KM:
+  the site's 1-min sampling, height, geoid).\par}
 \end{frame}
 
 % reach in the plane vs on the ground (shadowtrack.ground_reach): why the screens widen it near the Earth's edge
