@@ -86,7 +86,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (r_test; events keep r_km). search: `prefetch_sigmas` (after the orbit downloads, unwrapped paths.path_error,
   cache PySyzygos_path_sigma.json per target|day; `save_sigmas`), `reach_widening` (pass 1: `target_sigma1_km`
   x 1.2 + STAR_CAP_MAS star -> corridor margin), `reach_for(row)` per candidate -> star_test's reach and the map
-  condition; finish -> `reach.fields` (end of record). pick: rows 'sig1' from the table (WARNING without one),
+  condition; finish -> `reach.fields` (end of record). pick and prescreen build: rows 'sig1' from the table (pick
+  WARNING without one); pick force-screens non-main rows past a pre-screen only if its meta version < 1.5.4 (first
+  table 2026-11-15: 24,983 entries in 70 min, 78 beyond the fixed allowance; force-screening costs ~+25 s),
   site_numbers opt 'widening' {number: allowance at `delta_max_km`} -> per-event reach arrays in near_site /
   site_mask. Regional builds `reach_sigma` (default 3; meta), check(): a smaller n does not fit. Checked 2026-11-15
   (400 targets, 3 d): hits 200 (n 0) -> 246 (RSS) -> 226 (across), 25 s cached. db.HITS reach_n, reach_dist; report
@@ -317,7 +319,11 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (+ page note .sqlnote); GUI Results "SQL filter (advanced)" (gui_results: sql_in, word suggestions sql_sugg,
   Fields table rowClick inserts, examples, saved conditions gui_state sql_queries, active sql_where used by every
   build_report; gui_results.connect). Report filter bar (all layouts): rows carry data-f* (`report.filter_attrs`:
-  mag dur drop alt sun ruwe chance% sigpw (2026-11-02, OWC's SigPW = sigma1 / (2 rad), FILTER_SQL sigpw) flags sup/unc/dbl/twi/hz/est/moon, cls (2026-10-31: `report.class_code` -> data-fcls; bar `class_select` select[data-s=cls]: '' any, 'g:<group>' picks.GROUPS ('g:other' = none of them) or one code; JS GRP from picks.GROUPS, unknown class passes; db.filter_to_sql 'cls'; favorites.backfill_class at GUI start from sbdb.get_full '_class'); data-ftime = Unix s UTC for the time window
+  mag dur drop alt sun ruwe chance% sigpw (2026-11-02, OWC's SigPW = sigma1 / (2 rad), FILTER_SQL sigpw) frames
+  (1.5.4, user: "at least 10 data points": `screen.frames_max(dur, G, ext, opt)` = dur x 10^(0.4 (5 log ap + 8.5 +
+  adj - ext - G)) = largest N with OWC's criterion at exposure dur/N; record frames_max (end, nominal max_duration_s),
+  older rows `report.frames_fill` from the row's site / meta 'equipment' (run site); data-fframes, LIM frames 1,
+  db.HITS frames_max, FILTER_SQL frames; `frames_tip` on the duration cell) flags sup/unc/dbl/twi/hz/est/moon, cls (2026-10-31: `report.class_code` -> data-fcls; bar `class_select` select[data-s=cls]: '' any, 'g:<group>' picks.GROUPS ('g:other' = none of them) or one code; JS GRP from picks.GROUPS, unknown class passes; db.filter_to_sql 'cls'; favorites.backfill_class at GUI start from sbdb.get_full '_class'); data-ftime = Unix s UTC for the time window
   from/to (datetime-local inputs data-t, read as UTC; 'to' includes its minute; SQL utc >= 'from' / <= 'to:59.999')), `filter_bar`/FILTER_JS: instant filter,
   "showing n of m", named sets via GUI `/api/filters|save|delete` (gui_state filters; file:// -> localStorage),
   the page's last filter in localStorage pyo_filter:<path>; favorites select-all and mass actions only on shown

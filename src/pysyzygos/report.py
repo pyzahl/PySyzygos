@@ -434,6 +434,7 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
                 miss=miss, margin=margin, miss_p=miss_p, margin_p=margin_p, dist_kind=dist_kind,
                 g_scale=num(r.get("ground_scale")), rad=rad, hshift=num(r.get("height_shift_km")),
+                frames=num(r.get("frames_max")),
                 reach_n=num(r.get("reach_n")), reach_dist=num(r.get("reach_dist_km")), kml=kml, kml_abs=kml_abs, preview=preview,
                 m_ast=num(r.get("m_ast")), m_before=num(r.get("m_before")), calc=num(r.get("calc_s")),
                 sun=num(r.get("sun_alt")),
@@ -1386,7 +1387,7 @@ def html_row(e):
            f'{fmt(e["mag"])}</a>' if e.get("star") else fmt(e["mag"]))
         + star_mark(e) + twilight_mark(e) + '</td>'
         f'<td class="num" data-s="{s(e["drop"])}" title="{drop_tip}">{fmt(e["drop"])}{double_mark(e)}</td>'
-        f'<td class="num" data-s="{s(e["dur"])}">{fmt(e["dur"])}</td>'
+        f'<td class="num" data-s="{s(e["dur"])}"{frames_tip(e)}>{fmt(e["dur"])}</td>'
         f'{alt_cell(e, alt_tip)}'
         f'<td data-s="{s(moon["sep"], 1) if moon else ""}" title="{moon_tip}">{esc(moon_text(e))}</td>'
         f"{shadow_cell(e)}" + chance_cell(e) + calc + tail +
@@ -1514,11 +1515,12 @@ def filter_attrs(e):
     dur = e.get("contact_dur") if e.get("body") and e.get("contact_dur") else e.get("dur")
     chance = None if e.get("p_site") is None else 100.0 * e["p_site"]
     sigpw = e["sigma1"] / (2 * e["rad"]) if e.get("sigma1") is not None and e.get("rad") else None
+    frames = e.get("frames")
     t = e["when"].timestamp() if e.get("when") is not None else None
     return (f' data-ev="{esc(event_key(e["tid"], e["utc"]))}" data-ftime="{v(t, 0)}"'
             f' data-fmag="{v(e.get("mag"))}" data-fdur="{v(dur)}" data-fdrop="{v(e.get("drop"))}"'
             f' data-falt="{v(e.get("alt"), 1)}" data-fsun="{v(e.get("sun"), 1)}" data-fruwe="{v(e.get("ruwe"), 2)}"'
-            f' data-fchance="{v(chance, 2)}" data-fsigpw="{v(sigpw)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
+            f' data-fchance="{v(chance, 2)}" data-fsigpw="{v(sigpw)}" data-fframes="{v(frames, 2)}" data-fflags="{" ".join(flags)}" data-faz="{v(e.get("az"), 1)}"'
             f' data-fcls="{esc(e.get("ccode") or "")}"'
             + (f' data-fevt="{esc(e["grp"])}"' if e.get("grp") else "")
             + (f' data-fnres="{e["nres"]}"' if e.get("nres") is not None else "")
@@ -1586,6 +1588,11 @@ def filter_bar(groups=None, nres=False):
             + num("chance", "chance ≥", " %", "1", "chance that the shadow covers the site")
             + num("sigpw", "σ/path width ≤", "", "0.1", "path uncertainty (1 sigma) in path widths, as OWC's "
                   "SigPW: 0.5 = the 1-sigma error is half the shadow's width (events without a sigma pass)")
+            + num("frames", "frames ≥", "", "1", "at least this many detection frames (data points) across the "
+                  "drop: the exposure is then the event's duration / frames, and the star must still be bright "
+                  "enough for the site's telescope and camera at that exposure (OWC's criterion: "
+                  "G + extinction < 5 log10(aperture) + 2.5 log10(duration / frames) + 8.5 + MagAdjust; camera "
+                  "dead time ignored). Events without the site's equipment pass")
             + num("hzc", "clear of horizon ≥", "°", "1", "star at least this high above your site's horizon "
                   "(sites.py horizon); sites without a horizon pass")
             + class_select()
@@ -1621,7 +1628,7 @@ FILTER_JS = """<script>
 (function(){var bar=document.getElementById('fbar');if(!bar)return;
 var rows=[].slice.call(document.querySelectorAll('table tbody tr')),sel=document.getElementById('fset');
 var PK='pyo_filter:'+location.pathname,SK='pyo_filter_sets',served=location.protocol!=='file:',sets={};
-var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1,sigpw:-1,nres:1},GRP=__GROUPS__;
+var LIM={mag:-1,dur:1,drop:1,alt:1,sun:-1,ruwe:-1,chance:1,sigpw:-1,frames:1,nres:1},GRP=__GROUPS__;
 function clsOk(c,want){if(!c||!want)return true;if(want.slice(0,2)!=='g:')return c===want;want=want.slice(2);
  if(want!=='other')return (GRP[want]||[]).indexOf(c)>=0;
  for(var g in GRP)if(GRP[g].indexOf(c)>=0)return false;return true;}
@@ -1693,7 +1700,32 @@ from pysyzygos.picks import GROUPS as _GROUPS                   # the class filt
 FILTER_JS = FILTER_JS.replace("__GROUPS__", json.dumps({k: list(v) for k, v in _GROUPS.items()}))
 
 
+def frames_tip(e):
+    """Hover of the duration: the most detection frames the site's equipment allows (frames_max), '' if unknown."""
+    n = e.get("frames")
+    if n is None or not e.get("dur"):
+        return ""
+    t = (f"up to {n:.0f} detection frames across the drop with the site's telescope and camera "
+         f"(exposure {e['dur'] / max(n, 1e-9):.2f} s each)" if n >= 1 else
+         "the star is too faint for this equipment even with the whole duration as one exposure")
+    return f' title="{esc(t)}"'
+
+
+def frames_fill(events, meta):
+    """frames_max (screen.frames_max) for events of older searches without it: from the equipment of the row's site
+    (favorites) or of the page's run (meta 'equipment': aperture_cm, mag_adjust)."""
+    from pysyzygos import screen
+    for e in events:
+        if e.get("frames") is not None or e.get("dur") is None or e.get("mag") is None:
+            continue
+        s = e.get("site") if (e.get("site") or {}).get("aperture_cm") else meta.get("equipment") or {}
+        if s.get("aperture_cm"):
+            e["frames"] = screen.frames_max(e["dur"], e["mag"], e.get("ext") or 0.0,
+                                            dict(aperture=float(s["aperture_cm"]), mag_adjust=float(s.get("mag_adjust") or 0)))
+
+
 def to_html(events, meta):
+    frames_fill(events, meta)
     on = lambda key: ' sorted-asc' if meta.get("sort", "date") == key else ""
     fav, pick = meta.get("favorites"), meta.get("pick")
     head = (('' if pick else '<th><input type="checkbox" id="favall" aria-label="Select all"></th>')
@@ -1939,6 +1971,7 @@ def main(argv=None):
     meta = dict(title=a.title, layout=layout, span=span, sort=a.sort, sql=sql_note, info=header_info(run, lat, lon), observer=observer, generated=datetime.now().strftime("%Y-%m-%d %H:%M"),
                 paths=paths, tiles=a.tile_url, obs=[lat, lon] if lat is not None and lon is not None else None,
                 site_name=((run or {}).get("site") or {}).get("name", ""),
+                equipment=(run or {}).get("site") or {},
                 site=dict(lat=lat, lon=lon, ele=(run or {}).get("site", {}).get("ele", 0.0))
                 if lat is not None and lon is not None else None)
     text = to_markdown(events, meta) if fmt_name == "md" else to_html(events, meta)

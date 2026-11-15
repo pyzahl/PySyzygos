@@ -1773,6 +1773,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         record.update(reach_fields)                                       # reach from the n-sigma limit (end)
         record.update(path_sigma_rss_km=round(sigma1_rss, 3))             # the whole ellipse's 1 sigma (end)
         record.update(star_pm_check=pm_check)                             # '' or why the VizieR check failed (end)
+        record.update(frames_max=round(screen.frames_max(record["max_duration_s"], row.phot_g_mean_mag,
+                                                         record["extinction_mag"], opt), 2))   # detection frames (end)
         print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
               + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
                  + ")" if record["star_flag"] else ""))

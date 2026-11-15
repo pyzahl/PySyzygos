@@ -49,6 +49,14 @@ def owc_limit(dur_s, opt):
             + opt.get("mag_adjust", 0.0))
 
 
+def frames_max(dur_s, star_mag, ext_mag, opt):
+    """The largest number of detection frames an event allows with this equipment (owc_limit solved for the frames):
+    star_mag + ext_mag < 5 log10(aperture) + 2.5 log10(dur_s / N) + 8.5 + mag_adjust  <=>  N < frames_max. The
+    results filter 'detection frames >= N' compares with it (the exposure then is dur_s / N; dead time ignored)."""
+    k = 5 * math.log10(opt["aperture"]) + 8.5 + opt.get("mag_adjust", 0.0) - ext_mag - star_mag
+    return float(dur_s) * 10 ** (0.4 * k)
+
+
 def airmass(alt_deg):
     """Kasten & Young (1989)."""
     h = np.asarray(alt_deg, float)

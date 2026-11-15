@@ -19,9 +19,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   background during pass 1, cached per target and day), uncapped outside the main belt. The pick screens every NEO,
   Mars-crosser, Trojan, Centaur and TNO (past any pre-screen) with its own Horizons σ from the new **σ table**
   (`pysyzygos sigmas build|status`, System tab "Path uncertainties", `sigma_table.json`; ~1 h the first time, then
-  entries older than 30 days), else a generous allowance (5,000 km per σ; Centaurs and TNOs 150,000 km). Whole-Earth
+  entries older than 30 days; the first build: 24,983 asteroids in 70 min, 78 of them beyond the fixed allowance),
+  else a generous allowance (5,000 km per σ; Centaurs and TNOs 150,000 km). Whole-Earth
   pre-screens keep their events out to 3 σ off the Earth's disk. The main belt (98.6 % of all events) uses a fixed
   200 mas and the 200 km pre-screen edge: the documented compromise (ABOUT 2.7.1).
+- **Results filter "frames ≥ N"**: at least N detection frames (data points) across the drop. The exposure is then
+  the event's duration / N, and the star must still pass OWC's criterion with the site's telescope and camera at
+  that exposure (camera dead time ignored). Record field `frames_max` (end; older results: from the run's
+  equipment), SQL column `frames_max`; the duration's hover shows it ("up to 20 detection frames ... 0.10 s each").
 - **The whole-Earth pre-screen's edge in the GUI**: Pick tab, Pre-screens, "Reach / edge (km)" (command line
   `prescreen build --global --reach KM`, default 200): how far beyond the Earth's edge main-belt events are kept,
   e.g. 1000 for their n-sigma band (each 100 km ~1.5 % more events); shown as "edge ... km" in the list.

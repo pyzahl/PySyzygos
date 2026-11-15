@@ -11,7 +11,16 @@ base = dict(tid="99999999", utc="2026-11-01T01:02:03.456", body=False, mag=10.5,
 a = R.filter_attrs(base)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', a))
 assert vals == dict(time="", mag="10.500", dur="1.250", drop="2.000", alt="35.0", sun="-25.0", ruwe="1.20", chance="42.00", az="",
-                    flags="", cls="", sigpw=""), vals
+                    flags="", cls="", sigpw="", frames=""), vals
+# the most detection frames (frames_max): stored by new searches, else from the run's equipment (frames_fill); the
+# bar's 'frames >= N' keeps rows with frames_max >= N, the SQL box the same; the duration's hover says it
+fe = dict(base, frames=None, dur=2.0, mag=13.0, ext=0.0)
+R.frames_fill([fe], dict(equipment=dict(aperture_cm=25.0, mag_adjust=0.0)))
+assert abs(fe["frames"] - 19.8) < 0.1 and 'data-fframes="19.' in R.filter_attrs(fe)
+assert "up to 20 detection frames" in R.frames_tip(fe) and "0.10 s each" in R.frames_tip(fe)
+assert R.frames_tip(dict(fe, frames=0.4)).startswith(' title="the star is too faint')
+from pysyzygos import db as _db
+assert _db.filter_to_sql({"frames": 10}) == "(frames_max IS NULL OR frames_max >= 10)"
 e = dict(base, sflag="RUWE 1.70", star_sigma=8.0, dhint="companion", sun=-8.0, hz=("near", 20.0, 3.0),
          size_src="H only, albedo assumed", ruwe=None, p_site=None)
 vals = dict(re.findall(r'data-f(\w+)="([^"]*)"', R.filter_attrs(e)))

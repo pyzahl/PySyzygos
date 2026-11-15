@@ -77,6 +77,8 @@ HITS = [
     ("ground_dist", "ground_dist_km", "num", "km", "site's distance from the shadow center line on the ground, across "
      "the track (from 1.4.1; up to 1 / sin(star altitude) x distance)"),
     ("radius", "r_km", "num", "km", "asteroid radius (shadow half-width)"),
+    ("frames_max", "frames_max", "num", "", "the most detection frames the site's equipment allows across the drop "
+     "(OWC's criterion with exposure = duration / frames; from 1.5.4)"),
     ("reach_n", "reach_n", "num", "", "the reach counted from the path's n-sigma limit (0 = the shadow's edge; from "
      "1.5.4)"),
     ("reach_dist", "reach_dist_km", "num", "km", "site's distance beyond that limit (r + n sigma; < 0 = inside it)"),
@@ -195,7 +197,8 @@ def _horizon_functions(con, list_site):
 FILTER_SQL = {"mag": "mag <= {v}", "dur": "duration >= {v}", "drop": "(mag_drop IS NULL OR mag_drop >= {v})",
               "alt": "star_alt >= {v}", "sun": "sun_alt <= {v}", "ruwe": "(ruwe IS NULL OR ruwe <= {v})",
               "chance": "(chance IS NULL OR chance >= {v})",
-              "sigpw": "(sigma IS NULL OR radius IS NULL OR radius = 0 OR sigma <= {v} * 2 * radius)"}   # OWC's SigPW
+              "sigpw": "(sigma IS NULL OR radius IS NULL OR radius = 0 OR sigma <= {v} * 2 * radius)",   # OWC's SigPW
+              "frames": "(frames_max IS NULL OR frames_max >= {v})"}
 FILTER_HIDE_SQL = {"sup": "star_flag = ''", "unc": "(star_sigma IS NULL OR star_sigma <= 0.5 * radius)",
                    "dbl": "double_hint = ''", "twi": "sun_alt <= -12", "hz": "horizon NOT IN ('behind', 'near')",
                    "est": "size_source NOT LIKE 'H only%'"}

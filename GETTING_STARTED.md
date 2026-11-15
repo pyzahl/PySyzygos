@@ -145,7 +145,9 @@ favorites, **Predict each body (binary)** computes each body where JPL can.
 A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
 twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it), "hide
 uncertain star", the asteroid **class** (a group such as NEO, main belt, Jupiter Trojans, or one JPL orbit class) and
-"σ/path width ≤ 0.5" (the path's 1-sigma uncertainty in shadow widths, OccultWatcher's "SigPW"). **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
+"σ/path width ≤ 0.5" (the path's 1-sigma uncertainty in shadow widths, OccultWatcher's "SigPW"), or "frames ≥ 10"
+(at least 10 data points across the drop: each exposure is then the duration / 10, and the star must still be bright
+enough for your telescope and camera; hover a duration to see how many frames that event allows). **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
 exactly what the table shows. For anything else there is the **SQL filter** on the Results tab, e.g.
 `mag < 11 AND chance > 30`: it starts with your filter's settings, which you can then change.
 
@@ -231,6 +233,12 @@ dark-sky spot, travel), when you try other settings (camera, star limit, reach),
 If you only pick once per window for one site, just run the pick. Tips: build it overnight (it can be stopped and
 resumed); rebuild it after a few weeks, as it uses the orbits of its build day; "whole Earth" serves any site and trip
 (about 1 GB per month). See "Pick" in the [README](README.md).
+
+**Uncertain paths:** a predicted path is itself uncertain, often by more than the shadow is wide. The site's **Reach
+from n-σ limit** (Site tab, default 1) lets PySyzygos keep events whose shadow passes within your reach of the path's
+1-sigma band, not only of the line itself; the results mark them "in 1σ" and give their chance. Once a month press
+**Path uncertainties** in the System tab (or `pysyzygos sigmas build`, about an hour the first time): it fetches the
+uncertainty of every NEO, Trojan, Centaur and TNO, so the pick misses none of these rarer, often poorly known objects.
 
 ## If something goes wrong
 

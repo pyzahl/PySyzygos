@@ -670,6 +670,7 @@ commands" at the top of Install). The site is
 | Step | Command | What it does |
 |---|---|---|
 | once | `pysyzygos setup` | SPICE kernels, the star catalog (Zenodo download or ESA build), `sites.py` |
+| monthly | `pysyzygos sigmas build` | the σ table: each NEO's, Mars-crosser's, Trojan's, Centaur's and TNO's own path uncertainty (JPL Horizons; ~1 h the first time, then only entries older than 30 days), so the pick cuts none of them for the reach from the n-σ limit; `pysyzygos sigmas status` |
 | choose | `pysyzygos pick --start 2026-10-01 --days 20` | screen all asteroids for events at the site; writes `pick_events.csv`, `targets.py` and the saved pick in `picks/` |
 | predict | `pysyzygos search` | exact search for the targets (the saved pick of the site covering the window, else `targets.py`); adds the events to the current results list in `pysyzygos.db`, writes it as `hits_log.csv`, and `maps/` |
 | present | `pysyzygos report hits_log.csv` | HTML event list with maps and previews (`hits_report.html`) |
@@ -683,7 +684,8 @@ stays as it is), e.g. `pysyzygos run search '{"ct": "2026-10-01T00:00:00", "days
 every run this way.
 
 Useful options: `pysyzygos pick --hmax 18 --reach 30 --frames 4 --top 40 --workers 4` (see "Pick tool: choose
-targets" below), `pysyzygos picks list` (saved picks), `PYSYZYGOS_CATALOG=gaia_dr3_g16 pysyzygos search`
+targets" below), `pysyzygos pick --reach-sigma 2` (the reach from the path's 2-sigma limit; 0 = from the shadow's
+edge as before 1.5.4; default the site's `reach_sigma`, 1), `pysyzygos picks list` (saved picks), `PYSYZYGOS_CATALOG=gaia_dr3_g16 pysyzygos search`
 (another catalog for one run), `pysyzygos setup --status` (what is installed).
 
 **Starting over** (e.g. to test a fresh install): `pysyzygos cleanup` lists, with sizes, what it would delete in the
@@ -1175,9 +1177,12 @@ Output:
 
 ```bash
 pysyzygos prescreen build --start 2026-11-01 --days 30 --global                 # whole Earth: any site, any region
+pysyzygos prescreen build --start 2026-11-01 --days 30 --global --reach 500     # main-belt events out to 500 km beyond the Earth's edge (default 200)
 pysyzygos prescreen build --start 2026-11-01 --days 30 --around-sites 300     # one box around all sites of sites.py
 pysyzygos prescreen build --start 2026-11-01 --days 30 --around-site 500      # a box 500 km around your site
 pysyzygos prescreen build --start 2026-11-01 --days 30 --region europe        # a named region, or lat_min,lat_max,lon_min,lon_max
+pysyzygos prescreen build --start 2026-11-01 --days 30 --around-site 500 --reach-sigma 2   # a region for picks up to n = 2 (default 3)
+pysyzygos sigmas build                                                        # the σ table first: builds and picks read it
 pysyzygos prescreen build --start 2026-11-01 --days 30 --global --groups trojan,neo,tno   # only these groups (small, fast)
 pysyzygos prescreen list                                                      # the built ones (window, region, size, age)
 pysyzygos pick --start 2026-11-03 --days 7 --prescreen auto                   # the newest fitting one, else all
@@ -1399,7 +1404,10 @@ pysyzygos --port 8090 --no-browser
   smallest drop, lowest star altitude, how far the star must clear your site's horizon (also for searches run
   before the horizon was set: it uses the horizon in `sites.py` now and the star's direction stored per event),
   highest Sun altitude, largest RUWE, smallest chance, the largest path uncertainty in path widths ("σ/path width":
-  1-sigma / shadow width, as OccultWatcher's SigPW), the asteroid class (a group as in the pick, e.g. NEO or Jupiter
+  1-sigma / shadow width, as OccultWatcher's SigPW; since 1.5.4 the part across the track), the least number of
+  detection frames across the drop ("frames ≥ N": the exposure becomes the event's duration / N, and the star must
+  still pass OWC's criterion with the site's telescope at that exposure; e.g. 10 data points; the duration's hover
+  gives each event's largest N; SQL column `frames_max`), the asteroid class (a group as in the pick, e.g. NEO or Jupiter
   Trojans, or one JPL orbit class; events without a known class pass), and checkboxes that hide supplement stars, uncertain stars,
   close/double stars, twilight events, events near or behind your horizon and estimated sizes (or show only asteroids
   with a known satellite). It filters at once and says "showing n of m". **Save as...** keeps the settings under a

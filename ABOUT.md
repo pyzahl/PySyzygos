@@ -355,7 +355,11 @@ path.
   take their own Horizons sigma x 1.5 from the **sigma table** (`pysyzygos sigmas build`, System tab "Path
   uncertainties", `sigma_table.json` in the data folder; ~1 h the first time, then entries older than 30 days), else
   a generous fixed allowance (5,000 km per sigma; Centaurs and TNOs 150,000 km: at 40 AU only 5", and their ~1,150
-  events per 40 days worldwide cost nothing). With a pre-screen they are all screened anyway (past any pre-screen).
+  events per 40 days worldwide cost nothing). The first table (2026-11-15, 24,983 asteroids, 70 min): 1 sigma median
+  NEOs 37 km (99 %: 840, largest 4,700), Mars-crossers 64 km (531; 2,700), Trojans 174 km (626; 1,760), Centaurs
+  etc. 1,260 km, TNOs 4,700 km (largest ~1.8 million km); for 78 of them (69 TNOs, 6 Centaurs, 3 NEOs) the fixed
+  allowance would have been too small. With a pre-screen built before 1.5.4 (no wide margins for them) all of them
+  are screened past it (~+25 s per pick); newer builds hold them (the build reads the table too).
 - **Pre-screens**: a whole-Earth build widens every asteroid outside the main belt by n = 3 x its allowance (so a
   center line off the Earth's disk is kept when its 3-sigma band reaches it); the site test widens per asteroid at its
   largest distance (aphelion + 1 AU). Regional builds use n = 3 for all groups and do not fit a pick with a larger n.
@@ -531,6 +535,19 @@ The site's star limit `MAG_MIN` is the magnitude that passes at the longest usab
 G 15.0 at 25 cm, as in the OWC search). For sizes estimated from H (uncertain by ~1.7x) the duration test uses the
 upper size bound, so an event is kept if it *can* be observable; the reported duration is nominal. `mag_margin`
 reports how far below the limit the star is.
+
+**How many detection frames does an event allow?** (1.5.4, `screen.frames_max`) The same criterion solved for the
+frames: with each exposure = duration / N, the event stays observable while
+
+    N < N_max = MaxDuration * 10^(0.4 * (5 log10(aperture_cm) + 8.5 + MagAdjust - extinction - StarMag))
+
+So `frames` (the site's fixed number) answers "is it observable at all"; N_max answers "how many data points across
+the drop can I get". Example: 25 cm, G 13, a 2 s event: N_max = 19.8, i.e. 20 frames of 0.10 s; a G 15 star gives
+3.1. The search stores it per event (`frames_max`, nominal size, the center-line duration: a site off the line sees
+a shorter chord and fewer frames); the results' filter "frames ≥ N" keeps the events with N_max >= N (e.g. 10 data
+points for a timing good enough for a chord profile), the SQL column is `frames_max`, and the duration's hover shows
+it. Older results take it from the run's site equipment. Camera dead time between exposures is not counted (a few ms
+on CMOS cameras, more on some; PyStarLight's camera profiles hold it per sensor).
 
 ### 3.4 Stars for the screen
 

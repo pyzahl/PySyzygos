@@ -20,7 +20,7 @@ Needs the kernels and the local Gaia catalog with its bright-star index: pysyzyg
 from pysyzygos.version import __version__
 from pysyzygos import net                      # https with certifi's certificate authorities
 from pysyzygos import urls as U
-import argparse, datetime as dt, json, math, os, sys, tempfile, time, urllib.parse, urllib.request
+import argparse, datetime as dt, json, math, os, re, sys, tempfile, time, urllib.parse, urllib.request
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 from pysyzygos.home import HOME
@@ -397,9 +397,11 @@ def main(argv=None):
         n_all = len(rows)
         from pysyzygos import components                # binaries searched body by body: their moons' events
         kn = {int(n) for n in components.known()}       # may not be in a pre-screen (screened with the system)
-        from pysyzygos import reach                     # the n-sigma reach: every asteroid outside the main belt is
+        from pysyzygos import reach                     # the n-sigma reach: a pre-screen built before 1.5.4 holds the
+        old = tuple(int(x) for x in re.findall(r"\d+", str(meta.get("version") or "0"))[:3]) < (1, 5, 4)   # asteroids
         other = (lambda r: not reach.is_main(r.get("group"), r.get("a")) or reach.is_far(r.get("a"), r.get("group"))) \
-            if a.reach_sigma else (lambda r: False)      # screened, past any pre-screen (~26,000; ABOUT 2.7.1)
+            if a.reach_sigma and old else (lambda r: False)   # outside the main belt without their wide margin:
+        #                                                     # all of them screened (~25,000; ABOUT 2.7.1)
         rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn or other(r)]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"

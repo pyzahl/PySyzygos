@@ -415,6 +415,13 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     rows = P.build_rows(fields, data, hmax)
     del fields, data
     gc.collect()
+    from pysyzygos import sigmatable                             # each asteroid's own sigma outside the main belt
+    sig = sigmatable.load()                                      # (the n-sigma reach margins; reach.allowance_km)
+    for r in rows:
+        if int(r["number"]) in sig:
+            r["sig1"] = sig[int(r["number"])]
+    if not sig:
+        say("no sigma table (pysyzygos sigmas build): asteroids outside the main belt get the fixed allowance")
     from pysyzygos import picks as PK
     sel = PK.selection(**(selection or {}))
     if PK.restricted(sel):                                       # only these asteroids, as the pick's filter
