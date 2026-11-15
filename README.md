@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.5.2 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.5.4 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -520,7 +520,7 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    **Save sites.py** instead stores the form into the site selected at the top right (amber, "Save changes", while
    the form has unsaved changes; switching sites then asks: save, discard or cancel); **Remove site** deletes the
    selected site from `sites.py` (after asking): aperture,
-   focal length, sensor size, detection frames, reach (how far you can travel), minimum star altitude, Sun limit.
+   focal length, sensor size, detection frames, reach (how far you can travel, counted from the path's n-σ limit: `reach_sigma`; drawn as a dotted circle on the map), minimum star altitude, Sun limit.
    The site and the Gaia catalog used by all runs are chosen at the top right.
 2. **Pick**: choose a window (start date, today by default, and days), the asteroids (**H below**: an asteroid with a
    larger H is never found by the pick, but the search finds it if you enter its number) and the **Star G limit**
@@ -837,6 +837,7 @@ can also describe its view and its equipment; keys it leaves out take the defaul
 | `ele_ref`, `geoid_m` | `"msl"`, filled in | `ele` is above mean sea level (maps, Open-Meteo, most GPS displays); the computation needs the height above the WGS84 ellipsoid and adds `geoid_m`, the geoid's height there (EGM96, -107 to +85 m), which the GUI fills in when a site is saved and `pysyzygos setup --geoid` for all sites. `ele_ref="ellipsoid"` for a height already above the ellipsoid (MPC observatory codes, GPS set to ellipsoid height): `geoid_m` 0. A site h metres off in height moves the path by h / tan(star altitude) relative to it |
 | `max_sun_alt` | 0 | the Sun must be below this, deg. Events with the Sun above -12 deg (twilight) are marked next to the star magnitude, e.g. "☼ −8°": only bright stars are seen then. Set -12 or lower to leave twilight out (faint stars, small telescopes) |
 | `reach_km` | `max_shadow_dist` | how far you can travel from this site, km |
+| `reach_sigma` | 1 | where the reach counts from: the path's n-sigma limit (n = 0..3; 0 = the shadow's edge, as before 1.5.4). An event is kept if the site is within r + n σ + reach of the center line, for every target (σ across the track; outside the main belt each asteroid's own σ from the σ table, `pysyzygos sigmas build` or the System tab, so nothing there is cut; the main belt: a fixed 200 mas, ABOUT 2.7.1). The path's uncertainty is often larger than the shadow and the reach: a Horizons sample of numbered asteroids (2026-11-15) gave 3 σ > 50 km for ~90 % of the main-belt asteroids below 50 km (median 241 km), for all NEOs and Trojans sampled, and thousands of km for TNOs ((612533) 2002 XV93 on 2026-11-11: shadow 406 km, 1 σ 3,038 km). The results keep the distance from the center line; the shadow column marks such events "in 1σ" |
 | `aperture_cm` | 25 | telescope aperture, cm |
 | `frames` | 4 | detection frames: video frames the event must cover |
 | `mag_adjust` | 0 | OWC's MagAdjust: + for better conditions (dark sky, sensitive camera), - for worse |
@@ -1144,7 +1145,8 @@ uses the current JPL Horizons orbit for the final prediction anyway).
 * The stars are the actual Gaia stars along each path, from the local star catalog (sorted by sky cell and G, so only
   the stars bright enough for the camera are read). Only times when the asteroid is up and the Sun is down are searched.
 * Each event is solved for your site and kept if the shadow passes within the asteroid radius + your reach
-  (the site's `reach_km`, else `max_shadow_dist`).
+  (the site's `reach_km`, else `max_shadow_dist`), the reach counted from the path's n-sigma limit (`reach_sigma`,
+  default 1: radius + 1 σ + reach).
 * Detection follows OWC's General Observability Criterion with the site's equipment (see "Observing sites"):
   `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust`, optionally less the extinction
   at the star's altitude, plus the hard limit `min_mag_drop` (since 1.5.1 no minimum duration: any short dip is kept). Bright stars therefore allow short

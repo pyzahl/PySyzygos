@@ -8,8 +8,8 @@ assert geo.on_land(46.99, 9.64) and geo.on_land(-80, 30) and geo.on_land(72, -40
 assert not geo.on_land(0, -30) and not geo.on_land(20, -150) and not geo.on_land(30, 179.9)
 assert geo.earth_site(46.99, 9.64)["name"] == "46.99° N, 9.64° E"
 assert geo.earth_site(-12.5, -170.2)["name"] == "12.50° S, 170.20° W (ocean)"
-d = tempfile.mkdtemp()
-header_site = dict(name="Home-Deck", lat=40.95, lon=-72.93, ele=61.0)
+d = os.path.join(tempfile.mkdtemp(), "favorites")   # its own folder: the favorites database sits next to it
+header_site = dict(name="Home-Deck", lat=10.0, lon=20.0, ele=61.0)      # a stand-in site, not a real one
 rec = dict(target_id="617", best_utc="2026-01-04T22:42:00", scope="earth", ground_lat="47.1", ground_lon="10.2")
 ok, msg = favorites.add(dict(rec), dict(site=header_site), map_dir=d, folder=d)
 e = favorites.load(d)[0]

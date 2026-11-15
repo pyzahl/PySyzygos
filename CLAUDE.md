@@ -70,6 +70,27 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   miss_p/margin_p = plane for chance, sigma_text, chord; `dist_text` hover); GUI System `pg.sys_dist` ->
   `pg.set_distance` (gui_state shadow_distance, report.DISTANCE in-process, rebuild both pages), `gui_common.dist_args`
   for report runs; db.HITS ground_dist. Reach stays a plane distance.
+- `pysyzygos/reach.py` (1.5.4, 2026-11-14/15, user's request after (612533) 2002 XV93: shadow 406 km, 1 sigma
+  ~2,800 km, dropped at a site 2,061 km off): the reach counts from the path's n-sigma limit: kept if min_distance <
+  r + n sigma1 + reach (n = config/site `reach_sigma` 0..3, template 1; 0 = the old r + reach), for EVERY target
+  (a first size rule was dropped after a Horizons sample: 3 sigma > 50 km for ~90 % of main-belt asteroids < 50 km;
+  user: "the only correct way"; and: "only acceptable slips are for the vast number of MBAs, document it": ABOUT
+  2.7.1). sigma1 = ACROSS the track (search `across_sigma_km`: Horizons/NIMA ellipse + star circle,
+  `ellipses.across_track` on `motion_on_sky`; ~0.5 x RSS) for lines, chance and reach; record path_sigma_rss_km.
+  Groups (reach.py): main = compromise (pick PICK_SIGMA_MAS 200 at the distance, search cap CAP_KM 5000, whole-Earth
+  pre-screen edge EDGE_KM only); all others never cut: search uncapped (`cap_for(far, group)`), pick screens them past
+  any pre-screen and uses `allowance_km` = TABLE_FACTOR 1.5 x the sigma table's value (`sigmatable.py`, `pysyzygos
+  sigmas build|status`, HOME/sigma_table.json (gitignored), Horizons RSS/3 per number, 2 threads, resumable, entries
+  > 30 d asked again; GUI System button `pg.sys_sigmas`; ~25,000 numbers, ~1 h), else NEAR_SIGMA_KM 5000 / far
+  (TNO, 'other', a > FAR_AU 5.5) FAR_SIGMA_KM 150000; whole-Earth builds widen non-main rows by N_MAX x allowance
+  (r_test; events keep r_km). search: `prefetch_sigmas` (after the orbit downloads, unwrapped paths.path_error,
+  cache PySyzygos_path_sigma.json per target|day; `save_sigmas`), `reach_widening` (pass 1: `target_sigma1_km`
+  x 1.2 + STAR_CAP_MAS star -> corridor margin), `reach_for(row)` per candidate -> star_test's reach and the map
+  condition; finish -> `reach.fields` (end of record). pick: rows 'sig1' from the table (WARNING without one),
+  site_numbers opt 'widening' {number: allowance at `delta_max_km`} -> per-event reach arrays in near_site /
+  site_mask. Regional builds `reach_sigma` (default 3; meta), check(): a smaller n does not fit. Checked 2026-11-15
+  (400 targets, 3 d): hits 200 (n 0) -> 246 (RSS) -> 226 (across), 25 s cached. db.HITS reach_n, reach_dist; report
+  `reach_badge`; GUI SITE_KEYS reach_sigma. min_distance unchanged. tests/test_reach.py.
 - `pysyzygos/report.py`: `hits_log.csv` (+ last run of `hits_log.runs.jsonl` for the header) to HTML/Markdown with an embedded Leaflet map. Standard library only.
 - `pysyzygos/pick.py`: event finder over all asteroids (OWC-style) for a window; writes `pick_events.csv` and
   `targets.py`, and saves both per site + window in `picks/` (`pysyzygos/picks.py`; pysyzygos/search.py with
@@ -567,6 +588,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   photo save, timezone, Sun, horizon file); `new_site_from_form` (Add site: HZ_KEYS, description, MPC code only if
   changed); panorama.save names files <site>_<YYYYmmdd-HHMMSS>.jpg (never overwrites a saved site's photo).
   Verified in headless Chrome on a throwaway data folder (edit -> amber; switch -> dialog; cancel/discard/save).
+  Reach circle (1.5.4, user's wish): `reach_circle` in update_derived (every position/field change): pg.m
+  generic_layer 'circle' (radius reach_km x 1000 m, else config max_shadow_dist; dashArray '2 6', orange, faint fill,
+  not interactive), the old layer removed (pg.reach_layer). Checked in headless Chrome (one dashed path, 35 km).
 - GUI job slots (2026-10-19): `Job.proc` = the main job (search, pick, pre-screen, setup, report, catalog: one at a
   time, blocking each other), `Job.fav` = the Favorites tab's path-verification tasks (run, export, compare, steps,
   keep), independent of the main job; `run_process(..., slot="fav")`, `stop_process(log, slot)`. The Favorites tab
@@ -609,7 +633,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   the pm used), `spread_mas` (RMS) -> s_mas = max(quoted, spread) in search; `shifted_dir` -> extra shadow_path per
   alternative, paths["pm_alts"] [(label, centre pts)] -> KML "Proper motion <label>" (report LINE_STYLES pink),
   save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
-  `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`. Galbraith: "as Occult"
+  `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`.
+  A failed check per event (1.5.4, user: a "bubble note" at the star): finish compares len(pmcheck.FAILED) before and
+  after -> record star_pm_check ('' or 'not done (...)', end) -> report `pm_check_mark` ("pm ?" swarn2 after the
+  magnitude, part of star_mark), exports star_mag " pm ?", favorites pm_text note. Galbraith: "as Occult"
   line on Occult's centre to 0.19 km. tests/test_pmcheck.py (stand-in TSV of Galbraith's rows).
 - Run warnings (2026-10-26, user's rule: every automatic fallback or critical skip is recorded permanently, not only
   in the log): search.py `WARNINGS` (key -> text), `OLD_ORBITS`, `SKIPPED`, `NOTED` via `run_note(kind, target)`
@@ -970,7 +997,6 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   from `file://`. Map dialog reopen bug fixed 2026-10-02 (the box was cleared on every open, removing Leaflet's panes).
 
 ## Ideas not built yet
-- I think important to adjust: make "reach" distance to 1s (or 3s) shadow extends vs shadow center line.
 - Python version catch-ups (to-do 2026-11-07): `.python-version` pins 3.12 here and in PyStarLight (a fresh clone
   there picked 3.15, which has no scikit-image wheels). Plan: a check script (`uv pip compile --python-version X
   --python-platform <linux x86_64/aarch64, windows, macOS arm64/x86_64> --only-binary :all:`) naming the newest

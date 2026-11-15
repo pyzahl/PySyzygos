@@ -22,6 +22,7 @@ import math, os
 import pandas as pd
 import numpy as np
 from pysyzygos import orbits as O
+from pysyzygos import reach            # the reach from the n-sigma limit
 from pysyzygos.corridor import find_candidates, propagate_linear, pad_for_pm, _unit, EARTH_R_KM, GAIA_EPOCH_YEAR
 
 AU_KM = O.AU_KM
@@ -172,7 +173,12 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             cap = min(opt["cam_limit"], float(m_ast[vis].max()) + dm_drop, float(owc_limit(dur_max.max(), opt)))
             if cap < 0:
                 continue
-            margin = EARTH_R_KM + row["D_max_km"] / 2 + opt["reach_km"] + row.get("bin_km", 0.0)   # + moons' reach
+            # the reach from the n-sigma limit (reach.py): a rough allowance (no orbit uncertainties here), the
+            # search applies the real one
+            wide = reach.allowance_km(opt.get("reach_sigma", 0), delta[k], row.get("group"), row.get("a"),
+                                      row.get("sig1"))
+            margin = (EARTH_R_KM + row["D_max_km"] / 2 + opt["reach_km"] + row.get("bin_km", 0.0)   # + moons' reach
+                      + float(np.max(wide)))
             w = np.degrees(margin / delta[k]) + pad / 3600.0
             idx = np.where(vis)[0]
             stars = index.near_path(U[k][idx], w[idx], cap)
@@ -206,7 +212,9 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             t, miss, offs, vrel = solve_site(spice, site, lambda tt: _interp(gk, ets, tt), sdir,
                                              cands.et_guess.to_numpy(), half)
             r_max = row["D_max_km"] / 2 + row.get("bin_km", 0.0)       # a binary searched body by body: its moons too
-            for q in np.where(miss <= r_max + opt["reach_km"])[0]:
+            wq = reach.allowance_km(opt.get("reach_sigma", 0), np.interp(t, ets, delta[k]), row.get("group"),
+                                    row.get("a"), row.get("sig1"))
+            for q in np.where(miss <= r_max + opt["reach_km"] + wq)[0]:
                 o, upv = site.at(t[q])
                 star_alt = math.degrees(math.asin(float(sdir[q] @ upv[0])))
                 s_ = np.asarray(spice.spkpos("SUN", float(t[q]), "J2000", "LT+S", "EARTH")[0])

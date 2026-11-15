@@ -433,14 +433,15 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 mag=mag, drop=drop, dur=dur, alt=alt,
                 compass=compass(az) if az is not None else "", az=az, moon=moon,
                 miss=miss, margin=margin, miss_p=miss_p, margin_p=margin_p, dist_kind=dist_kind,
-                g_scale=num(r.get("ground_scale")), rad=rad, hshift=num(r.get("height_shift_km")), kml=kml, kml_abs=kml_abs, preview=preview,
+                g_scale=num(r.get("ground_scale")), rad=rad, hshift=num(r.get("height_shift_km")),
+                reach_n=num(r.get("reach_n")), reach_dist=num(r.get("reach_dist_km")), kml=kml, kml_abs=kml_abs, preview=preview,
                 m_ast=num(r.get("m_ast")), m_before=num(r.get("m_before")), calc=num(r.get("calc_s")),
                 sun=num(r.get("sun_alt")),
                 margin_mag=num(r.get("mag_margin")), airmass=num(r.get("airmass")), ext=num(r.get("extinction_mag")),
                 size_src=(r.get("size_source") or "").strip(), utc=r["best_utc"].strip(),
                 drop_blend=num(r.get("mag_drop_blended")), dhint=(r.get("double_hint") or "").strip(),
                 sflag=(r.get("star_flag") or "").strip(), star_sigma=num(r.get("star_sigma_km")),
-                pm_alts=(r.get("star_pm_alts") or "").strip(),
+                pm_alts=(r.get("star_pm_alts") or "").strip(), pm_check=(r.get("star_pm_check") or "").strip(),
                 p_site=num(r.get("p_site")), sigma1=num(r.get("path_sigma1_km")),
                 ruwe=num(r.get("star_ruwe")) if num(r.get("star_ruwe")) is not None else num(r.get("gaia_ruwe")),
                 sigma_src=(r.get("sigma_source") or "").strip(), ra=ra, dec=dec, fov=fov,
@@ -965,6 +966,20 @@ def dist_text(e):
             (f"; {e['miss_p'] * e['g_scale']:.1f} km on the ground" if e.get("g_scale") else ""))
 
 
+def reach_badge(e):
+    """Events kept by the reach from the n-sigma limit (reach.py; outside the shadow): 'in 1σ' when the site lies
+    inside that limit, else how far beyond it (still within the reach)."""
+    n, d = e.get("reach_n"), e.get("reach_dist")
+    if not n or d is None or (e.get("margin") is not None and e["margin"] <= 0):
+        return ""
+    n = int(n)
+    if d <= 0:
+        return (f'<span class="sub"><span class="badge near" title="the site lies {-d:.0f} km inside the path\'s '
+                f'{n}-sigma limit (r + {n} sigma from the center line)">in {n}\u03c3</span></span>')
+    return (f'<span class="sub" title="{d:.0f} km beyond the path\'s {n}-sigma limit, within the reach">'
+            f'{d:.0f} km past {n}\u03c3</span>')
+
+
 def shadow_cell(e):
     if e["miss"] is None:
         return '<td class="num" data-s="">—</td>'
@@ -978,6 +993,7 @@ def shadow_cell(e):
                f'{m:.1f} km out</span></span>')
     else:
         sub = f'<span class="sub" title="{m:.1f} km outside the shadow path">{m:.1f} km out</span>'
+    sub += reach_badge(e)
     tip = "; ".join(t for t in (dist_text(e), height_text(e.get("hshift"))) if t)
     tip = f' title="{esc(tip)}"' if tip else ""
     return f'<td class="num" data-s="{e["miss"]:.3f}" style="min-width:5.5em"{tip}>{e["miss"]:.1f} km{sub}</td>'
@@ -1152,10 +1168,26 @@ def twilight_mark(e):
     return f' <span class="twi" title="{esc(tip)}">{t}</span>'
 
 
+def pm_check_mark(e):
+    """After the star magnitude: an amber 'pm ?' note when the star's proper-motion check (pmcheck: the other catalogs'
+    estimates on VizieR, for a 2-parameter star) was not done in that run; '' otherwise."""
+    why = e.get("pm_check") or ""
+    if not why:
+        return ""
+    tip = (f"Proper-motion check {why}: this 2-parameter star's motion was not compared with the other catalogs "
+           f"(UCAC5, UCAC4), so its uncertainty is the catalog's quoted one and may be too small; the path may lie "
+           f"farther off than drawn. Search again later (or check the event on OWC) before observing.")
+    return f' <span class="swarn2" title="{esc(tip)}">pm ?</span>'
+
+
 def star_mark(e):
     """After the star magnitude: a red '⚠ star ±150 km' when the star's position is too uncertain for this path
     (2-parameter star without a proper motion, ...), else the small '⚑ RUWE 1.65' for a supplement star; empty for a
-    main-catalog star."""
+    main-catalog star. Plus pm_check_mark when the proper-motion check was not done."""
+    return _star_mark(e) + pm_check_mark(e)
+
+
+def _star_mark(e):
     f = e.get("sflag") or ""
     if not f:
         return ""

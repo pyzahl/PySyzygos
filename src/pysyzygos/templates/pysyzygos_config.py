@@ -20,6 +20,9 @@ targets_source = "auto"
 picks_dir = "picks"
     
 max_shadow_dist = 20  ## in km: travel distance from observer location
+reach_sigma = 1       # the reach counts from the path's n-sigma limit (n = 0..3; 0 = from the shadow's edge, as
+                      # before 1.5.4): kept if the site is within r + n x sigma1 + reach of the center line, for every
+                      # target (sigma1: the path's 1 sigma, asteroid and star; see reach.py)
 
 search_mode = "corridor"   # "corridor": stars along each path from the local Gaia copy (fast); "windows": old per-window archive cones
 star_parallax = True       # astrometric corrections of the star direction (ABOUT.md Part 6): the star seen from the
@@ -74,6 +77,7 @@ MIN_STAR_ALT = site.get("min_alt", 10.0)           # deg, lowest usable star alt
 MAX_SUN_ALT = site.get("max_sun_alt", 0.0)         # deg, the Sun must be below this; events with the Sun above -12
                                                    # are marked as twilight (☼ -8°); -12 or lower for faint stars only
 max_shadow_dist = site.get("reach_km", max_shadow_dist)   # km, travel distance from the site (default: search setup)
+reach_sigma = site.get("reach_sigma", reach_sigma)        # reach from the n-sigma limit (n = 0..3), see above
 ALT_MARGIN = 3.0                                   # early gate is looser than the final one, never rejects a real event
 
 # atmospheric extinction for lower altitudes, mag per airmass: a star at altitude h counts as fainter by

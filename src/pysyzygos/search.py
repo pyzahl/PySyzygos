@@ -34,6 +34,7 @@ from pysyzygos import bodies           # planets and moons as targets (P:Jupiter
 from pysyzygos import binaries         # known asteroid satellites
 from pysyzygos import components       # a binary's bodies with their own JPL ephemerides ('617+P', '617+S1')
 from pysyzygos import astrometry
+from pysyzygos import reach            # the reach from the path's n-sigma limit
 from pysyzygos import sbdb as sbdb_cache
 from pysyzygos import screen          # OWC observability formula, extinction
 
@@ -479,6 +480,171 @@ def fetch_target_orbit(target_id, epochs, cache_dir=config.cache_path):
 
 NIMA_USED = {}           # target -> dict(version, reason, det): the targets on a NIMA ephemeris (Lucky Star) this run
 NIMA_STATE = {}          # "index": the NIMA list (once per run), "mode"
+REACH = {}               # target -> dict(n, used, ast_sigma1_km, dist_km): the reach from the n-sigma limit (reach.py)
+SIGMA_FUT = {}           # target -> Future (or cached dict) of its Horizons path uncertainty at the window's middle
+SIGMA_CACHE = "PySyzygos_path_sigma.json"   # in cache_path: per target and day, kept orbit_max_age_days
+
+
+def _sigma_cache():
+    path = os.path.join(config.cache_path, SIGMA_CACHE)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    keep = time.time() - 86400.0 * float(getattr(config, "orbit_max_age_days", 7))
+    return {k: v for k, v in data.items() if v.get("t", 0) > keep}
+
+
+def prefetch_sigmas(targets, et_mid, workers=2):
+    """The reach from the n-sigma limit needs every target's path uncertainty before its corridor is planned: the
+    Horizons queries (network only) start here in threads, after the orbit downloads, while pass 1 works through
+    the targets; cached per target and day (SIGMA_CACHE). Returns the executor (None when not needed)."""
+    if EARTH or reach_n() == 0:
+        return None
+    from concurrent.futures import ThreadPoolExecutor
+    from pysyzygos import paths as _paths                  # unwrapped: the step timer is not thread-safe
+    utc = spice.et2utc(et_mid, "ISOC", 0)
+    cache = _sigma_cache()
+    ex = ThreadPoolExecutor(max_workers=workers)
+    n_ask = 0
+    for t in targets:
+        t = str(t).strip()
+        if bodies.is_body(t):
+            continue
+        key = f"{components.system(t)}|{utc[:10]}"
+        if key in cache:
+            SIGMA_FUT[t] = cache[key]
+        else:
+            SIGMA_FUT[t] = ex.submit(_paths.path_error, components.system(t), utc)
+            n_ask += 1
+    if n_ask:
+        print(f"path uncertainties (reach from the {reach_n()}-sigma limit): asking JPL Horizons for {n_ask} "
+              f"target(s), {workers} at a time, while pass 1 runs ...", flush=True)
+    return ex
+
+
+def save_sigmas(et_mid):
+    """Write the path uncertainties of this run into the cache (atomic)."""
+    utc = spice.et2utc(et_mid, "ISOC", 0)
+    cache, now = _sigma_cache(), time.time()
+    for t, f in SIGMA_FUT.items():
+        if hasattr(f, "done") and f.done() and not f.exception() and f.result():
+            cache[f"{components.system(t)}|{utc[:10]}"] = dict(f.result(), t=now)
+    path = os.path.join(config.cache_path, SIGMA_CACHE)
+    try:
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(cache, fh)
+        os.replace(tmp, path)
+    except OSError as ex:
+        print(f"path uncertainty cache not written ({ex})")
+
+
+def reach_n():
+    """n of the reach from the n-sigma limit: config reach_sigma (the site's key reach_sigma, else the template's)."""
+    return reach.n_sigma(getattr(config, "reach_sigma", 0))
+
+
+def motion_on_sky(target_id, et, dt=600.0):
+    """(east, north) motion of the target on the sky over +-dt (radians; geocentric, astrometric): the direction of
+    its path in the fundamental plane."""
+    def radec(t):
+        _, ra, de = spice.recrad(spice.spkpos(str(target_id), t, 'J2000', 'CN', 'EARTH')[0])
+        return ra, de
+    (a0, d0), (a1, d1) = radec(et - dt), radec(et + dt)
+    return ((a1 - a0 + math.pi) % (2 * math.pi) - math.pi) * math.cos(0.5 * (d0 + d1)), d1 - d0
+
+
+def across_sigma_km(target_id, et, perr, star_mas, d_km):
+    """The path's 1 sigma ACROSS its track (km at the target): the target's error ellipse (perr: smaa/smia/pa in mas,
+    Horizons or NIMA) plus the star's circle (star_mas), perpendicular to the target's motion on the sky. Horizons'
+    RSS is the whole ellipse (sqrt(a^2 + b^2)), mostly along the track, which only shifts the time. None without an
+    ellipse (then the RSS is used)."""
+    if not perr or perr.get("smaa_mas") is None or perr.get("smia_mas") is None:
+        return None
+    from pysyzygos import ellipses
+    c = ellipses.add(ellipses.cov(float(perr["smaa_mas"]), float(perr["smia_mas"]), float(perr.get("pa_deg") or 0.0)),
+                     ellipses.cov(float(star_mas or 0.0), float(star_mas or 0.0), 0.0))
+    x = ellipses.across_track(c, *motion_on_sky(target_id, et))
+    return None if x is None else x * d_km * math.pi / 648000000.0
+
+
+def target_sigma1_km(target_id, et):
+    """The target's 1-sigma path uncertainty (km at the target) at et, for the reach: NIMA's table on a NIMA orbit,
+    the rough per-body value for planets and moons, else JPL Horizons (one query), else the default."""
+    from pysyzygos import nima
+    utc = spice.et2utc(et, "ISOC", 0)
+    if bodies.is_body(target_id):
+        return float(bodies.sigma3_km(target_id)) / 3.0
+    d_km = float(np.linalg.norm(spice.spkpos(str(target_id), et, 'J2000', 'CN', 'EARTH')[0]))
+    nu = NIMA_USED.get(components.system(target_id))
+    if nu:
+        pe = nima.path_error(nu["det"], utc, d_km)
+        if pe:
+            return across_sigma_km(target_id, et, pe, 0.0, d_km) or pe["sigma3_km"] / 3.0
+    f = SIGMA_FUT.get(str(target_id))                         # queried in the background (prefetch_sigmas)
+    if f is None:
+        pe = path_error(components.system(target_id), utc)
+    elif hasattr(f, "result"):
+        try:
+            pe = f.result()
+        except Exception:
+            pe = None
+    else:
+        pe = f
+    try:                                                      # across the track (the part that moves the path)
+        acr = across_sigma_km(target_id, et, pe, 0.0, d_km)
+    except Exception:
+        acr = None
+    return acr or ((pe or {}).get("sigma3_km") or config.default_sigma3_km) / 3.0
+
+
+def reach_widening(target_id, size, et0, et1):
+    """Pass 1, per target: how much wider than r + reach the corridor must be for the reach from the n-sigma limit
+    (reach.py; every target when n > 0). Fills REACH[target]; 0 when the rule does not apply.
+    The corridor allows for the asteroid's sigma (at the window's middle, + 20 %) and a star of up to STAR_CAP_MAS;
+    each candidate then gets its own star's uncertainty (handle_star). Once per target and run (windows mode asks
+    per window)."""
+    if str(target_id) in REACH:
+        return REACH[str(target_id)].get("widening_km", 0.0)
+    n = reach_n()
+    REACH[str(target_id)] = dict(n=n, used=False, ast_sigma1_km=0.0, dist_km=0.0, widening_km=0.0)
+    if EARTH or not reach.applies(n):
+        return 0.0
+    et = 0.5 * (et0 + et1)
+    try:
+        s1 = 1.2 * target_sigma1_km(target_id, et)
+        d_km = float(np.linalg.norm(spice.spkpos(str(target_id), et, 'J2000', 'CN', 'EARTH')[0]))
+    except Exception as ex:                                  # never stops the search: the plain reach then
+        print(f"{target_id}: reach from the {n}-sigma limit not used ({str(ex)[:120]})")
+        return 0.0
+    star_km = reach.STAR_CAP_MAS * d_km * np.pi / 648000000.0
+    try:                                                     # TNOs, Centaurs: sigma not capped (reach.FAR_AU)
+        code = asteroid_class(target_id)[0]
+        group = picks.group_of(code) if code else None
+    except Exception:
+        group = None
+    far = reach.is_far(group=group, delta_km=d_km)
+    w = reach.widening_km(n, float(np.hypot(s1, star_km)), reach.cap_for(far, group))
+    REACH[str(target_id)] = dict(n=n, used=True, ast_sigma1_km=s1, dist_km=d_km, widening_km=w, far=far, group=group)
+    print(f"{target_id}: reach {config.max_shadow_dist:g} km from the {n}-sigma limit (asteroid 1 sigma ~{s1 / 1.2:.0f} km): "
+          f"corridor {w:.0f} km wider")
+    return w
+
+
+def reach_for(target_id, row, et):
+    """The reach for one candidate (km beyond the shadow's edge): the plain reach, + n x the path's 1 sigma
+    (asteroid and this star) for targets the n-sigma rule applies to."""
+    rw = REACH.get(str(target_id))
+    if not rw or not rw["used"]:
+        return float(config.max_shadow_dist)
+    s_mas = gaia_local.star_sigma_mas(int(getattr(row, "star_kind", 0) or 0), getattr(row, "ruwe", None),
+                                      getattr(row, "pos_err", None), getattr(row, "pm_err", None),
+                                      2000.0 + et / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
+    s_km = (s_mas or 0.0) * rw["dist_km"] * np.pi / 648000000.0
+    return float(config.max_shadow_dist) + reach.widening_km(rw["n"], float(np.hypot(rw["ast_sigma1_km"], s_km)),
+                                                             reach.cap_for(rw.get("far"), rw.get("group")))
 
 
 def nima_mode():
@@ -992,7 +1158,9 @@ def target_test(loc, event_time_utc, time_span, target_id, size, mag_lim=20.0, m
     dec_col = event_df.filter(regex=r'^dec_\d{8}$').columns[0]
 
     idx = screen_stars(event_df[ra_col].to_numpy(), event_df[dec_col].to_numpy(),
-                       target_id, et0, time_span, margin_km=6378 + r_search + config.max_shadow_dist) 
+                       target_id, et0, time_span,
+                       margin_km=6378 + r_search + config.max_shadow_dist
+                       + reach_widening(target_id, size, et0 - time_span / 2, et0 + time_span / 2))
     print (f"Pre-Screening: {idx}")
     for row in event_df.iloc[idx].itertuples(index=False):
         handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et0, time_span, r_search, -np.inf, np.inf)
@@ -1394,6 +1562,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                                                  bodies=bodies.deflectors(target_id))
         ra, dec = np.arctan2(u1[1], u1[0]) % (2*np.pi), np.arcsin(np.clip(u1[2], -1.0, 1.0))
     gp = None
+    reach_km = float(config.max_shadow_dist)
     if EARTH:                                           # anywhere on Earth: the geocentric closest approach, then the
         star_dir0 = np.array([np.cos(dec)*np.cos(ra), np.cos(dec)*np.sin(ra), np.sin(dec)])   # event at its point
         gp = earth_point(target_id, star_dir0, et_guess, bracket_s, r_search)
@@ -1407,7 +1576,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
             print(f" --- no solution at the ground point --- ")
             return False
     else:
-        res = star_test(loc, spice.et2utc(et_guess, "ISOC", 3), bracket_s, ra, dec, target_id, r_search, config.max_shadow_dist)
+        reach_km = reach_for(target_id, row, et_guess)      # the reach (+ n sigma: reach.py)
+        res = star_test(loc, spice.et2utc(et_guess, "ISOC", 3), bracket_s, ra, dec, target_id, r_search, reach_km)
     if res is None:
         print (f" --- miss --- ")
         return False
@@ -1490,29 +1660,45 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         s_mas = gaia_local.star_sigma_mas(star_kind, getattr(row, "ruwe", None), getattr(row, "pos_err", None),
                                           getattr(row, "pm_err", None),
                                           2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR)
-        s_km, pm_alts = None, []
+        s_km, pm_alts, pm_check = None, [], ""
         if star_kind >= gaia_local.KIND_2P and getattr(config, "pm_alternatives", True):
             # 2-parameter star: the other proper-motion estimates (VizieR); their spread is the realistic uncertainty
             try:
                 from pysyzygos import pmcheck
+                n_failed = len(pmcheck.FAILED)
                 yrs = 2000.0 + res['best_et'] / (365.25 * 86400) - corridor.GAIA_EPOCH_YEAR
                 pe = getattr(row, "pos_err", None)
                 pm_alts = pmcheck.estimates(float(row.ra), float(row.dec), float(row.phot_g_mean_mag),
                                             used=(float(row.pmra), float(row.pmdec)), years=yrs, ra_err=pe, dec_err=pe)
+                if len(pmcheck.FAILED) > n_failed:                        # VizieR did not answer for this star
+                    pm_check = "not done (VizieR did not answer)"
                 spread = pmcheck.spread_mas(pm_alts)
                 if spread and spread > (s_mas or 0.0):
                     s_mas = spread
             except Exception as ex:                                       # offline: the quoted error only
                 print(f" --- proper-motion estimates not checked: {ex}")
-                pm_alts = []
+                pm_alts, pm_check = [], f"not done ({str(ex)[:80]})"
         if s_mas:
             d_km = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', 'EARTH')[0]))
             s_km = s_mas * d_km * np.pi / 648000000.0
             sigma3 = 3.0 * float(np.hypot(ast_sigma1, s_km))
             if not record.get("star_err_smaa_mas"):                # the star's error ellipse (circle) for the favorites
                 record.update(star_err_smaa_mas=s_mas, star_err_smia_mas=s_mas, star_err_pa_deg=0.0)
-        record.update(path_sigma1_km=sigma3 / 3.0, sigma_source=(src if sigma3_h else "default") + (" + star" if s_km else ""),
+        sigma1_rss = sigma3 / 3.0                            # the whole ellipse (Horizons RSS) + the star
+        try:                                                 # the part across the track: lines, chance, reach
+            d_ev = float(np.linalg.norm(spice.spkpos(str(target_id), res['best_et'], 'J2000', 'CN', 'EARTH')[0]))
+            acr = None if bodies.is_body(target_id) else across_sigma_km(target_id, res['best_et'], perr, s_mas, d_ev)
+        except Exception as ex:
+            print(f" --- sigma across the track not computed ({str(ex)[:80]}): the whole ellipse used")
+            acr = None
+        if acr and acr > 0:
+            sigma3 = 3.0 * acr
+        record.update(path_sigma1_km=sigma3 / 3.0, sigma_source=(src if sigma3_h else "default") + (" + star" if s_km else "")
+                      + (", across the track" if acr and acr > 0 else ""),
                       p_site=float("nan") if EARTH else site_probability(res['min_distance'], size['r_km'], sigma3 / 3.0))
+        rw = REACH.get(str(target_id)) or {}                 # the reach from the n-sigma limit (reach.py)
+        reach_fields = reach.fields(rw.get("n", reach_n()), size['r_km'], sigma3 / 3.0, res['min_distance'],
+                                    bool(rw.get("used")) and not EARTH)
         contacts = []
         record["kind"] = bodies.kind(target_id)
         if components.is_component(target_id):               # a binary's body (new fields at the end of the record)
@@ -1584,6 +1770,9 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                       ground_dist_km=round(res['min_distance'] * k, 3) if np.isfinite(k) else float("nan"),
                       ground_margin_km=round((res['min_distance'] - size['r_km']) * k, 3) if np.isfinite(k)
                       else float("nan"))
+        record.update(reach_fields)                                       # reach from the n-sigma limit (end)
+        record.update(path_sigma_rss_km=round(sigma1_rss, 3))             # the whole ellipse's 1 sigma (end)
+        record.update(star_pm_check=pm_check)                             # '' or why the VizieR check failed (end)
         print(f"* hit: {record['target_name']} at {record['best_utc'][:19]} UT"
               + (f"  (star: {record['star_flag']}" + (f"; path +-{s_km:.0f} km 1-sigma from the star" if s_km else "")
                  + ")" if record["star_flag"] else ""))
@@ -1594,7 +1783,7 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         t_map = time.time()
         from pysyzygos.report import file_id                  # P:Jupiter -> P-Jupiter (no ':' in file names)
         stem = f"{file_id(target_id)}_{res['best_utc'][:16].replace(':','').replace('-','')}"     # KML and preview
-        if config.write_maps and res['min_distance'] < r_search + config.max_shadow_dist:   # shadow + reach, as logged
+        if config.write_maps and res['min_distance'] < r_search + reach_km:   # shadow + reach, as logged
             os.makedirs(config.map_dir, exist_ok=True)
             paths = shadow_path(target_id, star_dir, res['best_et'], size['r_km'], sigma3,
                                 sat_km=binaries.zone_km(target_id),    # known satellite: its zone on the map
@@ -1891,6 +2080,7 @@ if __name__ == "__main__":
     _sizes.start()
     prefetch_orbits(config.targets, epochs)                         # missing orbit files: several downloads at once
     _sizes.join()
+    _sigmas = prefetch_sigmas(config.targets, 0.5 * (et0 + et1))    # path uncertainties for the n-sigma reach
     for t in config.targets:
         mag_lim = mag_min
         if bodies.is_body(t):                                      # planet or moon: kernel from Horizons, radii
@@ -1916,14 +2106,19 @@ if __name__ == "__main__":
                 print(f"{t}: its bodies searched instead of the system point: "
                       + ", ".join(f"{get_asteroid_name(b)} (D {2 * s_['r_km']:.0f} km)" for b, s_ in parts))
                 for b, s_ in parts:
-                    plans[b] = (s_, corridor.plan_corridor(b, et0, et1, s_, mag_lim, config.max_shadow_dist,
+                    plans[b] = (s_, corridor.plan_corridor(b, et0, et1, s_, mag_lim,
+                                                           config.max_shadow_dist + reach_widening(b, s_, et0, et1),
                                                            min_drop=getattr(config, "min_mag_drop", 0.1),
                                                            step_s=getattr(config, "corridor_step_s", 600.0)))
                 continue
-        plans[t] = (size, corridor.plan_corridor(t, et0, et1, size, mag_lim, config.max_shadow_dist,
+        plans[t] = (size, corridor.plan_corridor(t, et0, et1, size, mag_lim,
+                                                 config.max_shadow_dist + reach_widening(t, size, et0, et1),
                                                  min_drop=getattr(config, "min_mag_drop", 0.1),
                                                  step_s=getattr(config, "corridor_step_s", 600.0)))
 
+    if _sigmas is not None:
+        save_sigmas(0.5 * (et0 + et1))
+        _sigmas.shutdown(wait=False, cancel_futures=True)
     t_p1 = time.time() - t_p1
 
     # pass 2 (serial, SPICE): stars from the local catalog, scan and solve

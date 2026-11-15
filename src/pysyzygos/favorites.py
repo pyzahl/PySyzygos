@@ -117,11 +117,13 @@ def pm_text(r):
         except (TypeError, ValueError):
             return None
     a, d, e = num("star_pmra"), num("star_pmdec"), num("star_pm_err")
+    chk = (r.get("star_pm_check") or "").strip()
+    note = f"; check against other catalogs {chk}" if chk else ""
     if src == "none":
-        return "none (2-parameter star: its 2016.0 position is used)"
+        return "none (2-parameter star: its 2016.0 position is used)" + note
     if a is None or d is None:
-        return src
-    return f"{a:+.2f}, {d:+.2f}" + (f" \u00b1 {e:.2f}" if e is not None and e > 0 else "") + f" mas/yr ({src})"
+        return src + note
+    return f"{a:+.2f}, {d:+.2f}" + (f" \u00b1 {e:.2f}" if e is not None and e > 0 else "") + f" mas/yr ({src})" + note
 
 
 def alts_text(r):

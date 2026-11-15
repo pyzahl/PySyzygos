@@ -77,6 +77,9 @@ HITS = [
     ("ground_dist", "ground_dist_km", "num", "km", "site's distance from the shadow center line on the ground, across "
      "the track (from 1.4.1; up to 1 / sin(star altitude) x distance)"),
     ("radius", "r_km", "num", "km", "asteroid radius (shadow half-width)"),
+    ("reach_n", "reach_n", "num", "", "the reach counted from the path's n-sigma limit (0 = the shadow's edge; from "
+     "1.5.4)"),
+    ("reach_dist", "reach_dist_km", "num", "km", "site's distance beyond that limit (r + n sigma; < 0 = inside it)"),
     ("sigma", "path_sigma1_km", "num", "km", "path uncertainty, 1 sigma"),
     ("star_sigma", "star_sigma_km", "num", "km", "the star's own position uncertainty, 1 sigma"),
     ("ruwe", "star_ruwe|gaia_ruwe", "num", "", "Gaia RUWE (above 1.4: often a double star)"),

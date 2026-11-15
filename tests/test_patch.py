@@ -47,6 +47,8 @@ ns.update(star_test=star_test,
           path_sigma3_km=lambda t, utc: None, path_error=lambda t, utc: None)
 exec(funcs, ns)
 ns.update(WARNINGS={}, NIMA_USED={}, DB=_con, RUN_ID=pysyzygos_db.start_run(_con, "corridor")[0])   # after the excerpt (it resets them)
+from pysyzygos import reach as pysyzygos_reach            # the reach from the n-sigma limit: defined above the excerpt
+ns.update(reach=pysyzygos_reach, REACH={}, reach_n=lambda: 0, reach_for=lambda t, row, et: float(Cfg.max_shadow_dist))
 # propagation stand-in (astropy is not installed in this sandbox): same output columns as propagate_exact
 def fake_prop(df, utc, pm_bias=True, rv=True):
     out = df.copy(); out["ra_20261003"], out["dec_20261003"] = out["ra"], out["dec"]; calls['propagate'] += 1; return out

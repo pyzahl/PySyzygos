@@ -318,7 +318,8 @@ def region_mask(spice, ev, box, reach_km, min_alt, max_sun_alt, block=5000):
 # Math: PS.2 (slide PS): the site test, shadow line within r + reach + err of the site, star up, Sun down.
 def site_mask(spice, ev, lat, lon, ele_m, reach_km, min_alt, max_sun_alt, block=20000):
     """Events (DTYPE array) whose shadow passes within radius + reach (+ err + TOL_KM) of the site while the star is
-    above min_alt and the Sun below max_sun_alt there (limits widened by TOL_DEG). Returns keep (c,)."""
+    above min_alt and the Sun below max_sun_alt there (limits widened by TOL_DEG). reach_km: one value, or one per
+    event (the n-sigma reach, reach.py). Returns keep (c,)."""
     from pysyzygos import screen as SC
     keep = np.zeros(len(ev), bool)
     if not len(ev):
@@ -352,6 +353,7 @@ def site_mask(spice, ev, lat, lon, ele_m, reach_km, min_alt, max_sun_alt, block=
         star_up = np.einsum("cnx,cx->cn", U, sdir)
         sun_up = np.einsum("cnx,cnx->cn", U, interp(sun, sgrid, tau))
         ok_end = (star_up > sin_alt) & (sun_up < sin_sun)
-        thr = (e["r_km"].astype(float) + e["err"].astype(float) + reach_km + TOL_KM)[:, None]
+        rk = reach_km[b0:b0 + block] if np.ndim(reach_km) else reach_km          # one per event, or one for all
+        thr = (e["r_km"].astype(float) + e["err"].astype(float) + rk + TOL_KM)[:, None]
         keep[b0:b0 + block] = ((dist <= thr) & (ok_end[:, :-1] | ok_end[:, 1:])).any(axis=1)
     return keep

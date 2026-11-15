@@ -50,6 +50,7 @@ from pysyzygos.version import __version__
 import argparse, glob, json, math, os, sqlite3, sys, tempfile, time
 import numpy as np
 from pysyzygos import shadowtrack as ST
+from pysyzygos import reach            # the reach from the n-sigma limit
 
 DIR = "prescreen"
 
@@ -188,7 +189,15 @@ def build_chunk(spice, rows, et0, et1, index, opt, step_s=600.0, n_track=ST.N_TR
         m_ast = SC.hg_mag(row["H"], row["G"], rh[k], delta[k] / O.AU_KM, cos_ph[k])
         cap = min(opt["cam_limit"], float(m_ast.max()) + dm_drop)
         r_max = row["D_max_km"] / 2
-        margin = EARTH_R_KM + r_max + opt["reach_km"]
+        # the n-sigma reach (reach.py), as the pick's allowance: regional builds with their n; whole Earth for every
+        # group but the main belt (a center line off the Earth can still pass within n sigma of a site), with the
+        # largest n; the main belt keeps the EDGE_KM margin (the documented compromise, ABOUT 2.7.1). Tested with
+        # r_test; the events keep the asteroid's own radius.
+        main = reach.is_main(row.get("group"), row.get("a")) and not reach.is_far(row.get("a"), row.get("group"))
+        n_b = opt.get("reach_sigma", 0) if box is not None else (0 if main else reach.N_MAX)
+        r_test = r_max + float(np.max(reach.allowance_km(n_b, delta[k], row.get("group"), row.get("a"),
+                                                         row.get("sig1"))))
+        margin = EARTH_R_KM + r_test + opt["reach_km"]
         w = np.degrees(margin / delta[k]) + pad / 3600.0
         stars = index.near_path(U[k], w, cap)
         if len(stars) == 0:
@@ -215,7 +224,7 @@ def build_chunk(spice, rows, et0, et1, index, opt, step_s=600.0, n_track=ST.N_TR
             gs = ST.interp(g[k], ets, tau)                                           # (c,s,3)
             ex, ny = ST.plane(sdir[sl])
             px, py = np.einsum("csx,cx->cs", gs, ex), np.einsum("csx,cx->cs", gs, ny)
-            keep, where = ST.ground_track(px, py, tau, sdir[sl], fr, r_max, box, opt["reach_km"], sin_alt, sin_sun)
+            keep, where = ST.ground_track(px, py, tau, sdir[sl], fr, r_test, box, opt["reach_km"], sin_alt, sin_sun)
             idx = np.where(keep)[0]
             if not len(idx):
                 continue
@@ -389,7 +398,7 @@ def open_partial(path, settings, fresh=False):
 
 def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km=EDGE_KM, max_sun_alt=0.0,
           min_alt=0.0, workers=4, out=None, catalog=None, sbdb_cache=None, name=None, chunk=None, mp_start="spawn",
-          max_mem=None, mem_frac=0.6, fresh=False, selection=None):
+          max_mem=None, mem_frac=0.6, fresh=False, selection=None, reach_sigma=None):
     """Build a pre-screen and write it to out (SQLite). selection (picks.selection: asteroid groups, a range, as the
     pick's) restricts it to those asteroids: a much smaller file, used only by picks inside that selection (check). Progress is saved after every chunk in out + '.partial'; a
     rerun with the same settings resumes there. Chunk size and workers follow the free memory (max_mem bytes or
@@ -415,8 +424,11 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     SC.load_kernels(spice, HOME)
     et0 = spice.str2et(f"{start}T00:00:00")
     et1 = et0 + days * 86400.0
+    # regional: the n-sigma reach (reach.py), default the largest n (loose, as the other build limits); whole Earth:
+    # none needed (every event inside the disk + EDGE_KM is kept at any reach; the pick widens its site test)
+    reach_sigma = (reach.N_MAX if reach_sigma is None else reach.n_sigma(reach_sigma)) if region is not None else 0
     opt = dict(cam_limit=cam_limit, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
-               region=region)
+               region=region, reach_sigma=reach_sigma)
     S.add("asteroid list (JPL SBDB), kernels", time.time() - t_s, len(rows), "asteroids")
     with S.step("star index (catalog)"):
         L.open_index(catalog, L.index_gmax(cam_limit))              # build missing indexes here, once
@@ -427,7 +439,8 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     partial = out + ".partial"
     settings = dict(_settings(start, days, region, cam_limit, hmax, min_drop, reach_km, max_sun_alt, min_alt, catalog),
-                    supplement=supplement, **({"selection": sel} if PK.restricted(sel) else {}))
+                    supplement=supplement, **({"selection": sel} if PK.restricted(sel) else {}),
+                    **({"reach_sigma": reach_sigma} if reach_sigma else {}))
     con = open_partial(partial, settings, fresh)
     done_nums = {r[0] for r in con.execute("SELECT number FROM done")}
     n_events = con.execute("SELECT COUNT(*) FROM events").fetchone()[0] + \
@@ -524,7 +537,7 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
                 hmax=hmax, min_drop=min_drop, reach_km=reach_km, max_sun_alt=max_sun_alt, min_alt=min_alt,
                 asteroids_screened=len(rows), sbdb_fetched=fetched, built=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
                 build_s=round(time.time() - t0), catalog=os.path.basename(str(catalog)), version=__version__,
-                resumed=bool(done_nums), supplement=supplement, workers=w, **sel)
+                resumed=bool(done_nums), supplement=supplement, workers=w, reach_sigma=reach_sigma, **sel)
     if region is None:
         n_ev, n_ast = _write_global(con, out, meta)
         con.close()
@@ -702,9 +715,12 @@ def site_numbers(path, spice, et0, et1, lat, lon, ele_m, opt):
     comes within reach of the site are tested. Returns (numbers set, events in the window, events tested)."""
     ev, b = select(path, et0, et1, opt.get("cam_limit"), with_index=True)
     n_win = len(ev)
+    wide = opt.get("widening") or {}                         # the n-sigma reach (reach.py): km per asteroid
+    reach_of = lambda e: (opt["reach_km"] + np.array([float(wide.get(int(x), 0.0)) for x in e["number"]])
+                          if wide else opt["reach_km"])
     if b is not None:
-        ev = ev[ST.near_site(b, ev, lat, lon, opt["reach_km"], opt["min_alt"])]
-    keep = ST.site_mask(spice, ev, lat, lon, ele_m, opt["reach_km"], opt["min_alt"], opt["max_sun_alt"])
+        ev = ev[ST.near_site(b, ev, lat, lon, reach_of(ev), opt["min_alt"])]
+    keep = ST.site_mask(spice, ev, lat, lon, ele_m, reach_of(ev), opt["min_alt"], opt["max_sun_alt"])
     return {int(x) for x in ev["number"][keep]}, n_win, len(ev)
 
 
@@ -767,6 +783,9 @@ def check(meta, et0, et1, lat, lon, opt):
             continue
         if k in opt and worse(opt[k], meta[k]):
             out.append(f"{label} {opt[k]:g} beyond the pre-screen's {meta[k]:g}")
+    if meta.get("region") and opt.get("reach_sigma", 0) > (meta.get("reach_sigma") or 0):   # reach.py
+        out.append(f"reach from the {opt['reach_sigma']}-sigma limit, the pre-screen's from the "
+                   f"{meta.get('reach_sigma') or 0}-sigma limit")
     if opt.get("supplement") and not meta.get("supplement"):
         out.append("built without the high-RUWE supplement")
     if opt.get("hmax_all") or (meta.get("hmax") is not None and opt.get("hmax") is not None and opt["hmax"] > meta["hmax"]):
@@ -1161,6 +1180,9 @@ def main(argv=None):
     b.add_argument("--reach", type=float, default=EDGE_KM,
                    help="regional: the largest reach (km) a pick will use; whole Earth (--global): the margin beyond "
                         "the Earth's edge and the day/night line, any pick reach then fits (default %(default)g)")
+    b.add_argument("--reach-sigma", type=int, choices=range(4),
+                   help="regional: the reach counts from the path's n-sigma limit (largest n a pick will use; default "
+                        "3); whole Earth: not needed")
     b.add_argument("--max-sun-alt", type=float, default=0.0, help="loosest Sun limit a pick will use (deg)")
     b.add_argument("--min-alt", type=float, default=0.0, help="lowest star altitude a pick will use (deg)")
     b.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
@@ -1353,7 +1375,8 @@ def _build_cli(a, c, region, name):
           a.min_alt, a.workers, a.output, a.catalog, os.path.join(c("cache") or tempfile.gettempdir(),
                                                                   "PySyzygos_sbdb_cache.json"), name,
           a.chunk, max_mem=a.max_mem * 1e9 if a.max_mem else None, mem_frac=a.mem_frac, fresh=a.fresh,
-          selection=dict(groups=parse_groups(a.groups), a_min=a.a_min, a_max=a.a_max, a_exclude=a.a_exclude))
+          selection=dict(groups=parse_groups(a.groups), a_min=a.a_min, a_max=a.a_max, a_exclude=a.a_exclude),
+          reach_sigma=getattr(a, "reach_sigma", None))
 
 
 if __name__ == "__main__":

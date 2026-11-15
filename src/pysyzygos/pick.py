@@ -249,7 +249,7 @@ def main(argv=None):
     try:
         from pysyzygos import config as C
         g = lambda k, d: getattr(C, k, d)
-        cfg = dict(site=g("site_name", None), picks_dir=g("picks_dir", "picks"), lat=C.LAT, lon=C.LON, ele=C.ELE, reach=C.max_shadow_dist, min_alt=C.MIN_STAR_ALT,
+        cfg = dict(site=g("site_name", None), picks_dir=g("picks_dir", "picks"), lat=C.LAT, lon=C.LON, ele=C.ELE, reach=C.max_shadow_dist, reach_sigma=g("reach_sigma", 0), min_alt=C.MIN_STAR_ALT,
                    sun=C.MAX_SUN_ALT, cache=C.cache_path, start=str(C.ct)[:10], days=C.days,
                    catalog=g("gaia_local_dir", "gaia_dr3_g16"), min_drop=g("min_mag_drop", 0.1),
                    cam_limit=g("pick_cam_limit", 15.0), aperture=g("pick_aperture_cm", 25.0),
@@ -274,6 +274,9 @@ def main(argv=None):
     ap.add_argument("--lon", type=float, default=c("lon"), help="east-positive degrees")
     ap.add_argument("--ele", type=float, default=c("ele", 0.0), help="site height, m")
     ap.add_argument("--reach", type=float, default=c("reach", 20.0), help="km you can travel from the site (max_shadow_dist)")
+    ap.add_argument("--reach-sigma", type=int, default=c("reach_sigma", 0), choices=range(4),
+                    help="the reach counts from the path's n-sigma limit (0 = from the shadow's edge; config "
+                         "reach_sigma); the pick allows 200 mas at the asteroid's distance, the search the real sigma")
     ap.add_argument("--min-alt", type=float, default=c("min_alt", 10.0), help="minimum star altitude, deg")
     ap.add_argument("--max-sun-alt", type=float, default=c("sun", 0.0), help="Sun must be below this, deg")
     ap.add_argument("--min-drop", type=float, default=c("min_drop", 0.1), help="smallest useful magnitude drop")
@@ -318,6 +321,15 @@ def main(argv=None):
     T = {"start": time.time()}                          # phase timings (printed at the end)
     fields, data, fetched = fetch_sbdb(hmax, a.sbdb_cache)
     rows = build_rows(fields, data, hmax)
+    if a.reach_sigma:                                   # the n-sigma reach: each asteroid's own sigma outside the main
+        from pysyzygos import sigmatable                # belt (sigma_table.json, pysyzygos sigmas build)
+        sig = sigmatable.load()
+        for r in rows:
+            if int(r["number"]) in sig:
+                r["sig1"] = sig[int(r["number"])]
+        if not sig:
+            WARNINGS.append("no sigma table (pysyzygos sigmas build): NEOs, Mars-crossers, Trojans, Centaurs and TNOs "
+                            "with the fixed allowance")
     T["list"] = time.time()
     N = {"list": len(rows)}                             # counts for the step summary
     import spiceypy as spice
@@ -342,7 +354,7 @@ def main(argv=None):
     if why:
         WARNINGS.append(why)                                   # pick_meta, targets.py header, the search's Warnings
         print(f"WARNING: {why}", file=sys.stderr)
-    opt = dict(reach_km=a.reach, min_alt=a.min_alt, max_sun_alt=a.max_sun_alt, min_drop=a.min_drop,
+    opt = dict(reach_km=a.reach, reach_sigma=a.reach_sigma, min_alt=a.min_alt, max_sun_alt=a.max_sun_alt, min_drop=a.min_drop,
                min_dur=a.min_dur, cam_limit=a.cam_limit, aperture=a.aperture, frames=a.frames,
                mag_adjust=a.mag_adjust, extinction=a.extinction)
     from pysyzygos import gaia_local as L
@@ -370,7 +382,12 @@ def main(argv=None):
             return 2
         if PS.is_global(a.prescreen):                   # whole Earth: the site test on the stored shadow elements
             t_q = time.time()
-            keep, n_win, n_tested = PS.site_numbers(a.prescreen, spice, et0, et1, a.lat, a.lon, a.ele, opt)
+            from pysyzygos import reach                 # the n-sigma reach: per asteroid at its largest distance
+            wide = {int(r["number"]): float(reach.allowance_km(a.reach_sigma, reach.delta_max_km(r["a"], r["e"]),
+                                                                r.get("group"), r.get("a"), r.get("sig1")))
+                    for r in rows} if a.reach_sigma else {}
+            keep, n_win, n_tested = PS.site_numbers(a.prescreen, spice, et0, et1, a.lat, a.lon, a.ele,
+                                                    dict(opt, widening=wide))
             how = (f"site test of {n_tested} of {n_win} events (G <= {a.cam_limit:g}, reach {a.reach:g} km"
                    + (", index" if PS.has_index(a.prescreen) else "; no index: pysyzygos prescreen index FILE")
                    + f") in {time.time() - t_q:.1f} s")
@@ -380,7 +397,10 @@ def main(argv=None):
         n_all = len(rows)
         from pysyzygos import components                # binaries searched body by body: their moons' events
         kn = {int(n) for n in components.known()}       # may not be in a pre-screen (screened with the system)
-        rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn]
+        from pysyzygos import reach                     # the n-sigma reach: every asteroid outside the main belt is
+        other = (lambda r: not reach.is_main(r.get("group"), r.get("a")) or reach.is_far(r.get("a"), r.get("group"))) \
+            if a.reach_sigma else (lambda r: False)      # screened, past any pre-screen (~26,000; ABOUT 2.7.1)
+        rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn or other(r)]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"
     if a.a_min is not None or a.a_max is not None:       # a semi-major-axis range (AU)

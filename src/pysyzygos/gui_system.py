@@ -193,6 +193,12 @@ def panel(pg):
                 "Earth's rotation ~3 months ahead and is otherwise refreshed after earth_pck_max_age days. Searches "
                 "past its end use NAIF's long-term prediction (up to a year after its last measurement) and say so "
                 "in the Warnings line")
+            ui.button("Path uncertainties (outside the main belt)", on_click=lambda: pg.sys_sigmas()).props(
+                "outline dense").tooltip(
+                "pysyzygos sigmas build: each NEO's, Mars-crosser's, Trojan's, Centaur's and TNO's own path "
+                "uncertainty from JPL Horizons (~25,000 asteroids, about an hour the first time, then only entries "
+                "older than 30 days). The pick uses it for the reach from the n-sigma limit, so none of them is cut; "
+                "without it they get a generous fixed allowance. The main belt uses a fixed 200 mas (ABOUT 2.7.1)")
         with ui.row().classes("gap-2 items-center"):
             ui.label("Shadow distance in Results and Favorites:").classes("text-sm")
             pg.sys_dist = ui.select({"ground": "on the ground (default)", "plane": "in the fundamental plane"},
@@ -316,6 +322,10 @@ def handlers(pg):
         await run_process(PYSYZYGOS + ["setup", "--refresh-earth"], pg.log)
         await pg.sys_info_refresh()
     pg.sys_earth = sys_earth
+
+    async def sys_sigmas():
+        await run_process(PYSYZYGOS + ["sigmas", "build"], pg.log)
+    pg.sys_sigmas = sys_sigmas
 
     async def sys_copy():
         from pysyzygos import offline

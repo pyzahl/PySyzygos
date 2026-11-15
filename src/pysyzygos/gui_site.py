@@ -528,8 +528,28 @@ def handlers(pg):
         pg.save_btn.props(f"color={'warning' if changed else 'primary'}")
     pg.show_unsaved = show_unsaved
 
+    pg.reach_layer = [None]
+
+    def reach_circle(s):
+        """The reach (km you can travel) as a dotted circle around the site on the map; the site's reach_km, else
+        the configured max_shadow_dist. Redrawn on every change of the position or the reach."""
+        try:
+            km = s.get("reach_km")
+            km = float(km if km is not None else getattr(pg.config, "max_shadow_dist", 0.0) or 0.0)
+            la, lo = float(s["lat"]), float(s["lon"])
+        except (KeyError, TypeError, ValueError):
+            return
+        if pg.reach_layer[0] is not None:
+            pg.m.remove_layer(pg.reach_layer[0])
+            pg.reach_layer[0] = None
+        if km > 0:
+            pg.reach_layer[0] = pg.m.generic_layer(name="circle", args=[[la, lo], dict(
+                radius=km * 1000.0, color="#d97706", weight=2, dashArray="2 6", fill=True, fillOpacity=0.04,
+                interactive=False)])
+
     def update_derived(*_):
         s = pg.collect()
+        reach_circle(s)
         show_unsaved(pg.saved_site(pg.state["name"]) != pg.effective(s, pg.state["name"]))
         w, h = fov(s)
         pg.mag_apply(s)

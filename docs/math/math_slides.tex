@@ -37,7 +37,7 @@
       Full astrometry (space motion, parallax, deflection)\\[0.4ex]
       Exact solver: closest approach};
     \node[note] at ([yshift=-0.35cm]hit.south) {%
-      $d_{\min} < r_{\max} + \text{reach}$\\[0.4ex]
+      $d_{\min} < r_{\max} + n\sigma + \text{reach}$\\[0.4ex]
       Observable, \mbox{$\Delta m \ge 0.1$}\\[0.4ex]
       $\to$ report, map, KML, favorites};
   \end{tikzpicture}
@@ -112,7 +112,7 @@
       \setlength{\jot}{1pt}
       \vspace*{-1ex}
       \begin{gather*}
-        \tcbhighmath{\mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach}} \tag{CO.1}\\
+        \tcbhighmath{\mathrm{margin} = R_\oplus + r_{\max} + \mathrm{reach} + n\hat\sigma} \tag{CO.1}\\
         \tcbhighmath{w_j = \frac{\mathrm{margin}}{\Delta_j} + \mu_{\max}\,|t - 2016.0| + 2''} \tag{CO.2}\\
         \tcbhighmath{d_j < \sqrt{\mathrm{margin}^2 + (v_{\max}\,\Delta t/2)^2}} \tag{CO.3}\\
         \tcbhighmath{m_\star \le m_{\mathrm{ast}} + 2.5\log_{10}\frac{1}{10^{0.4\,\Delta m_{\min}} - 1} + 0.5} \tag{CO.4}\\
@@ -143,7 +143,7 @@
       {\scriptsize $\Delta t = t - t_c$, while it crosses the Earth; misfit $\le$ \SI{0.3}{km}.}\\[0.4ex]
       \textbf{Site test} (any site, seconds; star up, Sun down there):
       \begin{equation*}
-        \tcbhighmath{|\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + \mathrm{err}} \tag{PS.2}
+        \tcbhighmath{|\,\text{site}(t) - \text{shadow}(t)\,| < r + \mathrm{reach} + n\hat\sigma + \mathrm{err}} \tag{PS.2}
       \end{equation*}
       \textbf{Pick}: own orbits (\SI{\sim 2}{km}), corridor scan, site solve $\to$ targets.
       \textbf{Search}: Horizons orbits, full astrometry, exact solver.
@@ -645,7 +645,7 @@
     \fill[black!80] (0.9,1.3,4.8) circle (3.2pt) node[below right=1pt] {asteroid $\vv{A}(t^{*}-\tau)$};
     % observer to asteroid, light time from the site
     \draw[->, thick] (0,0,0) -- (0.86,1.24,4.6) node[pos=0.78, below=1pt] {$\vv{\rho}$};
-  \end{tikzpicture}\\[0.2ex]
+  \end{tikzpicture}\\[-0.6ex]
   {\footnotesize $\vv{\rho} = \vv{A}(t-\tau) - \vv{O}(t)$, light time $\tau$ from the site.
    The shadow axis meets the plane at $\pv{P} = (\xi, \eta) = (\uv{x}\cdot\vv{\rho},\ \uv{y}\cdot\vv{\rho})$;
    $t^{*}$: $d = |\pv{P}|$ smallest; hit if $d(t^{*}) < r$ (LT.2, FP.2, CA.1).}
@@ -703,10 +703,15 @@
     \item Minimum within \SI{1}{s} of the bracket edge: not a real minimum (a neighbour finds it)
   \end{itemize}
   \[
-    \tcbhighmath{\text{hit} \iff d_{\min} < r_{\max} + \text{reach}
-    \qquad(\text{logged ``in the shadow'': } d_{\min} < r_{\max})}
+    \tcbhighmath{\text{hit} \iff d_{\min} < r_{\max} + n\sigma + \text{reach}
+    \quad(\text{in the shadow: } d_{\min} < r_{\max})}
     \tag{CA.2}
   \]
+  {\scriptsize The reach counts from the path's $n$-sigma limit ($n$ = 0..3, default 1; 0 = from the shadow's edge):
+  $\sigma$ = the path's 1 sigma \emph{across the track}: the asteroid's error ellipse (Horizons or NIMA) and the star's,
+  perpendicular to its motion ($\approx 0.5\times$ Horizons' RSS). Most asteroids' $\sigma$ exceeds their shadow and the
+  reach (main belt below \SI{50}{km}: 3$\sigma$ RSS median \SI{241}{km}). Screens use $\hat\sigma$: the asteroid's own
+  Horizons $\sigma$ outside the main belt (table), \SI{200}{mas} at its distance in the main belt.\par}
 \end{frame}
 
 \begin{frame}{Step 4: precision of the solver}\slideid{CA}
@@ -770,7 +775,7 @@
         $\varphi, \lambda, h$ & site: geodetic, WGS84 height \\
         $t_0$, $T$ & the scan's guess and bracket (s) \\
         $r$, $r_{\max}$ & radius and its upper bound (SZ) \\
-        reach & the site's reach (km) \\
+        reach, $n\sigma$ & the site's reach (km), from the path's $n$-sigma limit \\
       \end{tabular}\\[0.6ex]
       \textbf{Intermediate}\\[0.3ex]
       \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{0.80\linewidth}@{}}

@@ -4,6 +4,38 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [1.5.4] "Beyond Horizons" - 2026-11-15
+
+### Added
+- **The reach counts from the path's n-sigma limit** (site key / config `reach_sigma`, n = 0..3, default 1; GUI
+  Site tab "Reach from n-σ limit"; pick `--reach-sigma`; pre-screen build `--reach-sigma`): an event is kept if the
+  site lies within r + n σ + reach of the center line, where it was r + reach before (n = 0 gives that back), for
+  every target. Why: a Horizons sample of numbered asteroids gave 3 σ > 50 km for ~90 % of the main-belt asteroids
+  below 50 km (median 241 km), all NEOs and Trojans sampled, thousands of km for TNOs (ABOUT 2.7.1); (612533) 2002
+  XV93 on 2026-11-11 (shadow 406 km, 1 σ 2,810 km) was dropped at a site 2,061 km from the line, inside 1 σ. The
+  results keep the distance from the center line; new record fields `reach_n`, `reach_from_km`, `reach_dist_km`
+  (SQL columns reach_n, reach_dist); the shadow column marks such events "in 1σ" (or "x km past 1σ").
+- **Nothing cut outside the main belt**: the search takes each target's σ (NIMA, else Horizons; queried in the
+  background during pass 1, cached per target and day), uncapped outside the main belt. The pick screens every NEO,
+  Mars-crosser, Trojan, Centaur and TNO (past any pre-screen) with its own Horizons σ from the new **σ table**
+  (`pysyzygos sigmas build|status`, System tab "Path uncertainties", `sigma_table.json`; ~1 h the first time, then
+  entries older than 30 days), else a generous allowance (5,000 km per σ; Centaurs and TNOs 150,000 km). Whole-Earth
+  pre-screens keep their events out to 3 σ off the Earth's disk. The main belt (98.6 % of all events) uses a fixed
+  200 mas and the 200 km pre-screen edge: the documented compromise (ABOUT 2.7.1).
+- **The reach on the Site tab's map**: a dotted circle of the reach around the site, redrawn as the position or the
+  reach changes (the site's reach_km, else max_shadow_dist).
+- **"pm ?" after the star magnitude** when a 2-parameter star's proper-motion check (VizieR: UCAC5, UCAC4) was not
+  done in that search (VizieR did not answer): before, only the run's Warnings line said so; now the event itself
+  carries it (hover: what it means), also in the favorites panel ("Proper motion") and the CSV. Record field
+  `star_pm_check` (end).
+
+### Changed
+- **The path's σ is the part across the track** (map lines, chance, reach): the asteroid's error ellipse plus the
+  star's, perpendicular to the asteroid's motion, instead of Horizons' whole-ellipse RSS, which is mostly along the
+  track (a time shift). About half the RSS (median); bands narrower, chances higher. The record keeps both
+  (`path_sigma1_km` across, new `path_sigma_rss_km`). Cost on a 400-target, 3-day search: 25 s with the σ cached;
+  hits 200 -> 226.
+
 ## [1.5.2] "Beyond Horizons" - 2026-11-02
 
 ### Added

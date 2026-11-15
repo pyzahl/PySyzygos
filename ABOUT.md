@@ -24,6 +24,7 @@ during an occultation. Up to version 0.18 it was called PyOccult.
   - [2.5 Candidate scan: find_candidates](#25-candidate-scan-find_candidates)
   - [2.6 Exact closest approach: star_test](#26-exact-closest-approach-star_test)
   - [2.7 Checks before logging: handle_star](#27-checks-before-logging-handle_star)
+  - [2.7.1 The reach from the path's n-sigma limit: reach.py](#271-the-reach-from-the-paths-n-sigma-limit-reachpy-154)
   - [2.8 Asteroid size: get_asteroid_size](#28-asteroid-size-get_asteroid_size)
   - [2.9 Event metrics: event_metrics, apparent_mag_HG, moon_info](#29-event-metrics-event_metrics-apparent_mag_hg-moon_info)
   - [2.10 Shadow ground track: pysyzygos/paths.py](#210-shadow-ground-track-pysyzygospathspy)
@@ -299,8 +300,80 @@ known about the pair. Gaia DR4 (expected December 2026) will give proper motions
 - Rejected if the minimum lies within 1 s of the interval edge (not a real minimum), outside the run, already logged
   (same asteroid and star within 300 s), not observable (star altitude < `MIN_STAR_ALT` or Sun above `MAX_SUN_ALT`), or
   the drop is below `min_mag_drop`.
-- Logged if `min_distance < r_max + max_shadow_dist`; `observable` says "yes" inside `r_max`, "yes, in search range"
-  outside it.
+- Logged if `min_distance < r_max + n sigma + max_shadow_dist` (the reach counted from the path's n-sigma limit,
+  2.7.1; n = 0 gives the old `r_max + max_shadow_dist`); `observable` says "yes" inside `r_max`, "yes, in search
+  range" outside it.
+
+### 2.7.1 The reach from the path's n-sigma limit: `pysyzygos/reach.py` (1.5.4)
+
+The reach (`reach_km`, `max_shadow_dist`) is how far the observer can travel. Up to 1.5.2 it counted from the shadow's
+edge. But the predicted center line is itself uncertain, and for most asteroids that uncertainty is larger than both
+the shadow and a typical reach, so the real shadow can cross a site the old test left out. Now the reach counts from
+the n-sigma limit line (the map's 1- and 3-sigma lines of 2.10):
+
+    kept if  min_distance < r + n * sigma + reach        n = reach_sigma: 0, 1 (default), 2 or 3
+
+sigma is the path's 1 sigma **across the track** (2.10): the asteroid's error ellipse (Horizons, or NIMA's table on a
+NIMA orbit) plus the star's own uncertainty (2.4.1), taken perpendicular to the asteroid's motion. The distance from
+the center line stays as it was in the results; the record adds `reach_n`, `reach_from_km` (r + n sigma),
+`reach_dist_km` (the site's distance beyond that line, < 0 inside) and `path_sigma_rss_km` (the whole ellipse), and
+the report marks such events "in 1σ".
+
+**How large is sigma?** A sample of numbered asteroids, JPL Horizons 3-sigma RSS (the whole ellipse) on 2026-11-15
+(sizes are the pick's upper bounds, groups by JPL orbit class):
+
+| Group | Asteroids | 3 sigma > 50 km | 3 sigma, median (10-90 %) |
+|---|---:|---:|---|
+| Main belt, D < 50 km | 870,244 | 72 of 80 (90 %) | 241 km (75-508) |
+| NEOs | 3,874 | 40 of 40 | 213 km (93-750) |
+| Mars-crossers | 9,196 | 21 of 30 | 155 km (15-583) |
+| Trojans, D < 50 km | 10,522 | 30 of 30 | 429 km (127-861) |
+| Centaurs etc., D < 50 km | 130 | 30 of 30 | 7,900 km |
+| Main belt, D >= 50 km | 680 | 0 of 40 | 15 km (1 sigma ~5) |
+| Trojans, D >= 50 km | 111 | 30 of 30 | 103 km |
+| Centaurs etc., D >= 50 km | 104 | 30 of 30 | 7,000 km |
+| TNOs | 1,048 | 77 of 77 | 11,000 km (the large ones: 1 sigma 1,300-37,500, worst ~128,000) |
+
+So only the large main-belt asteroids have a path known to a few km; for the other ~900,000 numbered asteroids the
+1-sigma band is wider than the usual 20-100 km reach, and wider than the shadow by far (a 4 km main-belt asteroid
+with 1 sigma 80 km: at most ~2 % chance on its center line). A first version (2026-11-14) widened the reach only for
+targets at least as large as the reach; this sample showed that it missed most of them, so it applies to every
+target. Example: (612533) 2002 XV93 on 2026-11-11, shadow 406 km, 1 sigma 2,810 km across the track (3,038 km
+whole ellipse; orbit ~1,600 km, the star's RUWE 24.6 ~2,700 km): the site 2,061 km from the center line, inside the
+1-sigma limit, chance 4 %.
+
+The RSS is the whole ellipse (sqrt(a^2 + b^2)), mostly along the track, which only shifts the time. Across the track
+it is about half (226 hits of the test below: across / RSS median 0.50, 10-90 % 0.14-0.75): that is what moves the
+path.
+
+**Nothing cut outside the main belt.** How each stage applies the rule:
+- **Search** (every target): its sigma once per run (NIMA, else a Horizons query; the queries run in the background
+  while pass 1 works, cached per target and day in `PySyzygos_path_sigma.json`), x 1.2 plus a star of up to 100 mas
+  for the corridor (2.3), then per candidate with that star's own uncertainty. Not capped, except for the main belt
+  (5,000 km: a few junk orbits).
+- **Pick** (no orbit uncertainties of its own): NEOs, Mars-crossers, Trojans, Centaurs and TNOs (~25,000 numbered)
+  take their own Horizons sigma x 1.5 from the **sigma table** (`pysyzygos sigmas build`, System tab "Path
+  uncertainties", `sigma_table.json` in the data folder; ~1 h the first time, then entries older than 30 days), else
+  a generous fixed allowance (5,000 km per sigma; Centaurs and TNOs 150,000 km: at 40 AU only 5", and their ~1,150
+  events per 40 days worldwide cost nothing). With a pre-screen they are all screened anyway (past any pre-screen).
+- **Pre-screens**: a whole-Earth build widens every asteroid outside the main belt by n = 3 x its allowance (so a
+  center line off the Earth's disk is kept when its 3-sigma band reaches it); the site test widens per asteroid at its
+  largest distance (aphelion + 1 AU). Regional builds use n = 3 for all groups and do not fit a pick with a larger n.
+
+**The main belt: the documented compromise.** 870,000 numbered asteroids, 98.6 % of all pre-screen events; no table
+(Horizons for all of them: ~60 h, monthly):
+- the pick allows 200 mas per sigma at the asteroid's distance (290 km at 2 AU: above ~95 % of the sample's
+  whole-ellipse 1 sigma; across the track it is about half of that). An asteroid with a poorer orbit (the sample's
+  worst: 1 sigma ~670 km) can be missed by the pick when its event lies beyond that; the search, given the target,
+  applies its real sigma;
+- a whole-Earth pre-screen keeps main-belt events only while the shadow touches the Earth's disk + 200 km (EDGE_KM). A
+  center line farther off, whose n-sigma band still reaches a site, is not in it: such a site sees the star near the
+  horizon (at plane radius R cos h), below most altitude limits (10 deg: R cos h = 6,281 km). A build with
+  `--reach 500` covers 3 sigma of the typical main-belt asteroid for ~+5 % events.
+
+Cost (400 targets, 3 days, 2026-11-15): candidates and exact solves unchanged (the corridor is dominated by the
+Earth's radius), 25 s with the uncertainties cached, ~70 s more on the first run of the day; hits 200 -> 226 (all
+200 kept; the new ones main-belt asteroids). Pick: events 723 -> ~1,300, a few s more.
 
 ### 2.8 Asteroid size: `get_asteroid_size`
 
@@ -353,22 +426,22 @@ after `sbdb_max_age_days`; the pick tool fills it for its targets from its bulk 
   search range and is not drawn.
 - Sigma: `path_sigma3_km` asks JPL Horizons for the plane-of-sky 3-sigma position uncertainty at the event
   (`RSS_3sigma`, arcsec) and converts it to km at the asteroid's distance; sigma = that / 3. Without a Horizons
-  covariance it uses `default_sigma3_km` (10 km, so sigma 3.3 km). Only the orbit counts: the star's position error is
-  not added. Gaia DR3 positions carried from 2016 to 2026 with their proper-motion errors are good to about 1 mas
-  for bright stars (~1 km at 1.2 AU) and several mas for faint ones (G 17-18: several km), so for faint stars the
-  real band is wider than drawn.
-- RSS is the size of the whole error ellipse, dominated by its long axis. What moves the path on the ground is the
-  part across the track; the part along the track only shifts the time. So the 1- and 3-sigma lines are as wide as
-  the long axis whichever way it points: right when the long axis lies across the track, too wide when it lies along
-  it. Example, 172559 on 2026-10-19 (1.21 AU): long axis 0.03" (3 sigma) at position angle -4 deg, short axis 0.004",
-  track to the east-north-east, so the long axis lies nearly across the track and sigma ~9 km is the real cross-track
-  value there (3 sigma 26 km).
+  covariance it uses `default_sigma3_km` (10 km, so sigma 3.3 km). The star's own position uncertainty
+  (`gaia_local.star_sigma_mas`, 2.4.1) is added in quadrature. Typical size of sigma: 2.7.1.
+- RSS is the size of the whole error ellipse (sqrt(a^2 + b^2)), dominated by its long axis. What moves the path on
+  the ground is the part across the track; the part along the track only shifts the time. Since 1.5.4 the 1- and
+  3-sigma lines, the chance and the reach (2.7.1) use the part across the track (`search.across_sigma_km`: the
+  asteroid's ellipse plus the star's circle, perpendicular to the asteroid's motion on the sky;
+  `ellipses.across_track`), about half the RSS (median); the record keeps both (`path_sigma1_km` across,
+  `path_sigma_rss_km` whole). Without an ellipse from Horizons the RSS is used. Example, 172559 on 2026-10-19 (1.21
+  AU): long axis 0.03" (3 sigma) at position angle -4 deg, short axis 0.004", track to the east-north-east, so the
+  long axis lies nearly across the track and sigma ~9 km is the real cross-track value there (3 sigma 26 km).
 - Occult/OWC draw the same kind of diagram (shadow, then the 1-sigma band, then 2- and 3-sigma lines), but take the
   uncertainty from their own orbit data, not from Horizons, so their band can be narrower or wider than ours for the
   same event (e.g. an OWC event with a 9 km shadow and a 1-sigma band of ~2 km on each side).
 - KML for Google Earth or Google My Maps; written for every logged event, i.e. when the miss distance is below
-  `r_max + max_shadow_dist` (the shadow plus the distance you can travel), also when the site lies outside the
-  3-sigma band: then the map shows where to go.
+  `r_max + n sigma + max_shadow_dist` (the shadow, the n-sigma band of 2.7.1, plus the distance you can travel), also
+  when the site lies outside the 3-sigma band: then the map shows where to go.
 
 ### 2.11 Event preview: `pysyzygos/preview.py`
 
@@ -440,8 +513,8 @@ Per chunk of asteroids, positions every 600 s over the window, then per asteroid
 3. Stars along the visible path from the catalog (3.4), then the candidate scan (2.5).
 4. Each candidate is solved for the site: Newton iteration on the plane offset of the shadow axis from the observer on
    the rotating Earth (asteroid positions by cubic interpolation, observer from `pxform`), within the bracket of 2.6.
-5. Kept if the miss is below `r_max + reach`, the star is high enough and the Sun low enough at that time, and the
-   detection rules pass.
+5. Kept if the miss is below `r_max + reach` (+ n x 200 mas at the asteroid's distance for the reach from the n-sigma
+   limit, 2.7.1), the star is high enough and the Sun low enough at that time, and the detection rules pass.
 
 Against `pysyzygos/search.py` on the same events: same stars, times within 5 s, the same drops and durations.
 Stars are moved linearly by proper motion (no parallax), and stars faster than 1500 mas/yr are not searched.
@@ -550,7 +623,8 @@ dt = t - tc over +-half, fitted to the integrated orbit at -half, 0, +half, with
 measured at most 0.3 km, median 0.000 km), plus half and the radius. Sorted by tc in `<name>.global.npy`, so a window
 is a binary search. The site test (`site_mask`) puts the site (`Site.at` on a 1-min grid, cubic interpolation) into
 each event's plane at 81 times over +-half and computes the closest distance on each segment between them (the
-relative motion is linear there); kept if it is below r_max + err + reach + 10 km with the star above the pick's
+relative motion is linear there); kept if it is below r_max + err + reach + 10 km (+ the n-sigma allowance per
+asteroid, 2.7.1) with the star above the pick's
 minimum altitude and the Sun below its limit (both widened by 1 deg) at either end of the segment.
 
 **Index** (`<name>.global.idx.npy`, 24 bytes per event): the latitude range and the longitude arc of the track's

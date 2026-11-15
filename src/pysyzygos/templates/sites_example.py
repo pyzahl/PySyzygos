@@ -8,6 +8,7 @@
 # Optional (defaults in pysyzygos_config.py):
 #   view      min_alt (deg, lowest usable star altitude, default 10), max_sun_alt (deg, default 0; twilight events marked),
 #             reach_km (km you can travel from here, default max_shadow_dist)
+#             reach_sigma (0..3: the reach counts from the path's n-sigma limit; 0 = from the shadow's edge)
 #   equipment for OWC's General Observability Criterion, StarMag < 5 log10(aperture_cm)
 #             + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust:
 #             aperture_cm (default 25), frames (detection frames, default 4), mag_adjust (default 0; + for dark sky or
