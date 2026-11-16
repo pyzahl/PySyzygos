@@ -43,6 +43,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   [1.5.0] links the compare v1.4.0...v1.5.1).
   Each 1.x.0 GitHub release also carries docs/math/pysyzygos_math.pdf as an asset (`make` in docs/math: formula
   check + build; the PDF is not in git, decided 2026-10-20: a committed PDF goes stale).
+  With each such release update the PDF link at the top of ABOUT.md (tag in the URL and the link text; now v1.5.1).
   GitHub releases (tag -> Zenodo DOI) only for 1.x.0 (user's rule, 2026-10-19: not too often); patch versions
   (1.3.2, ...) are only committed, users get them with git pull / the update. Every version increase gets a
   `CHANGELOG.md` entry (Keep a Changelog style, newest first) (semver; keep CITATION.cff `version` and the README line in step);

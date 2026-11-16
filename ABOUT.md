@@ -3,6 +3,9 @@
 How PySyzygos computes its predictions, where its data comes from, how it was validated ([VERIFICATION.md](VERIFICATION.md)) and what is still under active development.
 Data comes from Gaia DR3 (stars), JPL Horizons and SBDB (asteroid orbits and sizes) and NAIF SPICE kernels
 (planets, Earth orientation); see Part 4. Usage is in `README.md`; to contribute, see `CONTRIBUTING.md`.
+The math step by step, as slides with numbered formulas (FP.2, CO.1, ...; the code cites them as `# Math: FP.2`):
+[docs/math](docs/math) (LaTeX source), PDF of the latest release:
+[pysyzygos_math.pdf (v1.5.1)](https://github.com/pyzahl/PySyzygos/releases/download/v1.5.1/pysyzygos_math.pdf).
 Updated 2026-10-08.
 
 PySyzygos is a portable occultation predictor in Python. It finds asteroid occultations of Gaia stars for one
