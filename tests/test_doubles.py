@@ -1,5 +1,6 @@
 """Close and double stars (pysyzygos.doubles): neighbours at the event date, the blended drop, Gaia's hints, the online
 query and the hit-log update. No network: the archive answer is a stand-in DataFrame."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, csv, tempfile, math
 import numpy as np, pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

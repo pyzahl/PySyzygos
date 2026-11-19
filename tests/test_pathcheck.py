@@ -1,5 +1,6 @@
 """pathcheck.py without SPICE: Occult's listing format (parser, signs, our export layout), the header facts, the plane
 fit on synthetic data, the summary and the report."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

@@ -1,5 +1,6 @@
 """panorama.py: a made-up equirectangular photo with a known horizon (transparent sky) and a known azimuth at its left
 edge: profile, UserHorizon points, the azimuth fit, thumbnail/meta files, the SVG. Needs Pillow."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, re, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import numpy as np

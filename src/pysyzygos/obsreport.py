@@ -649,7 +649,7 @@ def save(fields, folder=DIR, source=None, imports=(), origin=None):
                created=old.get("created") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
                source=source or old.get("source") or {}, imports=list(old.get("imports", [])) + list(imports),
                origin={**old.get("origin", {}), **(origin or {})}, fields=f)
-    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=d, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(rec, fh, indent=1)
     os.replace(tmp, p)
@@ -705,7 +705,7 @@ def store_analysis(js, folder=DIR):
     stamp = re.sub(r"\D", "", str(js.get("created_utc") or datetime.now(timezone.utc).isoformat()))[:14]
     movie = os.path.splitext(os.path.basename(str(js.get("movie") or "analysis")))[0]
     p = os.path.join(d, f"{stamp}_{_slug(movie)}.event.json")
-    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=d, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(js, fh, indent=1)
     os.replace(tmp, p)
@@ -769,7 +769,7 @@ def api_setup(url, inbox, data_folder, path=None):
                header="Authorization: Bearer <token>",
                written=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"))
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(path), suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(rec, fh, indent=1)
     try:

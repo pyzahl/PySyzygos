@@ -1,3 +1,4 @@
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, math, numpy as np, pandas as pd
 sys.path.insert(0, __import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), '..', 'src')); from pysyzygos import corridor as C
 from scipy.optimize import minimize_scalar

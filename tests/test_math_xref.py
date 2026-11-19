@@ -1,6 +1,7 @@
 """docs/math/check_xref.py: the code's '# Math:' comments cite only formulas and slides that exist on the math
 slides (docs/math/math_slides.tex); a wrong reference, a reused formula number and a comment without a function
 below are reported. Pure text, no LaTeX needed."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, runpy, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 X = runpy.run_path(os.path.join(HERE, "..", "docs", "math", "check_xref.py"))

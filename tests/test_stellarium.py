@@ -1,5 +1,6 @@
 """Stellarium pointing (pysyzygos.stellarium): the Remote Control requests (location, time as JD UT with the clock
 stopped, J2000 view vector, field), against a small local HTTP server; and a clean failure without Stellarium."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

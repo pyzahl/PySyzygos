@@ -2003,7 +2003,7 @@ def resolve_targets():
     config.target_names = p["names"]
     print(f"* Targets: {picks.describe(p)}")
     if p.get("warnings"):                                       # the pick's own fallbacks carry over to this run
-        WARNINGS["pick"] = "targets from a pick with warnings: " + "; ".join(p["warnings"])
+        WARNINGS["pick"] = "targets from a pick with warnings: " + "; ".join(picks.warnings_of(p))
         print(f"  WARNING: {WARNINGS['pick']}")
     return picks.describe(p)
 

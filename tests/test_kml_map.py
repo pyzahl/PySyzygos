@@ -1,6 +1,7 @@
 """report.kml_to_data: the map data of a paths KML; a path across the date line stays one continuous line (a web map
 would otherwise draw the step from -179.8 to +178.8 deg as a straight line across the whole map: a false second
 "path"), placed next to the observer; minute marks follow their line."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import report as R

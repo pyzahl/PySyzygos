@@ -2,6 +2,7 @@
 exact to far below Gaia's precision, the order (cell, then G), lookups against brute force (cone, path strip, fast
 movers), the supplement switch, the proper-motion cross-match (stand-in), optional parts (remove, pack, fetch from
 'Zenodo' stand-ins), the swap of an upgrade, and no memory map left on a file when it is renamed (Windows)."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import gzip, json, math, os, shutil, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

@@ -1,5 +1,6 @@
 """An anywhere-on-Earth result starred as a favorite: its site is the event's own point (geo.earth_site: coordinates,
 '(ocean)' off the land, offline), not the site chosen in the header; older ones are corrected (backfill)."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys, tempfile, json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import geo, favorites

@@ -439,6 +439,7 @@ pysyzygos setup --no-gaia        # kernels only (e.g. to try the old "windows" s
 pysyzygos setup --status         # what is installed
 pysyzygos setup --gmax 18        # a catalog to G 18, built from ESA's files (own folder gaia_dr3_g18); --dir to choose
 pysyzygos setup --planet-kernels # NAIF kernels for planets and moons, for offline use (Jupiter: 1.1 GB)
+pysyzygos setup --sigmas         # path uncertainties outside the main belt (sigma_table.json, ~1 h; asked while missing)
 ```
 
 All options of `pysyzygos setup` (also `pysyzygos setup --help`):
@@ -458,6 +459,7 @@ All options of `pysyzygos setup` (also `pysyzygos setup --help`):
 | `--workers N` | parallel downloads for an ESA build (default 6) |
 | `--no-gaia` | kernels (and site) only, no catalog |
 | `--planet-kernels` | download NAIF's kernels for planets and moons (e.g. Jupiter's `jup365.bsp`, 1.1 GB) for offline use; without them positions come from JPL Horizons per search |
+| `--sigmas` | build the σ table: each NEO's, Mars-crosser's, Trojan's, Centaur's and TNO's own path uncertainty from JPL Horizons (`sigma_table.json` in the data folder, about 1 h; same as `pysyzygos sigmas build`). Setup asks in a terminal while it is missing, the GUI at the first pick without it; without it these asteroids get a fixed allowance and the pick shows an orange warning. Or copy `sigma_table.json` from another computer's data folder |
 | `--no-geoip` | do not guess your site from your IP address (first run) |
 | `--historic-earth` | also download NAIF's historic Earth orientation file (`earth_1962_*_combined.bpc`, ~31 MB) for dates before 2000, e.g. to check historic events; a search or pick before 2000 fetches it by itself when online |
 | `--home FOLDER` | use FOLDER as the data folder from now on (saved as a setting; files are not moved); see "Where your data and settings live" |

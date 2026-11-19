@@ -2,6 +2,7 @@
 uncertainties at byte 2n, 9-byte survey records, the magnitudes CSV by column position, binaries, the observation
 archive XML, Gaia doubles with an RA wrap), download through a stand-in (only the expected files of the zip are
 written), import from an Occult folder, update check, removal, and occultations.py using the add-on's archive."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import io, json, os, struct, sys, tempfile, zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

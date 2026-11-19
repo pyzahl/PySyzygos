@@ -2,6 +2,7 @@
 date, the combined ellipse and the error across the track, the SVG; favorites.backfill_errors with stand-ins.
 Reference: OccultWatcher's event page of (369152) 2008 SJ52 on 2026-10-12 (Horizons SMAA/SMIA/Theta 3-sigma 0.084",
 0.067", -4.444 deg; star 0.28 x 0.26 mas at PA 90; combined 28.00 x 22.30 mas at PA 94)."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, math, tempfile, xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import ellipses as E, favorites as F

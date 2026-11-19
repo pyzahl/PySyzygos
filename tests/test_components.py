@@ -1,5 +1,6 @@
 """components.py: a binary asteroid's bodies (JPL ids, SPICE names, sizes from Johnston's list, names, the summary
 table); no SPICE, no network."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import components as K

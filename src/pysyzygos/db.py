@@ -386,7 +386,7 @@ def _cell(v):
 
 
 def _atomic(path, write):
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
     with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
         write(f)
     os.replace(tmp, path)

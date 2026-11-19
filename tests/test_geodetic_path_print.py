@@ -1,3 +1,4 @@
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import numpy as np
 from astropy.time import Time
 

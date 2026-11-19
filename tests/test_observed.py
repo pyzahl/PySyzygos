@@ -1,6 +1,7 @@
 """observed.py (the Occult archive as a results database), its report layout and SQL columns, and obscheck.py's
 geometry (observed minus predicted in the track's frame, axes of date). A stand-in archive of two events in the
 archive's format (lines as in Asteroid~Observations.xml). No SPICE, no network."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import json, math, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

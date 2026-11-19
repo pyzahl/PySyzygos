@@ -121,7 +121,7 @@ def check(records, folder=".", progress=None):
         found += res is not None
         if progress:
             progress(i, len(records))
-    fd, tmp = tempfile.mkstemp(dir=os.path.abspath(folder), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.abspath(folder), suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=1)
     os.replace(tmp, os.path.join(folder, CACHE))

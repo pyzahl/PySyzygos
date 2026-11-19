@@ -1,5 +1,6 @@
 """OccultWatcher Cloud lookup (pysyzygos.owc): matching by Gaia star id or time, the cache, the table label.
 No network: owc._get is replaced by a stand-in that answers like the OWC interface."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, tempfile, json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import owc

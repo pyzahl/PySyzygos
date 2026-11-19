@@ -60,7 +60,7 @@ def load(folder="."):
 
 
 def _save(cache, folder):
-    fd, tmp = tempfile.mkstemp(dir=os.path.abspath(folder), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.abspath(folder), suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(cache, f)
     os.replace(tmp, os.path.join(folder, CACHE))

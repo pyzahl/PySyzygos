@@ -1,4 +1,5 @@
 """pysyzygos_astrometry: light deflection and stellar parallax against known values, with a stand-in for SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import math, os, sys
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

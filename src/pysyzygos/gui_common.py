@@ -49,7 +49,7 @@ def save_ui_state(**kw):
     import tempfile
     st = dict(load_ui_state(), **kw)
     try:
-        fd, tmp = tempfile.mkstemp(dir=ROOT, suffix=".tmp")
+        fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=ROOT, suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(st, f)
         os.replace(tmp, UI_STATE)

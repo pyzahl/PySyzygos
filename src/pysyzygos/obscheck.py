@@ -326,7 +326,7 @@ def run(since=None, asteroids=None, limit=None, workers=2, fresh=False, log=prin
     threads = [threading.Thread(target=fetch, args=(c,), daemon=True) for c in chunks]
     for th in threads:
         th.start()
-    tmpdir = tempfile.mkdtemp(prefix="obscheck_")
+    tmpdir = tempfile.mkdtemp(prefix="pysyzygos-obscheck-")
     stars, n_done, n_ok, t0 = {}, 0, 0, time.time()
     try:
         with open(res_path, "a", encoding="utf-8") as out:

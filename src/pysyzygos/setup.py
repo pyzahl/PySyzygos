@@ -216,6 +216,20 @@ def planet_kernels(download, ask):
             bodies.download_naif(group)
 
 
+def sigma_step(build, ask):
+    """Optional: the path uncertainties outside the main belt (sigmatable.py), asked in a terminal while missing."""
+    from pysyzygos import sigmatable
+    if sigmatable.exists():
+        return
+    if not build and ask:
+        k = input(f"5. path uncertainties of NEOs, Mars-crossers, Trojans, Centaurs and TNOs (JPL Horizons; the pick's "
+                  f"reach counts from each one's n-sigma limit):\n   {sigmatable.BUILD_TIME}; without it they get a "
+                  f"fixed allowance.\n   Build the table now? [y/N] (later: pysyzygos sigmas build): ")
+        build = k.strip().lower().startswith("y")
+    if build:
+        sigmatable.build(sigmatable.numbers_of(list(sigmatable.GROUPS)))
+
+
 def show_status(d=None):
     print(f"  data folder                  {home.describe()}")
     with open("sites.py") as f:
@@ -247,6 +261,10 @@ def show_status(d=None):
     from pysyzygos import bodies
     for group, (fname, size) in bodies.NAIF_KERNELS.items():
         print(f"  {fname:28s} {'ok (planets and moons offline)' if bodies.naif_kernel(group) else 'not downloaded: planets and moons via JPL Horizons (optional: --planet-kernels, ' + size + ')'}")
+    from pysyzygos import sigmatable
+    n = len(sigmatable.load())
+    print(f"  {'path uncertainties':28s} " + (f"ok, {n} asteroids outside the main belt ({sigmatable.FILE})" if n else
+          "missing: fixed allowance outside the main belt (pysyzygos setup --sigmas, or: pysyzygos sigmas build)"))
     d = d or getattr(config, "gaia_local_dir", None)
     if not d:
         print("  local Gaia catalog            gaia_local_dir not set in pysyzygos_config.py")
@@ -622,6 +640,9 @@ def main():
     ap.add_argument("--refresh-earth", action="store_true",
                     help="download earth_latest_high_prec.bpc again now, whatever its age (it predicts ~3 months "
                          "ahead; NAIF updates it a few times a week), and the newest long-term file if one is here")
+    ap.add_argument("--sigmas", action="store_true",
+                    help="build the path-uncertainty table of the asteroids outside the main belt (sigma_table.json, "
+                         "JPL Horizons, about 1 hour; same as: pysyzygos sigmas build); asked in a terminal while missing")
     ap.add_argument("--home", metavar="FOLDER", help="use FOLDER as the data folder from now on (saved as a setting; "
                                                      "files are not moved)")
     ap.add_argument("--geoid", action="store_true",
@@ -655,6 +676,7 @@ def main():
     if not a.no_gaia:
         d, new_install = catalog_step(a)
     planet_kernels(a.planet_kernels, ask=sys.stdin.isatty() and new_install)
+    sigma_step(a.sigmas, ask=sys.stdin.isatty())
     print()
     show_status(d)
     if not a.no_gaia:

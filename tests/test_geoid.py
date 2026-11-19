@@ -1,5 +1,6 @@
 """geoid.py and sitesfile.py: EGM96 values, the elevation reference, sites.py round trip, and the config loader adding
 the geoid height (also for an older user config that sets ELE itself), in a temporary data folder."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, subprocess, sys, tempfile
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src')
 sys.path.insert(0, SRC)

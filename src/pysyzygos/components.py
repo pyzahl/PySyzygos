@@ -139,7 +139,7 @@ def available(number, cache_dir=None, log=print):
             break
         out.append(dict(kind=kind, naif=naif_id(number, k), name=name))
     cache[number] = dict(t=time.time(), bodies=out)
-    fd, tmp = tempfile.mkstemp(dir=cache_dir, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=cache_dir, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(cache, fh)
     os.replace(tmp, path)
@@ -155,7 +155,7 @@ def ensure_kernel(spice, number, body, et0, et1, cache_dir):
     path = os.path.join(cache_dir, f"PySyzygos_component_{body['naif']}_{t0}_{t1}.bsp")
     if not os.path.isfile(path):
         ets, states = bodies._horizons_states(body["naif"], 10, t0, t1)
-        fd, tmp = tempfile.mkstemp(dir=cache_dir, suffix=".bsp")
+        fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=cache_dir, suffix=".bsp")
         os.close(fd)
         os.remove(tmp)                                  # spkopn wants a new file
         h = spice.spkopn(tmp, "PySyzygos binary body", 0)
@@ -230,7 +230,7 @@ def event(key, folder=None, log=print):
     ra, dec = math.radians(float(r["star_ra"])), math.radians(float(r["star_dec"]))
     star_dir = np.array([math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)])
     day = datetime.fromisoformat(str(r["best_utc"])[:19])
-    tmp = tempfile.mkdtemp(prefix="binary_")
+    tmp = tempfile.mkdtemp(prefix="pysyzygos-binary-")
     fn = os.path.join(tmp, "system.bsp")
     with open(fn, "wb") as fh:
         fh.write(obscheck.horizons_spk(number, (day - timedelta(days=1)).strftime("%Y-%m-%d"),

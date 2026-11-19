@@ -220,7 +220,7 @@ def ensure_kernel(spice, target, et0, et1, cache_dir, folder="."):
     path = os.path.join(cache_dir, f"PySyzygos_body_{b['naif']}_{b['center']}_{t0}_{t1}.bsp")
     if not os.path.isfile(path):
         ets, states = _horizons_states(b["naif"], b["center"], t0, t1)
-        fd, tmp = tempfile.mkstemp(dir=cache_dir, suffix=".bsp")
+        fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=cache_dir, suffix=".bsp")
         os.close(fd)
         os.remove(tmp)                                             # spkopn wants a new file
         h = spice.spkopn(tmp, "PySyzygos major body", 0)

@@ -1,5 +1,6 @@
 """Earth orientation coverage (pysyzygos.kernels): which loaded files cover a search window; the historic file
 (earth_1962_*_combined.bpc) is found by its pattern and loaded before earth_latest_high_prec.bpc. No SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import kernels as K

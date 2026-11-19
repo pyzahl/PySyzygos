@@ -1,5 +1,6 @@
 """Site coordinates pasted as text (pysyzygos.geo.parse_coords): labels in any order, DMS / decimal minutes / decimal
 degrees, N/S/E/W or signs, heights in m/ft/km, and where a single value was pasted. No network."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos.geo import parse_coords as P

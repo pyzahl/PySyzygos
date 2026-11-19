@@ -1,6 +1,7 @@
 """chords.py: the fit of an ellipse to chords in the fundamental plane and the profile plot (no SPICE, no network):
 a synthetic event cut from a known ellipse is fitted back; circle, fixed size, misses as limits, excluded chords,
 crossing times, the report times across midnight."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import math, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

@@ -82,7 +82,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   pre-screen edge EDGE_KM only); all others never cut: search uncapped (`cap_for(far, group)`), pick screens them past
   any pre-screen and uses `allowance_km` = TABLE_FACTOR 1.5 x the sigma table's value (`sigmatable.py`, `pysyzygos
   sigmas build|status`, HOME/sigma_table.json (gitignored), Horizons RSS/3 per number, 2 threads, resumable, entries
-  > 30 d asked again; GUI System button `pg.sys_sigmas`; ~25,000 numbers, ~1 h), else NEAR_SIGMA_KM 5000 / far
+  > 30 d asked again; GUI System button `pg.sys_sigmas`; ~25,000 numbers, ~1 h; missing: GUI `pg.sigma_ask` once
+  at the first pick (gui_state sigma_asked), setup `sigma_step` in a tty / `--sigmas`, status line), else NEAR_SIGMA_KM 5000 / far
   (TNO, 'other', a > FAR_AU 5.5) FAR_SIGMA_KM 150000; whole-Earth builds widen non-main rows by N_MAX x allowance
   (r_test; events keep r_km). search: `prefetch_sigmas` (after the orbit downloads, unwrapped paths.path_error,
   cache PySyzygos_path_sigma.json per target|day; `save_sigmas`), `reach_widening` (pass 1: `target_sigma1_km`
@@ -91,7 +92,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   WARNING without one); pick force-screens non-main rows past a pre-screen only if its meta version < 1.5.4 (first
   table 2026-11-15: 24,983 entries in 70 min, 78 beyond the fixed allowance; force-screening costs ~+25 s),
   site_numbers opt 'widening' {number: allowance at `delta_max_km`} -> per-event reach arrays in near_site /
-  site_mask. Regional builds `reach_sigma` (default 3; meta), check(): a smaller n does not fit. Checked 2026-11-15
+  site_mask; opt 'only' = the pick's numbers after groups/range minus force-screened ones (none left: no site test),
+  near_site in NEAR_BLOCK blocks (2026-11-19: 13.8 GB peak -> 2.5 GB; systemd-oomd had killed Firefox). Regional builds `reach_sigma` (default 3; meta), check(): a smaller n does not fit. Checked 2026-11-15
   (400 targets, 3 d): hits 200 (n 0) -> 246 (RSS) -> 226 (across), 25 s cached. db.HITS reach_n, reach_dist; report
   `reach_badge`; GUI SITE_KEYS reach_sigma. min_distance unchanged. tests/test_reach.py.
 - `pysyzygos/report.py`: `hits_log.csv` (+ last run of `hits_log.runs.jsonl` for the header) to HTML/Markdown with an embedded Leaflet map. Standard library only.
@@ -876,6 +878,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `CONTRIBUTING.md`: fork/branch workflow, setup, tests, working with Claude Code, private files, pull requests,
   GPL-3.0-or-later for contributions. `LICENSE` (GPL-3.0 text), `CITATION.cff` (validated with cffconvert).
 - `tests/`: stand-in based tests, run each with `python tests/<name>.py` (no SPICE, astropy or network needed).
+  Every test imports `_testtmp` first (tests/_testtmp.py, 2026-11-19): its temporary files go to one
+  /tmp/pysyzygos-test-* folder (tempfile.tempdir + TMPDIR), removed at exit; a new test must do the same (/tmp is a
+  RAM disk here: ~790 leftover folders, 1.9 GB, helped push the machine into the OOM kill).
 
 ## Conventions that matter
 - Asteroid position: `spkpos(id, et, 'J2000', 'CN', 'EARTH')` (399, not 3 = the Earth-Moon barycentre; by name, see below). `CN` is astrometric (matches Gaia).

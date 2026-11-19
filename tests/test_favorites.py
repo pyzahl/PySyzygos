@@ -1,4 +1,5 @@
 """pysyzygos_favorites: add (with copies of map and preview), duplicates, status/note, remove, lookup in a hits log."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import favorites as F

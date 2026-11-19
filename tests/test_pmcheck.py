@@ -1,6 +1,7 @@
 """pmcheck.py without network: VizieR stand-ins with the UCAC5 / UCAC4 rows of (4089) Galbraith's star (Gaia DR3
 3383655504436521856 = UCAC4 573-029535, a 2-parameter star in a 2.8" double) and its companion: the four proper-motion
 estimates, their offsets at the event, the spread, the shifted star direction and the summary."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import math, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 import numpy as np

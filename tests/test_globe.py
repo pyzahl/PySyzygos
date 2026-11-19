@@ -1,4 +1,5 @@
 """pysyzygos_globe: projection, hidden-side clipping, day side and SVG output, without SPICE (pure render_svg)."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import math, os, sys, xml.etree.ElementTree as ET
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

@@ -82,7 +82,8 @@ for t in tests/*.py; do python "$t" > /dev/null || echo "FAILED: $t"; done
 
 The tests use stand-ins for SPICE, astropy and the network, so they run in seconds without kernels or a catalog.
 Each one is a plain script: `python tests/test_solver.py` runs one. If you change a function signature that a
-stand-in imitates, update the stand-in so it stays honest. Add a test for new behaviour where you can.
+stand-in imitates, update the stand-in so it stays honest. Add a test for new behaviour where you can. A new test
+starts with `import _testtmp`: its temporary files then go to one folder that is deleted when it ends.
 
 If your change affects results (orbits, solver, sizes, magnitudes, the pick), run a real search and the GUI once,
 and say in the pull request what you compared it with.

@@ -1,5 +1,6 @@
 """Cloud forecast (pysyzygos.weather): the request, the cache per site, values at the event time, the table badge.
 No network: weather._get is replaced by a stand-in that answers like Open-Meteo."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import weather, urls as U

@@ -1,6 +1,7 @@
 """selfupdate.py on throwaway repositories (no network): a 'release' remote, an install cloned from it, a new version
 pushed; status sees it (commits, version, CHANGELOG entry), update fast-forwards; local changes and a diverged
 checkout are refused and left untouched. Needs git."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, shutil, subprocess, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import selfupdate as S

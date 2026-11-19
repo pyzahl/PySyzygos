@@ -6,7 +6,7 @@ wires them up; pg holds the page's elements and functions shared between the tab
 """
 import csv, os
 
-from pysyzygos import exports
+from pysyzygos import exports, sigmatable
 from pysyzygos.home import HOME as ROOT
 from nicegui import background_tasks, run, ui
 from pysyzygos.gui_common import (
@@ -324,9 +324,33 @@ def handlers(pg):
     pg.picks_dir = getattr(pg.config, "picks_dir", "picks")
     pg.saved_list = []
 
+    async def sigma_ask():
+        """Asked once, at the first pick without a sigma table (sigmatable.py): build it now, or pick without it
+        (fixed allowance outside the main belt, an orange warning; the System tab's button builds it later)."""
+        with ui.dialog() as dlg, ui.card().classes("max-w-xl"):
+            ui.label("Path uncertainties outside the main belt").classes("text-lg font-semibold")
+            ui.label("The reach counts from each path's n-sigma limit. For NEOs, Mars-crossers, Trojans, Centaurs and "
+                     "TNOs the pick takes each asteroid's own uncertainty from JPL Horizons, kept in a table in the data "
+                     f"folder (sigma_table.json). It is not here yet. Building it takes {sigmatable.BUILD_TIME}. "
+                     "Without it these asteroids get a generous fixed allowance, and the pick says so in orange. "
+                     "The System tab's \"Path uncertainties\" button builds it any time; you can also copy "
+                     "sigma_table.json from another computer's data folder.").classes("text-sm")
+            with ui.row():
+                ui.button("Build it now, then pick", on_click=lambda: dlg.submit("build")).props("color=primary")
+                ui.button("Pick without it", on_click=lambda: dlg.submit("skip")).props("flat")
+        choice = await dlg
+        save_ui_state(sigma_asked=True)                           # asked once (any answer, also closing it)
+        return choice
+    pg.sigma_ask = sigma_ask
+
     async def run_pick():
         if not pg.catalog_ok():
             return
+        if not sigmatable.exists(ROOT) and not load_ui_state().get("sigma_asked"):
+            if await sigma_ask() == "build":
+                rc = await pg.sys_sigmas()
+                if rc != 0:
+                    return
         pg.ensure_saved()
         args = PYSYZYGOS + ["pick", "--start", pg.p_start.value, "--days", str(int(pg.p_days.value)),
                 "--top", str(int(pg.p_top.value)), "--workers", str(int(pg.p_workers.value)), "--sort", pg.p_sort.value]

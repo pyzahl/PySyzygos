@@ -363,7 +363,7 @@ def build(kind, what, log=print, folder=None):
     a, b = (day - timedelta(days=1)).strftime("%Y-%m-%d"), (day + timedelta(days=1)).strftime("%Y-%m-%d")
     log(f"chords: {ev['name'] or ev['target']} {ev['utc'][:19]} UT, {len(st)} station(s); orbit from JPL Horizons")
     body = major_body(ev["target"])
-    tmp, fn = tempfile.mkdtemp(prefix="chords_"), None
+    tmp, fn = tempfile.mkdtemp(prefix="pysyzygos-chords-"), None
     try:
         if body:                                    # a planet or moon (the archive names them): as the search does
             from pysyzygos import bodies, config
@@ -472,7 +472,7 @@ def save(data, out):
     else:
         data.pop("fit_sat", None)
     p = os.path.join(out, "chords.json")
-    fd, tmp = tempfile.mkstemp(dir=out, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=out, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=1)
     os.replace(tmp, p)

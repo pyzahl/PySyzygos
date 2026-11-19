@@ -180,7 +180,7 @@ def process_file(name, parts_dir, gmax):
     if os.path.isfile(final):
         return name, None, None, 0.0
     t0 = time.time()
-    fd, gz = tempfile.mkstemp(dir=parts_dir, suffix=".csv.gz.tmp")
+    fd, gz = tempfile.mkstemp(prefix="pysyzygos-", dir=parts_dir, suffix=".csv.gz.tmp")
     os.close(fd)
     try:
         GL._download(name, gz)
@@ -194,7 +194,7 @@ def process_file(name, parts_dir, gmax):
 
 def _write_json(path, obj):
     from pysyzygos import gaia_local as GL
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(obj, f, indent=1)
     GL.replace_file(tmp, path)

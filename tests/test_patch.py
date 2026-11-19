@@ -1,3 +1,4 @@
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, math, types, tempfile, numpy as np, pandas as pd
 sys.path.insert(0, __import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), '..', 'src')); from pysyzygos import corridor as C
 exec(open(__import__('os').path.join(__import__('os').path.dirname(__import__('os').path.abspath(__file__)), 'test_corridor.py')).read().split("# ---------- 3. magnitude cap")[0])      # reuse synthetic path, catalogue, FakeLocal (no tests after this point)

@@ -1,6 +1,7 @@
 """starrv.py: the radial-velocity table (build, lookup, unknown stars 0) and the size of the perspective acceleration
 (Barnard's star: the Gaia archive's EPOCH_PROP_POS gave 74.8 mas between 2016.0 and 2026.79 with and without its
 radial velocity)."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

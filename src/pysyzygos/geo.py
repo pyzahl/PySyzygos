@@ -61,7 +61,7 @@ def mpc_observatories(folder="data", url=MPC_OBSCODES_URL):
             with net.urlopen(req, timeout=30) as r:
                 data = r.read()
             os.makedirs(folder, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+            fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=folder, suffix=".tmp")
             with os.fdopen(fd, "wb") as fh:
                 fh.write(data)
             os.chmod(tmp, 0o644)

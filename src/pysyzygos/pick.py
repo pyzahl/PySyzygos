@@ -30,7 +30,7 @@ SBDB_URL = U.URL_JPL_SBDB_QUERY_API
 SBDB_FIELDS = ["spkid", "full_name", "H", "G", "diameter", "diameter_sigma", "extent", "albedo", "a", "e", "i", "om",
                "w", "ma", "epoch", "condition_code", "neo", "class", "pha", "sats"]
 
-from pysyzygos.picks import GROUPS, GROUP_NAMES, group_of, parse_groups   # asteroid groups (light module)
+from pysyzygos.picks import GROUPS, GROUP_NAMES, SIGMA_WARNING, group_of, parse_groups   # asteroid groups (light module)
 
 
 # ---------------------------------------------------------------- SBDB
@@ -93,7 +93,7 @@ def fetch_sbdb(hmax, cache, max_age_s=None):
 def _write_cache(cache, blob):
     if not cache:
         return
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(cache)), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(os.path.abspath(cache)), suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(blob, f)
     os.replace(tmp, cache)
@@ -328,7 +328,7 @@ def main(argv=None):
             if int(r["number"]) in sig:
                 r["sig1"] = sig[int(r["number"])]
         if not sig:
-            WARNINGS.append("no sigma table (pysyzygos sigmas build): NEOs, Mars-crossers, Trojans, Centaurs and TNOs "
+            WARNINGS.append(f"{SIGMA_WARNING} (pysyzygos sigmas build): NEOs, Mars-crossers, Trojans, Centaurs and TNOs "
                             "with the fixed allowance")
     T["list"] = time.time()
     N = {"list": len(rows)}                             # counts for the step summary
@@ -380,20 +380,6 @@ def main(argv=None):
             print(f"pre-screen {a.prescreen} does not fit this pick: " + "; ".join(bad) +
                   ". Build a fitting one (pysyzygos prescreen build) or pick without --prescreen.", file=sys.stderr)
             return 2
-        if PS.is_global(a.prescreen):                   # whole Earth: the site test on the stored shadow elements
-            t_q = time.time()
-            from pysyzygos import reach                 # the n-sigma reach: per asteroid at its largest distance
-            wide = {int(r["number"]): float(reach.allowance_km(a.reach_sigma, reach.delta_max_km(r["a"], r["e"]),
-                                                                r.get("group"), r.get("a"), r.get("sig1")))
-                    for r in rows} if a.reach_sigma else {}
-            keep, n_win, n_tested = PS.site_numbers(a.prescreen, spice, et0, et1, a.lat, a.lon, a.ele,
-                                                    dict(opt, widening=wide))
-            how = (f"site test of {n_tested} of {n_win} events (G <= {a.cam_limit:g}, reach {a.reach:g} km"
-                   + (", index" if PS.has_index(a.prescreen) else "; no index: pysyzygos prescreen index FILE")
-                   + f") in {time.time() - t_q:.1f} s")
-        else:
-            keep = PS.numbers(a.prescreen, et0, et1, a.cam_limit)
-            how = f"events in the window with a star G <= {a.cam_limit:g}"
         n_all = len(rows)
         from pysyzygos import components                # binaries searched body by body: their moons' events
         kn = {int(n) for n in components.known()}       # may not be in a pre-screen (screened with the system)
@@ -402,6 +388,25 @@ def main(argv=None):
         other = (lambda r: not reach.is_main(r.get("group"), r.get("a")) or reach.is_far(r.get("a"), r.get("group"))) \
             if a.reach_sigma and old else (lambda r: False)   # outside the main belt without their wide margin:
         #                                                     # all of them screened (~25,000; ABOUT 2.7.1)
+        lo = a.a_min if a.a_min is not None else 0.0     # the site test only for asteroids that the group and range
+        hi = a.a_max if a.a_max is not None else float("inf")   # filters below keep and that are not screened anyway
+        want = [r for r in rows if r["group"] in a.group_set and (lo <= r["a"] <= hi) != bool(a.a_exclude)
+                and int(r["number"]) not in kn and not other(r)]
+        if PS.is_global(a.prescreen) and not want:       # e.g. only groups outside the main belt, old pre-screen
+            keep, how = set(), "no site test needed: all chosen asteroids are screened"
+        elif PS.is_global(a.prescreen):                 # whole Earth: the site test on the stored shadow elements
+            t_q = time.time()
+            wide = {int(r["number"]): float(reach.allowance_km(a.reach_sigma, reach.delta_max_km(r["a"], r["e"]),
+                                                                r.get("group"), r.get("a"), r.get("sig1")))
+                    for r in want} if a.reach_sigma else {}
+            keep, n_win, n_tested = PS.site_numbers(a.prescreen, spice, et0, et1, a.lat, a.lon, a.ele,
+                                                    dict(opt, widening=wide, only=[int(r["number"]) for r in want]))
+            how = (f"site test of {n_tested} of {n_win} events (G <= {a.cam_limit:g}, reach {a.reach:g} km"
+                   + (", index" if PS.has_index(a.prescreen) else "; no index: pysyzygos prescreen index FILE")
+                   + f") in {time.time() - t_q:.1f} s")
+        else:
+            keep = PS.numbers(a.prescreen, et0, et1, a.cam_limit)
+            how = f"events in the window with a star G <= {a.cam_limit:g}"
         rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn or other(r)]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)
         a.screened = f"{len(rows)} of {n_all} (pre-screen {os.path.basename(a.prescreen)})"

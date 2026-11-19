@@ -1,6 +1,7 @@
 """The reach from the path's n-sigma limit (reach.py): n clamped to 0..3, for every target, the widening (capped),
 the pick's angular allowance, the pre-screen's distance bound, the record fields; the report's badge. Numbers of
 (612533) 2002 XV93 on 2026-11-11 (r 203 km, 1 sigma 3,038 km, site 2,061 km from the center line). No SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import math, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

@@ -1,6 +1,7 @@
 """obsreport.py: observation reports prefilled from a favorite and an Occult archive event, imported from a PyStarLight
 analysis (<movie>.event.json) and an IOTA-ES report form, written as IOTA-ES text (read back the same), found on disk
 (links not followed), saved and listed. Temporary folders; no network, no SPICE, no GUI."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import obsreport as R

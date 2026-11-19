@@ -324,7 +324,8 @@ def handlers(pg):
     pg.sys_earth = sys_earth
 
     async def sys_sigmas():
-        await run_process(PYSYZYGOS + ["sigmas", "build"], pg.log)
+        save_ui_state(sigma_asked=True)
+        return await run_process(PYSYZYGOS + ["sigmas", "build"], pg.log)
     pg.sys_sigmas = sys_sigmas
 
     async def sys_copy():

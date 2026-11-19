@@ -4,6 +4,7 @@ refuses connections and stays False for the run; a Horizons server fault (answer
 required file") marks it down too and raises ConnectionError (so fetch_target_orbit takes cached files), while "No
 matches found" stays a per-object error. The functions are taken from search.py's source (it is not import-safe); no
 network, no SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import ast, os, sys, tempfile, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pathlib import Path

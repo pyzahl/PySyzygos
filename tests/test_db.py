@@ -1,5 +1,6 @@
 """Results database (pysyzygos.db): series, events, updates, exports, the one-time imports of an old hit log and
 favorites.json."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, csv, json, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

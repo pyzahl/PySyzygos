@@ -716,17 +716,35 @@ def index(path, workers=4, block=100_000):
     return out
 
 
+NEAR_BLOCK = 200000        # site_numbers: events per block of the index test (~0.5 GB of temporaries)
+
+
 def site_numbers(path, spice, et0, et1, lat, lon, ele_m, opt):
     """The asteroids of a global pre-screen with an event that can be seen from this site (ST.site_mask) in the
-    window. opt: cam_limit, reach_km, min_alt, max_sun_alt (the pick's). With an index, only events whose track box
+    window. opt: cam_limit, reach_km, min_alt, max_sun_alt (the pick's), widening {number: km} (reach.py), only:
+    the asteroid numbers to test (None: all). With an index, only events whose track box
     comes within reach of the site are tested. Returns (numbers set, events in the window, events tested)."""
     ev, b = select(path, et0, et1, opt.get("cam_limit"), with_index=True)
     n_win = len(ev)
+    if opt.get("only") is not None:                          # only these asteroids matter (the pick's groups)
+        m = np.isin(ev["number"], np.asarray(list(opt["only"]), dtype=ev["number"].dtype))
+        ev, b = ev[m], (b[m] if b is not None else None)
     wide = opt.get("widening") or {}                         # the n-sigma reach (reach.py): km per asteroid
-    reach_of = lambda e: (opt["reach_km"] + np.array([float(wide.get(int(x), 0.0)) for x in e["number"]])
-                          if wide else opt["reach_km"])
-    if b is not None:
-        ev = ev[ST.near_site(b, ev, lat, lon, reach_of(ev), opt["min_alt"])]
+    wn = np.array(sorted(wide), dtype=np.int64)
+    wk = np.array([wide[k] for k in wn.tolist()], float)
+
+    def reach_of(e):
+        if not wide:
+            return opt["reach_km"]
+        n = e["number"].astype(np.int64)
+        i = np.clip(np.searchsorted(wn, n), 0, len(wn) - 1)
+        return opt["reach_km"] + np.where(wn[i] == n, wk[i], 0.0)
+    if b is not None:                                        # in blocks: the index test's arrays are (events, 33)
+        near = np.zeros(len(ev), bool)
+        for i in range(0, len(ev), NEAR_BLOCK):
+            e = ev[i:i + NEAR_BLOCK]
+            near[i:i + NEAR_BLOCK] = ST.near_site(b[i:i + NEAR_BLOCK], e, lat, lon, reach_of(e), opt["min_alt"])
+        ev = ev[near]
     keep = ST.site_mask(spice, ev, lat, lon, ele_m, reach_of(ev), opt["min_alt"], opt["max_sun_alt"])
     return {int(x) for x in ev["number"][keep]}, n_win, len(ev)
 
@@ -756,7 +774,7 @@ def extract(path, box, out=None, start=None, days=None, gmax=None, name=None):
                 source=os.path.basename(path), extracted=time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()))
     for k in ("kind", "n_events", "n_asteroids", "dtype"):
         meta.pop(k, None)
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(out)), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(os.path.abspath(out)), suffix=".tmp")
     os.close(fd)
     con = sqlite3.connect(tmp)
     con.executescript(SCHEMA)

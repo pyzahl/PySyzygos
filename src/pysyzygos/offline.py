@@ -49,7 +49,7 @@ def keep_sbdb(blob):
     if not enabled():
         return False
     try:
-        fd, tmp = tempfile.mkstemp(dir=DIR, suffix=".tmp")
+        fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=DIR, suffix=".tmp")
         with gzip.open(os.fdopen(fd, "wb"), "wt", compresslevel=6) as f:
             json.dump(blob, f)
         os.replace(tmp, SBDB)

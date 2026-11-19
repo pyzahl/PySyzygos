@@ -1,6 +1,7 @@
 """prescreen.py shared pre-screens: publish (one .tar.xz + .sha256 + prescreens.json), remote list and fetch from a
 file:// mirror (identical files, only the listed members written, intact files kept, a corrupt download refused,
 'latest'), and the catalog info of an upgrade's .new folder. No network, no SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import json, os, shutil, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import numpy as np

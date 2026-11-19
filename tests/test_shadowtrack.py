@@ -1,6 +1,7 @@
 """Shadow elements (pysyzygos.shadowtrack) and global pre-screen files (pysyzygos.prescreen): the quadratic fit, the
 ground track on a synthetic geometry (star along +x, no Earth rotation), the superset margins (a track crossing a
 small box between two samples), and the sorted global file with its window and star-limit selection. No SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, json, sqlite3, tempfile
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

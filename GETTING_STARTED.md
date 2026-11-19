@@ -238,7 +238,9 @@ resumed); rebuild it after a few weeks, as it uses the orbits of its build day; 
 from n-σ limit** (Site tab, default 1) lets PySyzygos keep events whose shadow passes within your reach of the path's
 1-sigma band, not only of the line itself; the results mark them "in 1σ" and give their chance. Once a month press
 **Path uncertainties** in the System tab (or `pysyzygos sigmas build`, about an hour the first time): it fetches the
-uncertainty of every NEO, Trojan, Centaur and TNO, so the pick misses none of these rarer, often poorly known objects.
+uncertainty of every NEO, Trojan, Centaur and TNO, so the pick misses none of these rarer, often poorly known objects. The
+first pick without this table asks whether to build it now; if you skip it, those objects get a fixed allowance and
+the pick says so in orange. On a second computer you can also copy `sigma_table.json` from the first one's data folder.
 
 ## If something goes wrong
 

@@ -1,6 +1,7 @@
 """Unnumbered asteroids as targets by provisional designation ('2026 ED138'): the target list parser, the designation
 test, the Horizons COMMAND (quoted for the space), the globe's short name, and that OWC (numbers only) is skipped.
 No network, no SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import ast, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import sbdb as S, owc

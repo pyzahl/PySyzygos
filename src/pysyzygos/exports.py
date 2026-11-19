@@ -56,7 +56,7 @@ def write(kind, rows, path, home=None, columns=None):
         else:
             getters.append(lambda sh, raw, k=src: sh.get(k))
         heads.append(head)
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(os.path.abspath(path)), suffix=".tmp")
     with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(heads)

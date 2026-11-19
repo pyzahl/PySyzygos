@@ -85,7 +85,7 @@ def write_csv(items=None, folder=DIR):
         rec_cols += [k for k in e["record"] if k not in rec_cols]
     cols = (["key", "status", "note", "added", "site", "site_lat", "site_lon", "site_ele"] + rec_cols
             + [f"sbdb_{k}" for k in PHYS_KEYS] + ["kml", "preview_svg", "globe_svg"])
-    fd, tmp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=folder, suffix=".tmp")
     with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
@@ -309,7 +309,7 @@ def write_page(folder=DIR, tiles=None):
                 favorites=True, statuses=STATUSES)
     os.makedirs(folder, exist_ok=True)
     out = os.path.join(folder, "favorites.html")
-    fd, tmp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=folder, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(R.to_html(events, meta))
     os.replace(tmp, out)
@@ -392,7 +392,7 @@ def load_list(slug, folder=DIR, mode="replace"):
         return False, f"no saved list “{slug}”"
     src = os.path.join(d, "files")
     if list_slug(slug) == list_slug(PREVIOUS):                    # saving PREVIOUS below would overwrite it
-        keep = tempfile.mkdtemp(dir=folder)
+        keep = tempfile.mkdtemp(prefix="pysyzygos-", dir=folder)
         shutil.copytree(src, os.path.join(keep, "files"), dirs_exist_ok=True)
         src = os.path.join(keep, "files")
     else:
@@ -450,7 +450,7 @@ def add_to_list(name, entries, folder=DIR):
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns(*LIST_SKIP))
     m.update(name=m.get("name") or name, saved=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
              version=__version__, n=len(items), span=_events_span(items), entries=items)
-    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=d, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(m, f)
     os.replace(tmp, os.path.join(d, "list.json"))
@@ -621,7 +621,7 @@ def write_glance(folder=DIR, keys=None, tiles=None):
             .replace("__DATA__", json.dumps(data, separators=(",", ":")).replace("</", "<\\/")))
     os.makedirs(folder, exist_ok=True)
     out = os.path.join(folder, "glance.html")
-    fd, tmp = tempfile.mkstemp(dir=folder, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=folder, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(page)
     os.replace(tmp, out)

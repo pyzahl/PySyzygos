@@ -1,5 +1,6 @@
 """Planets and moons as targets (pysyzygos.bodies): prefixes, kinds, deflectors, size and brightness rules, and the
 kernel built from Horizons vectors. No network and no SPICE: stand-ins follow the real call contracts."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, tempfile, types
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

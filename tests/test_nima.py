@@ -1,6 +1,7 @@
 """NIMA ephemerides (nima.py): the list page's table, an object page, the choice JPL / NIMA, the uncertainty table,
 the caches. Stand-ins for the pages and the .bsp download (excerpts of the real pages of 2026-11-06). No network,
 no SPICE."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import json, math, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import nima, urls as U

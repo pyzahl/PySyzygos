@@ -1,6 +1,7 @@
 """kernels.body_alias: asteroid numbers as SPICE names through the kernel pool, far beyond boddef's ~161 user names
 (CSPICE N0067: 853 pairs, ~692 built in; a search of 400 targets failed with SPICE(TOOMANYPAIRS), 2026-10-19).
 Uses the real SpiceyPy when installed (no kernel files needed), else skips."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 try:

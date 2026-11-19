@@ -7,6 +7,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [1.5.4] "Beyond Horizons" - 2026-11-15
 
 ### Added
+- **The σ table is offered when missing**: the GUI asks at the first pick without `sigma_table.json` (build it now,
+  then pick; or pick without it), `pysyzygos setup` asks in a terminal (`--sigmas` builds it), and `setup --status`
+  lists it. Before, a new computer only showed an orange warning ("fixed allowance") in the pick and search.
 - **The reach counts from the path's n-sigma limit** (site key / config `reach_sigma`, n = 0..3, default 1; GUI
   Site tab "Reach from n-σ limit"; pick `--reach-sigma`; pre-screen build `--reach-sigma`): an event is kept if the
   site lies within r + n σ + reach of the center line, where it was r + reach before (n = 0 gives that back), for
@@ -45,6 +48,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   track (a time shift). About half the RSS (median); bands narrower, chances higher. The record keeps both
   (`path_sigma1_km` across, new `path_sigma_rss_km`). Cost on a 400-target, 3-day search: 25 s with the σ cached;
   hits 200 -> 226.
+
+### Fixed
+- **Pick with a whole-Earth pre-screen: memory and time.** The site test ran over every event in the window and
+  built its index test for all of them at once (up to ~14 GB with the n-sigma reach: the system killed the
+  browser). It now tests only the asteroids the group and range filters keep and that are not screened anyway,
+  in blocks (2.5 GB, 77 s instead of 120 s for all groups), and skips it when nothing is left (e.g. groups outside
+  the main belt with a pre-screen from before 1.5.4: 205 s saved).
 
 ## [1.5.2] "Beyond Horizons" - 2026-11-02
 

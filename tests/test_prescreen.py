@@ -1,5 +1,6 @@
 """Pre-screens (pysyzygos.prescreen): region boxes (also across the date line), the box around a site, the fit check
 before a pick uses one, and the asteroid list of a window from the SQLite file."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, os, json, sqlite3, tempfile, time
 import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))

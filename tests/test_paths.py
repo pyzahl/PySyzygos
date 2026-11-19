@@ -1,6 +1,7 @@
 """Test pysyzygos/paths.py with a stand-in 'spiceypy' that follows the real contract:
 surfpt() returns ONLY the point and raises NotFoundError on a miss (as in the user's traceback).
 Geometry (ellipsoid intersection, geodetic lon/lat, Earth rotation) is exact; only ephemerides are synthetic."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import sys, types, importlib.util
 import numpy as np
 

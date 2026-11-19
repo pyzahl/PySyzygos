@@ -28,6 +28,14 @@ def path_of(folder=None):
     return os.path.join(folder or HOME, FILE)
 
 
+def exists(folder=None):
+    """True when the data folder has a sigma table (built or copied)."""
+    return os.path.isfile(path_of(folder))
+
+
+BUILD_TIME = "about 1 hour the first time (~25,000 Horizons queries); later only entries older than 30 days"
+
+
 def load(path=None):
     """{number (int): sigma1_km} of the table ({} without one)."""
     try:

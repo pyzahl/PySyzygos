@@ -196,7 +196,7 @@ def replace_file(src, dst, tries=40, wait=0.25):
 
 
 def _save_atomic(path, arr):
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(path), suffix=".tmp")
     with os.fdopen(fd, "wb") as f:
         np.save(f, arr)
     replace_file(tmp, path)
@@ -210,7 +210,7 @@ def process_file(name, out_dir, gmax, ruwe_max=RUWE_MAX, supplement=False):
     if os.path.isfile(final):
         return name, None, None, 0.0
     t0 = time.time()
-    fd, gz = tempfile.mkstemp(dir=out_dir, suffix=".csv.gz.tmp")
+    fd, gz = tempfile.mkstemp(prefix="pysyzygos-", dir=out_dir, suffix=".csv.gz.tmp")
     os.close(fd)
     try:
         _download(name, gz)
@@ -262,7 +262,7 @@ def build(out_dir, gmax=18.0, workers=6, supplement=False):
     if supplement:
         man["contents"] = (f"stars the main catalog leaves out: RUWE >= {RUWE_MAX} (kind {KIND_RUWE}) and 2-parameter "
                            f"sources without parallax/proper motion (kind {KIND_2P}; stored as 0)")
-    fd, tmp = tempfile.mkstemp(dir=out_dir, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=out_dir, suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(man, f, indent=1)
     replace_file(tmp, man_path)
@@ -424,7 +424,7 @@ def supplement_pm(catalog_dir, chunk=50000, log=print):
     man.update(pm_xmatch=dict(two_param=n5 + n4 + n_none, ucac5=n5, ucac4=n4, none=n_none,
                               date=time.strftime("%Y-%m-%d"), method="CDS XMatch: UCAC5 (Gaia DR1 2015.0 pos <= 0.2\", "
                               "dG <= 0.5), then UCAC4 (pos at 2016 <= 0.5\", dmag <= 1)"))
-    fd, tmp = tempfile.mkstemp(dir=sd, suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=sd, suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(man, f, indent=1)
     replace_file(tmp, man_path)
@@ -847,7 +847,7 @@ class BrightIndex:
             dtype = sel.dtype
             prog(i)
         offsets = np.concatenate([[0], np.cumsum(counts)]).astype(np.int64)
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(stem), suffix=".tmp")
+        fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(stem), suffix=".tmp")
         os.close(fd)
         out = np.lib.format.open_memmap(tmp, mode="w+", dtype=dtype, shape=(int(offsets[-1]),))
         cursor = offsets[:-1].copy()

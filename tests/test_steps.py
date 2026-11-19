@@ -1,5 +1,6 @@
 """steps.py: step table and the machine-readable summary line (parts listed under their step, 'other' for the
 rest, wrapped functions counted and timed, parse), as pick, search and the GUI use them."""
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import io, os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 from pysyzygos import steps as ST

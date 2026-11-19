@@ -84,7 +84,7 @@ def _restore_from_offline(path):
     try:
         from pysyzygos import offline
         if os.path.isfile(offline.PHYS):
-            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+            fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(path), suffix=".tmp")
             os.close(fd)
             shutil.copyfile(offline.PHYS, tmp)
             os.replace(tmp, path)
@@ -110,7 +110,7 @@ def put(entries, cache_path=None, keep_newer=True):
             continue
         cache[str(k)] = e
         n_new += 1
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(prefix="pysyzygos-", dir=os.path.dirname(path), suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(cache, f)
     os.replace(tmp, path)

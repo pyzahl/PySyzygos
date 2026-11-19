@@ -248,9 +248,25 @@ def best_for(site, start, days, folder=DIR, lat=None, lon=None):
     return max(cover, key=lambda p: (p["picked"], p["start"])) if cover else None
 
 
+SIGMA_WARNING = "no sigma table"     # pick.py's warning when sigma_table.json was missing (sigmatable.py)
+
+
+def warnings_of(p):
+    """The saved pick's automatic fallbacks (pick.WARNINGS), with a note where one no longer holds: a pick made before
+    the sigma table was built says so (its targets were chosen with the fixed allowance; picking again uses the table)."""
+    out = list(p.get("warnings") or [])
+    if any(w.startswith(SIGMA_WARNING) for w in out):
+        from pysyzygos import sigmatable
+        if sigmatable.exists():
+            out = [w + " (the table exists now: pick again to use it)" if w.startswith(SIGMA_WARNING) else w
+                   for w in out]
+    return out
+
+
 def warnings_text(p):
     """The saved pick's automatic fallbacks (pick.WARNINGS, e.g. an older asteroid list) as one line, '' if none."""
-    return "Warnings: " + "; ".join(p["warnings"]) if p.get("warnings") else ""
+    w = warnings_of(p)
+    return "Warnings: " + "; ".join(w) if w else ""
 
 
 def describe(p):

@@ -1,3 +1,4 @@
+import _testtmp  # noqa: F401  (temporary files of this run in one folder, removed at exit)
 import os, types, numpy as np
 from scipy.optimize import minimize_scalar
 # star_test from pysyzygos.py (not importable: kernel setup at import), run against a stand-in closest approach
