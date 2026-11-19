@@ -501,6 +501,22 @@ finished catalog folder (e.g. `gaia_dr3_g16`) from another computer. All address
 `pysyzygos/urls.py`. An ESA build skips a file that still fails after its retries (a rerun fetches it) and stops early
 if the first files all fail.
 
+**Web addresses and mirrors: `pysyzygos/urls.py`.** Every server PySyzygos talks to is named in this one file
+(`URL_*`): NAIF kernels, ESA Gaia files, Zenodo and the catalog/pre-screen mirrors, JPL Horizons and SBDB, NIMA,
+CDS (VizieR, XMatch, UCAC zone files), MPC, Open-Meteo, OccultWatcher Cloud, map tiles. Where a second server holds
+the same data, PySyzygos falls back on its own when the first does not answer:
+
+| Data | First | Fallback |
+|---|---|---|
+| Ready-made star catalog | Zenodo | catalog mirrors (`URL_CATALOG_MIRRORS`, + env `PYSYZYGOS_CATALOG_MIRROR`); the fastest is used |
+| Shared world pre-screens | mirror list (`URL_PRESCREEN_MIRRORS`) | + env `PYSYZYGOS_PRESCREEN_MIRROR` |
+| UCAC4 / UCAC5 zone files (catalog build) | CDS | CfA (`URL_UCAC4_ZONES_MIRRORS`, `URL_UCAC5_ZONES_MIRRORS`) |
+| Proper-motion check, VizieR double-star check | CDS VizieR | CfA VizieR (`URL_VIZIER_ASU_MIRRORS`) |
+| Two-parameter star proper motions (catalog build) | CDS XMatch | local match on the UCAC zone files |
+
+To add a mirror of your own, use the environment variables rather than editing `urls.py`: the file is part of the
+code, and a changed copy makes `pysyzygos update` stop (it never overwrites local changes).
+
 ## 5. Run it: the web interface
 
 Start the GUI and work through its tabs from left to right:
