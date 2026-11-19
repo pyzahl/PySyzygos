@@ -637,7 +637,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   ASU UCAC5 (I/340/ucac5: RAgaia/DEgaia within 1", G 0.5) + UCAC4 (I/322A/out: J2000 + own pm to 2016 within 1",
   mag 1.5; EpRA/EpDE, e_RAJ2000/e_DEJ2000 = position errors at the central epoch) -> `estimates` (UCAC5, UCAC4,
   epoch via starcat.epoch_pm on a built UCAC4_REC, J2000->Gaia "as Occult"; east/north mas offsets at the event vs
-  the pm used), `spread_mas` (RMS) -> s_mas = max(quoted, spread) in search; `shifted_dir` -> extra shadow_path per
+  the pm used; ASU via `net.read_first` over URL_VIZIER_ASU + URL_VIZIER_ASU_MIRRORS (CfA), also doubles._vizier),
+  `spread_mas` (RMS) -> s_mas = max(quoted, spread) in search; `shifted_dir` -> extra shadow_path per
   alternative, paths["pm_alts"] [(label, centre pts)] -> KML "Proper motion <label>" (report LINE_STYLES pink),
   save_path_debug pm_1.. + pm_labels; record star_pm_alts (summary), star_pm_spread_mas/_km (end). Report amber tier
   `star_noted` (0.5 r < s <= r, span.swarn2), tooltip lists estimates; favorites `alts_text`.

@@ -74,6 +74,7 @@ URL_MPC_OBSCODES = "https://minorplanetcenter.net/iau/lists/ObsCodes.html"      
 
 # --- star pages (report)
 URL_VIZIER_ASU = "https://vizier.cds.unistra.fr/viz-bin/asu-tsv"                 # VizieR queries (double-star check)
+URL_VIZIER_ASU_MIRRORS = ["https://vizier.cfa.harvard.edu/viz-bin/asu-tsv"]      # same queries at CfA (CDS down)
 URL_VIZIER_GAIA_DR3 = "https://vizier.cds.unistra.fr/viz-bin/VizieR-5?-source=I/355/gaiadr3&Source="  # + Gaia DR3 id
 
 # --- places, elevation, time zones (geo.py)

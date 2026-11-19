@@ -48,4 +48,28 @@ assert P.estimates(RA, DEC, 14.0, fetch=fetch) == []
 def down(url):
     raise OSError("offline")
 assert P.estimates(RA, DEC, G, fetch=down) == []
+
+# VizieR fallback (net.read_first): CDS down -> its mirror; the next request starts at the mirror; none -> the error
+import io
+from pysyzygos import net
+asked, up = [], {"https://mirror/asu"}
+def stand_in(url, timeout=30):
+    asked.append(url.split("?")[0])
+    if url.split("?")[0] not in up:
+        raise OSError("down")
+    return io.BytesIO(b"answer")
+real, net.urlopen = net.urlopen, stand_in
+try:
+    bases = ["https://cds/asu", "https://mirror/asu"]
+    assert net.read_first(bases, "q=1") == "answer" and asked == bases
+    asked.clear()
+    assert net.read_first(bases, "q=2") == "answer" and asked == ["https://mirror/asu"]
+    up.clear()
+    try:
+        net.read_first(bases, "q=3")
+        raise AssertionError("no error")
+    except OSError:
+        pass
+finally:
+    net.urlopen = real
 print("PMCHECK TESTS PASSED")

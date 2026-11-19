@@ -210,15 +210,14 @@ GAIA_COLS = ("RUWE", "IPDfmp", "IPDgofha", "epsi", "sepsi", "E(BP/RP)", "Dup", "
 
 
 def _vizier(params, timeout=60, fetch=None):
-    """Rows (list of dicts) of a VizieR ASU tab-separated query (urls.URL_VIZIER_ASU)."""
+    """Rows (list of dicts) of a VizieR ASU tab-separated query (urls.URL_VIZIER_ASU, else its mirrors)."""
     import urllib.parse
     from pysyzygos import net, urls as U
-    url = U.URL_VIZIER_ASU + "?" + urllib.parse.urlencode(params)
+    q = urllib.parse.urlencode(params)
     if fetch is None:
-        with net.urlopen(url, timeout=timeout) as r:
-            text = r.read().decode("utf-8", errors="replace")
+        text = net.read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=timeout)
     else:
-        text = fetch(url)
+        text = fetch(U.URL_VIZIER_ASU + "?" + q)
     lines = [ln for ln in text.splitlines() if ln and not ln.startswith("#")]
     if len(lines) < 3:
         return []

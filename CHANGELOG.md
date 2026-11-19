@@ -38,6 +38,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   `star_pm_check` (end).
 
 ### Changed
+- **VizieR falls back to its CfA mirror** (vizier.cfa.harvard.edu) when CDS does not answer: the proper-motion check
+  (`pmcheck`) and the favorites' VizieR double-star check; the next query starts at the server that answered.
 - **The path's σ is the part across the track** (map lines, chance, reach): the asteroid's error ellipse plus the
   star's, perpendicular to the asteroid's motion, instead of Horizons' whole-ellipse RSS, which is mostly along the
   track (a time shift). About half the RSS (median); bands narrower, chances higher. The record keeps both

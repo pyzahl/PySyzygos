@@ -46,12 +46,10 @@ def _tsv(text):
 def _query(source, cols, ra, dec, fetch=None):
     q = urllib.parse.urlencode({"-source": source, "-c": f"{ra:.6f} {dec:+.6f}", "-c.rs": f"{RADIUS_ARCSEC:g}",
                                 "-out": cols, "-out.max": "20"})
-    url = f"{U.URL_VIZIER_ASU}?{q}"
     if fetch is not None:
-        return _tsv(fetch(url))
-    from pysyzygos.net import urlopen
-    with urlopen(url, timeout=30) as r:
-        return _tsv(r.read().decode("utf-8", "replace"))
+        return _tsv(fetch(f"{U.URL_VIZIER_ASU}?{q}"))
+    from pysyzygos.net import read_first                      # CDS, else its CfA mirror
+    return _tsv(read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=30))
 
 
 def _num(row, k):
