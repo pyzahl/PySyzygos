@@ -443,6 +443,9 @@ def build_event(r, lat, lon, kml_dir, out_dir):
                 drop_blend=num(r.get("mag_drop_blended")), dhint=(r.get("double_hint") or "").strip(),
                 sflag=(r.get("star_flag") or "").strip(), star_sigma=num(r.get("star_sigma_km")),
                 pm_alts=(r.get("star_pm_alts") or "").strip(), pm_check=(r.get("star_pm_check") or "").strip(),
+                wds=(r.get("wds") or "").strip(), wds_sep=num(r.get("wds_sep_arcsec")),
+                var=(r.get("var") or "").strip(), var_type=(r.get("var_type") or "").strip(),
+                var_amp=num(r.get("var_amp_mag")), sinfo=(r.get("star_info") or "").strip(),
                 p_site=num(r.get("p_site")), sigma1=num(r.get("path_sigma1_km")),
                 ruwe=num(r.get("star_ruwe")) if num(r.get("star_ruwe")) is not None else num(r.get("gaia_ruwe")),
                 sigma_src=(r.get("sigma_source") or "").strip(), ra=ra, dec=dec, fov=fov,
@@ -600,6 +603,9 @@ span.wx-cloudy{background:color-mix(in srgb,#64748b 18%,transparent);color:var(-
 .badge.kind{background:color-mix(in srgb,#7c3aed 14%,transparent);color:#6d28d9;font-size:.72rem}
 sup.bin{color:#0891b2;font-weight:600;margin-left:3px;cursor:help;white-space:nowrap}
 span.dbl{color:#b26a00;font-weight:600;cursor:help;white-space:nowrap}
+span.swds,span.svar{font-size:.78em;border-radius:3px;padding:0 .25em;margin-left:.2em;cursor:help;white-space:nowrap}
+span.swds{color:#6a4c93;border:1px solid #b9a6d6}
+span.svar{color:#00796b;border:1px solid #80cbc4}
 span.sflag{color:#b26a00;font-size:85%;cursor:help;white-space:nowrap}
 span.twi{color:#8a6d00;font-size:85%;cursor:help;white-space:nowrap}
 span.swarn2{color:#92400e;background:#fde68a;font-weight:600;font-size:85%;padding:0 4px;border-radius:3px;cursor:help;white-space:nowrap}
@@ -1185,7 +1191,26 @@ def star_mark(e):
     """After the star magnitude: a red '⚠ star ±150 km' when the star's position is too uncertain for this path
     (2-parameter star without a proper motion, ...), else the small '⚑ RUWE 1.65' for a supplement star; empty for a
     main-catalog star. Plus pm_check_mark when the proper-motion check was not done."""
-    return _star_mark(e) + pm_check_mark(e)
+    return _star_mark(e) + pm_check_mark(e) + star_info_mark(e)
+
+
+def star_info_mark(e):
+    """'WDS 1.2″' (a known pair; the closest separation) and 'var 0.8' (a known variable; its amplitude) after the
+    star's magnitude, the catalog lines on hover (starinfo.py); empty when neither is known."""
+    out = ""
+    src = f" (look-up: {e['sinfo']})" if e.get("sinfo") else ""
+    if e.get("wds"):
+        s = e.get("wds_sep")
+        sep = "" if s is None else (" <0.1\u2033" if s < 0.05 else f" {s:.1f}\u2033")
+        tip = ("Washington Double Star Catalog: " + e["wds"].replace("; ", "\n") + src +
+               "\nA companion within a few arcsec shares the star image: the drop is smaller, and a step may show.")
+        out += f' <span class="swds" title="{esc(tip)}">WDS{sep}</span>'
+    if e.get("var"):
+        a = e.get("var_amp")
+        tip = ("AAVSO Variable Star Index: " + e["var"].replace("; ", "\n") + src +
+               "\nThe star's brightness changes: the magnitude and the expected drop may differ on the night.")
+        out += f' <span class="svar" title="{esc(tip)}">var{"" if a is None else f" {a:.1f}"}</span>'
+    return out
 
 
 def _star_mark(e):
@@ -1483,6 +1508,7 @@ def info_html(info):
 # GUI (/api/filters, gui_state.json) when it serves the page, else in the browser (localStorage). The current filter
 # of each page is remembered in the browser and applied again when the page loads.
 FILTER_FLAGS = (("sup", "⚑ supplement star"), ("unc", "uncertain star"), ("dbl", "⚠ close/double star"),
+                ("wds", "WDS pair"), ("var", "variable star"),
                 ("twi", "☼ twilight"), ("hz", "⛰ horizon"), ("est", "size est."))
 
 
@@ -1508,6 +1534,7 @@ def filter_attrs(e):
     from pysyzygos import binaries
     flags = [k for k, ok in (
         ("sup", bool(e.get("sflag"))), ("unc", bool(star_uncertain(e) or star_noted(e))), ("dbl", bool(e.get("dhint"))),
+        ("wds", bool(e.get("wds"))), ("var", bool(e.get("var"))),
         ("twi", bool(twilight_text(e.get("sun")))), ("hz", (e.get("hz") or ("",))[0] in ("behind", "near")),
         ("est", not e.get("body") and size_estimated(e)),
         ("moon", not e.get("body") and bool(binaries.short(e["tid"])))) if ok]

@@ -355,6 +355,22 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `search.online_double_check` after pass 2: one async ADQL job (OR of circles, daemon thread, 120 s timeout) ->
   `online_fields` -> `db.update_events` (this run's events in the results database).
   New record fields go at the END of the hit record (the log is appended; mixed headers otherwise).
+- `pysyzygos/starinfo.py` (1.5.5, 2026-11-21, user's request; `pysyzygos star-info status|add|remove|lookup`): WDS
+  (GSU's current wdsweb_summ2.txt, URL_WDS_SUMMARY, fixed columns per wdsweb_format.txt, precise coords 113-130) and
+  AAVSO VSX (vsx.dat 209-byte lines, URL_VSX_DAT + CfA mirror, streamed 2.2 GB, numpy fixed-width parse `vsx_block`,
+  rows brighter than VSX_MAG_MAX 17 at max and not 'constant': 6.0 M of 10.3 M, 0.29 GB, 2 min, 1 GB peak) at each
+  event star. search `star_info_check` after online_double_check -> `starinfo.check` -> db.update_events; mode
+  config `star_info` / env PYSYZYGOS_STAR_INFO (GUI System checkbox `pg.si_chk`, gui_state star_info -> run_process
+  auto/off): auto = local copy per catalog when installed (HOME/star_info/<name>.npy RA-sorted + .json; gitignored,
+  cleanup DOWNLOADS), else VizieR (one ASU cone per star, both tables, ONLINE_THREADS 3, failed ones once more
+  alone, ONLINE_MAX 500 -> run warning). Measured 2026-11-21: VizieR 0.12-0.6 s per request; CDS XMatch was
+  unreachable and VizieR's WDS copy has no Obs2/Nobs/SpType. Match: WDS primary or companion (last PA/sep) within
+  WDS_RADIUS 5", VSX within 3" with G inside the range +- 1.5 (other bands 3), at the event and moved back to J2000
+  by the star's pm. Record fields (end): wds, wds_sep_arcsec, wds_dmag, var, var_type, var_amp_mag, star_info;
+  db.HITS wds/wds_sep/wds_dmag/var/var_type/var_amp; report `star_info_mark` (span.swds/.svar in star_mark), filter
+  flags wds/var (FILTER_HIDE_SQL), exports star_mag " WDS"/" var". System tab block (si_box per catalog: tick =
+  download, untick = delete dialog; "Update local copies"). `net.read_first(ok=net.asu_ok)`: VizieR error pages with
+  status 200 (CDS "Page unavailable", CfA STDB_ERR) count as no answer (pmcheck, doubles too). tests/test_starinfo.py.
 - `pysyzygos/owc.py` (on by default since 1.3.3, user's decision 2026-10-20: low request volume; config `owc_feeds`
   (template True), GUI button "Check OWC Feeds" in Results and Favorites; the old key `owc_lookup` is ignored, since
   every config copy carried `owc_lookup = False`; still say little about it in public docs until IOTA/OWC agree): OccultWatcher Cloud lookup through the public

@@ -48,8 +48,8 @@ def _query(source, cols, ra, dec, fetch=None):
                                 "-out": cols, "-out.max": "20"})
     if fetch is not None:
         return _tsv(fetch(f"{U.URL_VIZIER_ASU}?{q}"))
-    from pysyzygos.net import read_first                      # CDS, else its CfA mirror
-    return _tsv(read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=30))
+    from pysyzygos.net import read_first, asu_ok                     # CDS, else its CfA mirror
+    return _tsv(read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=30, ok=asu_ok))
 
 
 def _num(row, k):

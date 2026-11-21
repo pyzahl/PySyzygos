@@ -278,7 +278,9 @@ component. (4089) Galbraith's star (WDS AG 112 AB, 2.8", nearly equal): its two 
 +- 1.7) and the epoch motion (-3.3, -10.5 +- 1.0/2.3), differ by 2.6 mas/yr, ~43 km on the ground by 2026, more
 than either's quoted error; UCAC4's own (-5.6, -15.8) is 5.4 mas/yr from the epoch motion. Such events should be compared with other
 predictions; the double-star check in the favorites panel (VizieR: WDS and Gaia's binarity indicators) shows what is
-known about the pair. Gaia DR4 (expected December 2026) will give proper motions for most of these stars.
+known about the pair. Since 1.5.5 every result's star is also looked up after the search in the WDS (pairs with
+their last separation and position angle) and the AAVSO VSX (known variables): "WDS" and "var" badges in the tables
+(README "Double and variable stars"); reference only, the drop and the path do not use them. Gaia DR4 (expected December 2026) will give proper motions for most of these stars.
 
 ### 2.5 Candidate scan: `find_candidates`
 

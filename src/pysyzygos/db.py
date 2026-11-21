@@ -88,6 +88,12 @@ HITS = [
     ("star_flag", "star_flag", "text", "", "supplement star: 'RUWE 1.65' or '2p ...'; '' main catalog"),
     ("star_kind", "star_kind", "num", "", "0 main catalog, 1 high RUWE, 2+ 2-parameter star"),
     ("double_hint", "double_hint", "text", "", "close or double star note ('' none)"),
+    ("wds", "wds", "text", "", "Washington Double Star Catalog pairs at the star ('' none known)"),
+    ("wds_sep", "wds_sep_arcsec", "num", "arcsec", "closest WDS pair's separation (last measure)"),
+    ("wds_dmag", "wds_dmag", "num", "mag", "that pair's magnitude difference"),
+    ("var", "var", "text", "", "AAVSO VSX variable at the star ('' none known)"),
+    ("var_type", "var_type", "text", "", "its variability type (GCVS style, e.g. EA, SR, DSCT)"),
+    ("var_amp", "var_amp_mag", "num", "mag", "its amplitude (range)"),
     ("horizon", "horizon_flag", "text", "", "your horizon: 'behind', 'near' or ''"),
     ("size_source", "size_source", "text", "", "where the size comes from, e.g. 'H only, albedo assumed'"),
     ("dist_au", "dist_au", "num", "au", "asteroid's distance from the Earth"),
@@ -200,7 +206,8 @@ FILTER_SQL = {"mag": "mag <= {v}", "dur": "duration >= {v}", "drop": "(mag_drop 
               "sigpw": "(sigma IS NULL OR radius IS NULL OR radius = 0 OR sigma <= {v} * 2 * radius)",   # OWC's SigPW
               "frames": "(frames_max IS NULL OR frames_max >= {v})"}
 FILTER_HIDE_SQL = {"sup": "star_flag = ''", "unc": "(star_sigma IS NULL OR star_sigma <= 0.5 * radius)",
-                   "dbl": "double_hint = ''", "twi": "sun_alt <= -12", "hz": "horizon NOT IN ('behind', 'near')",
+                   "dbl": "double_hint = ''", "wds": "(wds IS NULL OR wds = '')",
+                   "var": "(var IS NULL OR var = '')", "twi": "sun_alt <= -12", "hz": "horizon NOT IN ('behind', 'near')",
                    "est": "size_source NOT LIKE 'H only%'"}
 
 

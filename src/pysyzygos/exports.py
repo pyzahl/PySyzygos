@@ -90,6 +90,7 @@ def event_shown(e):
         star_mag=R.fmt(e["mag"]) + (f" \u26a0 star \u00b1{R.star_uncertain(e):.0f} km" if R.star_uncertain(e)
                                     else f" \u2691 {e['sflag']}" if e.get("sflag") else "")
         + (" pm ?" if e.get("pm_check") else "")                    # proper-motion check not done (report.pm_check_mark)
+        + (" WDS" if e.get("wds") else "") + (" var" if e.get("var") else "")   # report.star_info_mark
         + (f" {R.twilight_text(e.get('sun'))}" if R.twilight_text(e.get("sun")) else ""),
         sun_alt=None if e.get("sun") is None else round(e["sun"], 1),
         star_flag=e.get("sflag") or "", star_sigma_km=None if e.get("star_sigma") is None else round(e["star_sigma"], 1),

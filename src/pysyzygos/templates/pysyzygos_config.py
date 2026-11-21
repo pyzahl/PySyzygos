@@ -40,6 +40,10 @@ binary_bodies = True       # binaries with JPL ephemerides of their bodies (Patr
                            # point, every hit's map with all bodies; False: the system orbit only
 gaia_online_check = True   # after a search: check the event stars in the Gaia archive (doubles, neighbours the local
                            # catalog leaves out); one query per run, skipped when offline
+star_info = "auto"         # after a search: known double stars (WDS) and variables (AAVSO VSX) at each event star
+                           # (starinfo.py): "auto" = the local copies when installed (pysyzygos star-info add wds vsx,
+                           # System tab), else VizieR online (~0.1-0.4 s per star, 3 at a time); "local", "online",
+                           # "off". The GUI's System checkbox overrides it
 min_mag_drop = 0.1         # mag; events with a smaller drop are not logged (also sets the Gaia magnitude cap per asteroid)
 corridor_step_s = 600      # s, coarse path step for the corridor candidate scan
 gaia_local_dir = "gaia_dr3_g16"  # folder of the local Gaia copy, required by corridor mode (pysyzygos setup, or pysyzygos gaia build)

@@ -27,7 +27,8 @@ KERNEL_FILES = ("naif*.tls", ".lsk_checked", "de440.bsp", "pck00010.tpc", "earth
 NAIF_FILES = ("jup365.bsp", "sat441.bsp", "nep097.bsp", "plu060.bsp", "mar099.bsp")   # bodies.NAIF_KERNELS
 DOWNLOADS = KERNEL_FILES + NAIF_FILES + ("earth_1962_*_combined.bpc", "data/ObsCodes.html", "jpl_asteroids_spice.csv",
                                          "sbdb_cache.json", "owc_cache.json", "weather_cache.json",
-                                         "occult_data")                     # occultdata.py add-on
+                                         "occult_data",                      # occultdata.py add-on
+                                         "star_info")                       # starinfo.py: WDS, VSX copies
 CACHE_PATTERNS = ("PySyzygos_asteroid_*.bsp", "PySyzygos_body_*.bsp", "PySyzygos_sbdb_cache.json",
                   "PySyzygos_component_*.bsp", "PySyzygos_components.json",      # binaries' bodies (components.py)
                   "PySyzygos_nima_*.bsp", "PySyzygos_nima_index.json",            # NIMA orbits (nima.py)

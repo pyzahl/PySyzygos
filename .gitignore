@@ -65,6 +65,7 @@ owc_cache.json
 weather_cache.json
 /offline/
 /occult_data/
+/star_info/
 /logs/
 
 # math slides (docs/math): LaTeX build files; the PDF is built with make there

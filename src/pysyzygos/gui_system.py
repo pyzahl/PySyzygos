@@ -251,6 +251,23 @@ def panel(pg):
                  "only (NAIF splits it into very large files).").classes("text-xs text-slate-500")
         pg.planets_box = ui.column().classes("w-full gap-0")
         ui.separator()
+        ui.label("Double and variable stars (WDS, AAVSO VSX)").classes("font-semibold")
+        ui.label("After each search, every event star is looked up in the Washington Double Star Catalog (measured "
+                 "pairs: separation, position angle, magnitudes, first and last observation) and in the AAVSO "
+                 "Variable Star Index (type, range, period). Shown as badges after the star's magnitude in Results "
+                 "and Favorites, with a filter. Reference only: the drop and the path do not use them. Online: one "
+                 "VizieR request per event star, ~0.1-0.4 s, 3 at a time (~10 s per 100 stars; at most 500 per "
+                 "search). Local copies answer in well under a millisecond per star, offline, and the WDS one is "
+                 "GSU's current file (VizieR's copy lags and lacks the last observation).").classes(
+            "text-xs text-slate-500")
+        pg.si_chk = ui.checkbox("Look up the result stars in the WDS and VSX after each search",
+                                value=load_ui_state().get("star_info", True)).props("dense")
+        pg.si_box = ui.column().classes("w-full gap-0")
+        with ui.row().classes("items-center gap-2"):
+            ui.button("Update local copies", on_click=lambda: pg.si_update()).props("outline dense").tooltip(
+                "Download the installed catalogs again (WDS: GSU's current file; VSX: the VizieR copy, updated "
+                "weekly or so)")
+        ui.separator()
         ui.label("Occult data (optional add-on)").classes("font-semibold")
         ui.label("Asteroid data that D. Herald maintains for the Occult program, published by IOTA: infrared "
                  "diameters, H and G in two colours, asteroid satellites, the occultation results archive "
@@ -705,6 +722,55 @@ def handlers(pg):
                             f"events)" + (f"; predictions checked {st['checked']}" if st.get("checked") else ""))
     pg.occ_refresh = occ_refresh
 
+    def si_refresh(*_):
+        from pysyzygos import starinfo
+        pg.si_box.clear()
+        with pg.si_box:
+            for s in starinfo.status(ROOT):
+                if s["installed"]:
+                    label = (f"local copy of {s['name'].upper()}: {s['rows']:,} rows, {s['bytes'] / 1e6:.0f} MB, "
+                             f"server date {(s['server_date'] or '?')[5:16]}"
+                             + (f", brighter than {s['mag_max']:g} mag" if s.get("mag_max") else ""))
+                else:
+                    label = f"local copy of {s['name'].upper()}: {s['text']} ({s['approx']})"
+                cb = ui.checkbox(label, value=s["installed"]).props("dense")
+                cb.on_value_change(lambda e, k=s["name"]: pg.si_toggle(k, e.value))
+    pg.si_refresh = si_refresh
+
+    async def si_toggle(name, on):
+        from pysyzygos import starinfo
+        if on:
+            ui.notify(f"Downloading {name.upper()} (see the log)")
+            await run_process(PYSYZYGOS + ["star-info", "add", name], pg.log)
+            pg.si_refresh()
+            return
+
+        async def go(delete):
+            dlg.close()
+            if delete:
+                await run.io_bound(starinfo.remove, name, ROOT)
+                ui.notify(f"Local {name.upper()} deleted: look-ups go online", type="positive")
+            pg.si_refresh()
+
+        with ui.dialog().props("persistent") as dlg, ui.card().classes("max-w-lg"):
+            ui.label(f"Delete the local copy of {name.upper()}?").classes("font-semibold")
+            ui.label("The look-ups then ask VizieR online; ticking it again downloads it anew.").classes("text-sm")
+            with ui.row():
+                ui.button("Delete", on_click=lambda: go(True)).props("color=negative")
+                ui.button("Cancel", on_click=lambda: go(False)).props("flat")
+        dlg.open()
+    pg.si_toggle = si_toggle
+
+    async def si_update():
+        from pysyzygos import starinfo
+        names = [s["name"] for s in starinfo.status(ROOT) if s["installed"]]
+        if not names:
+            ui.notify("No local copy installed: tick one above to download it", type="warning")
+            return
+        await run_process(PYSYZYGOS + ["star-info", "add"] + names, pg.log)
+        pg.si_refresh()
+    pg.si_update = si_update
+
     async def upd_check():
         """Look for a newer version (selfupdate.status): a note, the changelog of the new version, Update if possible."""
         from pysyzygos import selfupdate
@@ -1004,6 +1070,9 @@ def connect(pg):
     pg.cat_refresh()
     pg.planets_refresh()
     pg.occ_refresh()
+    pg.si_refresh()
+    pg.si_chk.on_value_change(lambda e: (save_ui_state(star_info=bool(e.value)), ui.notify(
+        "WDS / VSX look-ups " + ("on" if e.value else "off") + " (from the next search)", type="info")))
     pg.cat_sel.on_value_change(pg.cat_refresh)
     ui.timer(10.0, pg.cat_build_tick)                           # the background catalog build's progress
     pg.tabs.on_value_change(lambda e: pg.sys_info_refresh() if e.value in (pg.t_sys, "System") else None)

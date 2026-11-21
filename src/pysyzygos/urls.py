@@ -76,6 +76,9 @@ URL_MPC_OBSCODES = "https://minorplanetcenter.net/iau/lists/ObsCodes.html"      
 URL_VIZIER_ASU = "https://vizier.cds.unistra.fr/viz-bin/asu-tsv"                 # VizieR queries (double-star check)
 URL_VIZIER_ASU_MIRRORS = ["https://vizier.cfa.harvard.edu/viz-bin/asu-tsv"]      # same queries at CfA (CDS down)
 URL_VIZIER_GAIA_DR3 = "https://vizier.cds.unistra.fr/viz-bin/VizieR-5?-source=I/355/gaiadr3&Source="  # + Gaia DR3 id
+URL_WDS_SUMMARY = "https://www.astro.gsu.edu/wds/Webtextfiles/wdsweb_summ2.txt"    # WDS, current (GSU): starinfo.py
+URL_VSX_DAT = "https://cdsarc.cds.unistra.fr/ftp/B/vsx/vsx.dat"                    # AAVSO VSX (VizieR copy, 2.1 GB)
+URL_VSX_DAT_MIRRORS = ["https://vizier.cfa.harvard.edu/ftp/cats/B/vsx/vsx.dat"]     # same file at CfA
 
 # --- places, elevation, time zones (geo.py)
 URL_OPENMETEO_ELEVATION = "https://api.open-meteo.com/v1/elevation"

@@ -215,7 +215,7 @@ def _vizier(params, timeout=60, fetch=None):
     from pysyzygos import net, urls as U
     q = urllib.parse.urlencode(params)
     if fetch is None:
-        text = net.read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=timeout)
+        text = net.read_first([U.URL_VIZIER_ASU] + U.URL_VIZIER_ASU_MIRRORS, q, timeout=timeout, ok=net.asu_ok)
     else:
         text = fetch(U.URL_VIZIER_ASU + "?" + q)
     lines = [ln for ln in text.splitlines() if ln and not ln.startswith("#")]

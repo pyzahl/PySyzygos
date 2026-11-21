@@ -4,6 +4,23 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [1.5.5] "Beyond Horizons" - 2026-11-21
+
+### Added
+- **Double and variable stars at each result's star**: the Washington Double Star Catalog (WDS) and the AAVSO
+  Variable Star Index (VSX), looked up after every search (System tab checkbox; config `star_info` auto | local |
+  online | off). Badges after the star's magnitude ("WDS 1.2″", "var 0.8"; the catalog lines on hover), filter-bar
+  flags "WDS pair" / "variable star", SQL columns wds, wds_sep, wds_dmag, var, var_type, var_amp; record fields at
+  the end. Online: one VizieR request per event star (~0.1-0.4 s, 3 at a time; at most 500 per search). Optional
+  local copies (System tab, `pysyzygos star-info add wds vsx`): GSU's current WDS (12 MB) and the VSX variables
+  brighter than mag 17 (6.0 M of 10.3 M, 0.29 GB; a 2.2 GB download, ~2 min), < 1 ms per star, offline.
+  Reference only: the predictions do not use them.
+
+### Fixed
+- **VizieR error pages taken for answers**: CDS and CfA have answered with status 200 and an error page ("Page
+  unavailable", a database error) when down; the proper-motion and double-star checks then found nothing. Such an
+  answer now counts as no answer, and the mirror is asked (`net.asu_ok`).
+
 ## [1.5.4] "Beyond Horizons" - 2026-11-15
 
 ### Added

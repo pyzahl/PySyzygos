@@ -142,9 +142,16 @@ Patroclus) JPL predicts each body, and the search lists each one as its own even
 with all bodies' paths on its map. For the other binaries the prediction is for the pair's common point; in the
 favorites, **Predict each body (binary)** computes each body where JPL can.
 
+**WDS 1.2″** after the star's magnitude: the star is a known double in the Washington Double Star Catalog (the
+closest pair's separation; hover for the pairs). **var 0.8**: a known variable in the AAVSO Variable Star Index (its
+amplitude; hover for type, range and period). A companion within a few arcseconds makes the drop smaller and may show
+as a step; a variable's brightness on the night may differ from the catalog's. Every search looks them up online
+(a few seconds per 100 events); for big searches or offline use, tick the local copies under **System → Double and
+variable stars**.
+
 A long list? Open **Filter** above the table: for example a date range, G ≤ 12, duration ≥ 0.5 s, Sun ≤ −12° (no
 twilight), "clear of horizon ≥ 5°" (uses your site's horizon, also for searches made before you set it), "hide
-uncertain star", the asteroid **class** (a group such as NEO, main belt, Jupiter Trojans, or one JPL orbit class) and
+uncertain star", "hide WDS pair" or "hide variable star", the asteroid **class** (a group such as NEO, main belt, Jupiter Trojans, or one JPL orbit class) and
 "σ/path width ≤ 0.5" (the path's 1-sigma uncertainty in shadow widths, OccultWatcher's "SigPW"), or "frames ≥ 10"
 (at least 10 data points across the drop: each exposure is then the duration / 10, and the star must still be bright
 enough for your telescope and camera; hover a duration to see how many frames that event allows). **Save as...** keeps such a filter under a name for later (also in Favorites). **CSV** downloads
@@ -248,5 +255,7 @@ the pick says so in orange. On a second computer you can also copy `sigma_table.
   telescope can simply have no events; try 7-14 days.
 * **A download fails:** offline, or a server is busy. Run it again later; it resumes.
 * **The System tab** shows what data PySyzygos has and uses (catalog, orbits, Earth data and their dates), and
-  **Setup status** checks the installation.
+  **Setup status** checks the installation. It is also where the optional data live: star catalog parts and
+  ready-made catalogs, planet kernels, the double/variable-star look-ups and their local copies, the Occult data,
+  offline copies, and the update of PySyzygos itself.
 * More help: [README.md](README.md), section by section.

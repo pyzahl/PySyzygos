@@ -42,7 +42,8 @@ def where_key(src):
 SQL_EXAMPLES = ["mag < 11 AND chance > 30", "duration >= 1 AND sun_alt < -12", "ruwe < 1.4 AND star_flag = ''",
                 "utc < '2026-11-15' AND star_alt > 20", "horizon = '' AND mag_drop > 0.5", "name LIKE '%Phaethon%'",
                 "star_alt > horizon_alt(star_az) + 5", "cbet <> ''", "fit_quality >= 3 AND chords >= 5",
-                "abs(dx_across) > 2 * radius", "frames_max >= 10 AND mag_drop > 0.5"]
+                "abs(dx_across) > 2 * radius", "frames_max >= 10 AND mag_drop > 0.5",
+                "var_amp > 0.3 OR wds_sep < 2"]
 
 
 def panel(pg):

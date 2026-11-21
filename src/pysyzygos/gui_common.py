@@ -137,6 +137,9 @@ async def run_process(args, log, env_site=None, on_done=None, env_catalog=None, 
     nima_mode = load_ui_state().get("orbit_nima")             # System tab: NIMA orbits (search.nima_mode)
     if nima_mode:
         env["PYSYZYGOS_NIMA"] = nima_mode
+    star_info = load_ui_state().get("star_info")              # System tab: WDS / VSX look-ups (starinfo.mode)
+    if star_info is not None:
+        env["PYSYZYGOS_STAR_INFO"] = "auto" if star_info else "off"
     env["PYSYZYGOS_T0"] = repr(time.time())               # this run's start (not the GUI's: start-up times)
     def push(text):
         # the page can be gone (browser closed, reloaded or stalled past the reconnect timeout): keep going without it,

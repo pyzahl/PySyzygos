@@ -1254,10 +1254,11 @@ def wrap_steps():
     """Time the corridor run's steps: the functions each step calls are replaced by timed versions (steps.py); the
     callers stay as they are. Parts of pass 1 and 2 are listed under them; per-hit work is marked 'hit:'."""
     global prefetch_orbits, prefetch_sizes, load_orbit, get_asteroid_size, window_is_observable, star_test, path_error
-    global event_context, online_double_check
+    global event_context, online_double_check, star_info_check
     W = STEPS.wrap
     for name in ("start-up (Python, kernels, catalog)", "setup (targets, catalog, site)", P1, P2,
-                 "online double check (Gaia archive)", "results (database, CSV export)"):
+                 "online double check (Gaia archive)", "double and variable stars (WDS, VSX)",
+                 "results (database, CSV export)"):
         STEPS.add(name, 0.0)                                         # the table's order
     prefetch_orbits = W("orbits (JPL Horizons, downloads)", prefetch_orbits, group=P1)
     prefetch_sizes = W("sizes (JPL SBDB, downloads)", prefetch_sizes, group=P1)
@@ -1276,6 +1277,7 @@ def wrap_steps():
     from pysyzygos import pmcheck
     pmcheck.estimates = W("hit: proper-motion check (VizieR)", pmcheck.estimates, "stars", group=P2)
     online_double_check = W("online double check (Gaia archive)", online_double_check, "runs")
+    star_info_check = W("double and variable stars (WDS, VSX)", star_info_check, "runs")
 RUN_RECORDS = []         # this run's hits (for the online double-star check after the search)
 DB, RUN_ID = None, None  # results database (db.py) and this run's id, set by the driver
 LOCAL = None             # the local Gaia catalog (set by the driver), for the event previews
@@ -1954,6 +1956,24 @@ def online_double_check(records):
     print(f"* Gaia online check: {n} event(s) updated, {flagged} with a close or double star note")
 
 
+def star_info_check(records):
+    """After the search: known double stars (WDS) and variables (AAVSO VSX) at the event stars (starinfo.py; config
+    star_info / GUI System checkbox), local copies or VizieR; updates their rows in the results database."""
+    from pysyzygos import starinfo
+    if not records or starinfo.mode() == "off":
+        return
+    try:
+        upd, note = starinfo.check(records)
+    except Exception as ex:                                       # noqa: BLE001 - reference data, never fatal
+        upd, note = [], f"WDS/VSX look-up failed ({str(ex)[:120]})"
+    if note:
+        WARNINGS["star_info"] = note
+    if upd:
+        for r, u in zip(records, upd):
+            r.update(u)
+        db.update_events(DB, records, upd, lst=getattr(config, "results_list", "main"))
+
+
 def target_test_corridor(loc, plan, target_id, size, local=None, stars_cands=None):
     """Replacement for the per-window target_test(): one call per asteroid for the whole run.
     plan = corridor.plan_corridor(...) (needs SPICE, build serially). local = gaia_local.LocalGaia.
@@ -2135,5 +2155,6 @@ if __name__ == "__main__":
     print(f"{n_fin} hit(s) logged")
     t_p2 = time.time() - t_p2
     online_double_check(RUN_RECORDS)
+    star_info_check(RUN_RECORDS)
     run_summary("corridor", t_main, t_p1, t_p2, len(plans))
     spice.kclear()

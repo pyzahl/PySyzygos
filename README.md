@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.5.4 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.5.5 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -48,6 +48,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Observation reports (separate GUI)](#observation-reports-separate-gui)
 - [Observation Manager](OBSERVATION-MANAGER.md) (observation reports; PyStarLight's video analysis imported directly; chord plots)
 - [Planets and moons](#planets-and-moons)
+- [Double and variable stars (WDS, AAVSO VSX)](#double-and-variable-stars-wds-aavso-vsx)
 - [Occult data (optional add-on)](#occult-data-optional-add-on)
   - [Observed events in the Results tab, and our predictions checked against them](#observed-events-in-the-results-tab-and-our-predictions-checked-against-them)
 - [Searching anywhere on Earth](#searching-anywhere-on-earth)
@@ -513,7 +514,8 @@ the same data, PySyzygos falls back on its own when the first does not answer:
 | Ready-made star catalog | Zenodo | catalog mirrors (`URL_CATALOG_MIRRORS`, + env `PYSYZYGOS_CATALOG_MIRROR`); the fastest is used |
 | Shared world pre-screens | mirror list (`URL_PRESCREEN_MIRRORS`) | + env `PYSYZYGOS_PRESCREEN_MIRROR` |
 | UCAC4 / UCAC5 zone files (catalog build) | CDS | CfA (`URL_UCAC4_ZONES_MIRRORS`, `URL_UCAC5_ZONES_MIRRORS`) |
-| Proper-motion check, VizieR double-star check | CDS VizieR | CfA VizieR (`URL_VIZIER_ASU_MIRRORS`) |
+| Proper-motion check, VizieR double-star check, WDS / VSX look-ups | CDS VizieR | CfA VizieR (`URL_VIZIER_ASU_MIRRORS`) |
+| VSX local copy (`vsx.dat`) | CDS archive | CfA (`URL_VSX_DAT_MIRRORS`) |
 | Two-parameter star proper motions (catalog build) | CDS XMatch | local match on the UCAC zone files |
 
 To add a mirror of your own, use the environment variables rather than editing `urls.py`: the file is part of the
@@ -1536,6 +1538,36 @@ pysyzygos.bodies` lists them).
   `plu060.bsp`, Mars `mar099.bsp`; Uranus only via Horizons (NAIF splits it per moon, up to 2 GB each).
 * Coming: Earth's Moon; later solar eclipses (contacts C1-C4).
 
+## Double and variable stars (WDS, AAVSO VSX)
+
+After each search, every event star is looked up in the **Washington Double Star Catalog** (WDS: measured pairs with
+separation, position angle, magnitudes, first and last observation, notes) and the **AAVSO International Variable
+Star Index** (VSX: type, magnitude range, period). A known pair shows as a small **WDS 1.2″** badge after the star's
+magnitude in Results and Favorites (the closest pair's separation), a known variable as **var 0.8** (its amplitude);
+hover for the catalog lines. The filter bar can hide either (WDS pair, variable star), and the SQL filter has the
+columns `wds`, `wds_sep`, `wds_dmag`, `var`, `var_type`, `var_amp`. The predictions do not use them: a companion
+within a few arcseconds shares the star image (the drop is smaller, a step may show), and a variable's magnitude
+and drop may differ on the night.
+
+The checkbox in **System → Double and variable stars** switches the look-ups on or off (config `star_info`: `auto`,
+`local`, `online`, `off`). Two ways to look up:
+
+| | Online (default) | Local copy |
+|---|---|---|
+| Source | VizieR (CDS, else CfA): `B/wds/wds`, `B/vsx/vsx` | WDS: GSU's current file; VSX: the VizieR archive's `vsx.dat` |
+| Time | one request per event star, ~0.1-0.4 s, 3 at a time: ~10 s per 100 stars (at most 500 per search) | well under 1 ms per star |
+| Download | none | WDS 21 MB (12 MB kept); VSX 2.2 GB streamed (~2 min), variables brighter than mag 17 kept: 6.0 M, 0.29 GB |
+| Notes | VizieR's WDS lags GSU's and has no last-observation year | works offline; update now and then |
+
+With a local copy installed, `auto` uses it; a catalog without one is asked online.
+
+```bash
+pysyzygos star-info                         # status
+pysyzygos star-info add wds vsx             # local copies (add again to update); --mag-max 18 keeps fainter variables
+pysyzygos star-info lookup 47.04221 40.95567 2.1   # one star: RA, Dec (degrees), G
+pysyzygos star-info remove vsx
+```
+
 ## Occult data (optional add-on)
 
 David Herald maintains asteroid data for his program Occult, and IOTA publishes it for download. PySyzygos can use
@@ -1779,6 +1811,13 @@ DOI 10.1016/j.pss.2017.02.013
   Gaia non-single stars), distributed by IOTA: https://www.occultations.org/sw/occult/ (optional add-on,
   `pysyzygos occult-data`). Magnitudes from: Combined spin orientation and phase function of asteroids, A&A 687, A38
   (2024). Non-single stars from Gaia DR3 Part 3, VizieR I/357.
+
+- [WDS] Mason, B. D., Wycoff, G. L., Hartkopf, W. I., Douglass, G. G., Worley, C. E. (2001). The 2001 US Naval
+  Observatory Double Star CD-ROM. I. The Washington Double Star Catalog. The Astronomical Journal, 122, 3466;
+  maintained at Georgia State University: https://www.astro.gsu.edu/wds/ (VizieR B/wds).
+
+- [VSX] Watson, C. L., Henden, A. A., Price, A. (2006). The International Variable Star Index (VSX). Society for
+  Astronomical Sciences Annual Symposium, 25, 47; AAVSO: https://www.aavso.org/vsx (VizieR B/vsx).
 
 - [Occultation diameters] Herald, D., et al. (2020). Precise astrometry and diameters of asteroids from occultations
   - a data set of observations and their interpretation. Monthly Notices of the Royal Astronomical Society.
