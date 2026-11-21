@@ -2,7 +2,7 @@
 # No password or token stored: PyPI "trusted publishing" (OpenID Connect). One-time setup on pypi.org:
 #   Account -> Publishing -> Add a pending publisher: project pysyzygos, owner pyzahl, repository PySyzygos,
 #   workflow pypi.yml, environment pypi.
-# Actions on Node 24 (checkout v7, setup-uv v10, upload-artifact v7, download-artifact v8; 2026-11-21).
+# Actions on Node 24 (checkout v7, setup-uv v10.4.0, upload-artifact v7, download-artifact v8; 2026-11-21).
 # A first trial: run this workflow by hand (Actions -> Publish to PyPI -> Run workflow) with target "testpypi"
 # (the same pending publisher set up on test.pypi.org).
 name: Publish to PyPI
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.4.0    # setup-uv has no short major tags, only full versions
       - name: Check that the tag matches the version
         if: github.event_name == 'release'
         run: |
