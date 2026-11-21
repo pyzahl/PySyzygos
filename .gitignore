@@ -88,3 +88,5 @@ weather_cache.json
 
 # per-asteroid path uncertainties outside the main belt (pysyzygos sigmas build; reach from the n-sigma limit)
 /sigma_table.json
+# private: article drafts (publication/README.md)
+/publication/

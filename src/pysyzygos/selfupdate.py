@@ -1,7 +1,15 @@
-"""selfupdate.py - is a newer PySyzygos available, and update a git checkout (System tab).
+"""selfupdate.py - is a newer PySyzygos available, and update it (System tab), for each way it can be installed.
 
-    pysyzygos update            # git pull --ff-only (+ the dependencies when they changed)
+    pysyzygos update            # git: pull --ff-only (+ dependencies); PyPI: pip / uv tool / pipx upgrade
     pysyzygos update --check    # only say what is available
+
+How it was installed (install_kind):
+    git   a clone (the folder PySyzygos runs from has .git): the developer version, every commit (below).
+    pypi  `pip install pysyzygos`, `uv tool install pysyzygos` or `pipx install pysyzygos`: the newest version on PyPI
+          (only the x.y.0 releases go there, with their Zenodo DOI) against this one; the update runs the same tool
+          (`uv tool upgrade`, `pipx upgrade`, else `<python> -m pip install -U`, or `uv pip` where the venv has no pip).
+    zip   an unpacked source folder without .git (GitHub's "Download ZIP" or a release archive): the newest GitHub
+          release with its link; no update in place (switch the folder to git, or install from PyPI).
 
 A git checkout (the folder PySyzygos runs from has .git): `git fetch`, then the commits the tracked branch is ahead
 by, the version and the CHANGELOG entry there. The update is `git pull --ff-only`: it never merges and never touches
@@ -15,12 +23,87 @@ from pysyzygos.version import __version__
 from pysyzygos import urls as U
 
 TIMEOUT_S = 30
+DIST = "pysyzygos"
 
 
 def repo_dir():
     """The folder PySyzygos runs from (src/pysyzygos/.. /..) if it is a git checkout, else None."""
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return root if os.path.exists(os.path.join(root, ".git")) else None
+
+
+def source_dir():
+    """The source folder PySyzygos runs from (src/pysyzygos/../.. holding pyproject.toml), git or not, else None
+    (installed into site-packages)."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return root if os.path.isfile(os.path.join(root, "pyproject.toml")) else None
+
+
+def _direct_url():
+    """The installed distribution's direct_url.json (PEP 610: a local folder, a VCS or file URL; absent when installed
+    from an index such as PyPI) as a dict; {} if absent; None if PySyzygos is not installed as a distribution."""
+    from importlib import metadata
+    try:
+        d = metadata.distribution(DIST)
+    except metadata.PackageNotFoundError:
+        return None
+    try:
+        return json.loads(d.read_text("direct_url.json") or "{}")
+    except (ValueError, OSError):
+        return {}
+
+
+def install_kind():
+    """'git' (a clone), 'pypi' (installed from PyPI: pip, uv tool, pipx) or 'zip' (a source folder without git, or
+    anything else installed from a local folder or file)."""
+    if repo_dir():
+        return "git"
+    if source_dir():                                               # a source folder (ZIP; uv run / pip -e there)
+        return "zip"
+    du = _direct_url()
+    if du == {}:                                                   # from an index; no local folder or file
+        return "pypi"
+    return "zip"
+
+
+def upgrade_command(prefix=None):
+    """The command that upgrades a PyPI install in the way it was made: uv tool / pipx environments by their tool,
+    else pip of this Python (uv's own venvs have no pip: 'uv pip install --python <python>')."""
+    prefix = os.path.normcase(os.path.abspath(prefix or sys.prefix))
+    parts = prefix.replace("\\", "/").split("/")
+    if "uv" in parts and "tools" in parts and shutil.which("uv"):
+        return [shutil.which("uv"), "tool", "upgrade", DIST]
+    if "pipx" in parts and shutil.which("pipx"):
+        return [shutil.which("pipx"), "upgrade", DIST]
+    import importlib.util
+    if importlib.util.find_spec("pip") is None and shutil.which("uv"):
+        return [shutil.which("uv"), "pip", "install", "--python", sys.executable, "-U", DIST]
+    return [sys.executable, "-m", "pip", "install", "-U", DIST]
+
+
+def latest_pypi(timeout=15):
+    """dict(version, url, published) of the newest PySyzygos on PyPI, or None (offline, not published)."""
+    from pysyzygos import net
+    try:
+        with net.urlopen(U.URL_PYPI_JSON, timeout=timeout) as r:
+            d = json.load(r)
+        v = d["info"]["version"]
+        files = d.get("releases", {}).get(v) or [{}]
+        return dict(version=v, url=U.URL_PYPI_PAGE + v + "/", published=str(files[0].get("upload_time", ""))[:10])
+    except Exception:
+        return None
+
+
+def changelog_between(text, newer_than, upto):
+    """changelog_head, without the entries above `upto` (patch versions on GitHub not yet on PyPI)."""
+    out, keep = [], True
+    for block in re.split(r"(?m)^(?=## \[)", changelog_head(text, newer_than)):
+        m = re.match(r"## \[([^\]]+)\]", block)
+        if m:
+            keep = m.group(1).lower() != "unreleased" and version_tuple(m.group(1)) <= version_tuple(upto)
+        if keep and block.strip():
+            out.append(block.rstrip())
+    return "\n\n".join(out)
 
 
 def git(*args, repo=None, timeout=TIMEOUT_S):
@@ -73,12 +156,16 @@ def status(fetch=True, repo=None, release=True):
     (an update can be pulled), reason (why not), error; for a ZIP: release (latest_release), newer (bool)."""
     s = dict(version=__version__, changelog_url=U.URL_CHANGELOG)
     repo = repo or repo_dir()
+    kind = "git" if repo else install_kind()
+    if kind == "pypi":
+        return pypi_status(s, fetch=fetch)
     rel = latest_release() if release else None
     s.update(release=rel, release_newer=bool(rel and version_tuple(rel["tag"]) > version_tuple(__version__)))
     if repo is None:
-        s.update(kind="zip", possible=False, reason="not a git checkout (installed from a ZIP): download the release, or switch the folder to "
-                                                    "git for one-click updates (README: 'Installed from the ZIP? Switch "
-                                                    "to git')")
+        s.update(kind="zip", possible=False,
+                 reason="installed from a folder without git (a ZIP): no update in place. Download the new release, "
+                        "or better switch the folder to git (README: 'Installed from the ZIP? Switch to git') or "
+                        "install from PyPI (pip install pysyzygos)")
         return s
     s["kind"] = "git"
     if shutil.which("git") is None:
@@ -117,9 +204,50 @@ def status(fetch=True, repo=None, release=True):
     return s
 
 
+def pypi_status(s, fetch=True, latest=None):
+    """status() for a PyPI install: the newest version there, its changelog entries, the upgrade command."""
+    s.update(kind="pypi", command=" ".join(os.path.basename(c) if i == 0 else c
+                                           for i, c in enumerate(upgrade_command())))
+    p = latest if latest is not None else (latest_pypi() if fetch else None)
+    s["pypi"] = p
+    if not p:
+        s.update(possible=False, behind=0, reason="no answer from PyPI (offline, or not published there yet)")
+        return s
+    newer = version_tuple(p["version"]) > version_tuple(__version__)
+    s.update(remote_version=p["version"], possible=newer, behind=int(newer),
+             reason="" if newer else f"up to date (PyPI {p['version']}; the developer version: {U.URL_GITHUB_REPO})")
+    if newer and fetch:
+        from pysyzygos import net
+        try:
+            with net.urlopen(U.URL_CHANGELOG_RAW, timeout=15) as r:
+                s["changelog"] = changelog_between(r.read().decode("utf-8", "replace"), __version__, p["version"])
+        except Exception:
+            pass
+    return s
+
+
+def update_pypi(log=print, run=subprocess.run):
+    """Upgrade a PyPI install with the tool that made it. Returns 0 on success."""
+    s = status(fetch=True)
+    if not s.get("possible"):
+        log(f"update: nothing to do: {s.get('reason')}")
+        return 0 if s.get("pypi") else 1
+    cmd = upgrade_command()
+    log(f"update: PySyzygos {__version__} -> {s['remote_version']} from PyPI: " + " ".join(cmd))
+    p = run(cmd, capture_output=True, text=True)
+    log((p.stdout or "")[-3000:] + (p.stderr or "")[-3000:])
+    if p.returncode != 0:
+        log("update: the upgrade failed (see above); the installed version is unchanged")
+        return 1
+    log("update: done. Restart PySyzygos to use it (header: power button, Restart).")
+    return 0
+
+
 def update(log=print, repo=None, deps=True):
     """git pull --ff-only, then the dependencies if pyproject.toml / uv.lock changed. Returns 0 on success."""
     repo = repo or repo_dir()
+    if repo is None and install_kind() == "pypi":
+        return update_pypi(log)
     s = status(fetch=True, repo=repo, release=False)
     if s["kind"] != "git" or not s.get("possible"):
         log(f"update: not possible: {s.get('reason')}")

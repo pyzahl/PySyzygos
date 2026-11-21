@@ -22,6 +22,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Tools in this project](#tools-in-this-project)
 - [Quick start](#quick-start)
 - [Install](#install)
+  - [Releases or the developer version: three ways](#releases-or-the-developer-version-three-ways)
   - [Easiest: with uv (Linux, macOS, Windows)](#easiest-with-uv-linux-macos-windows)
   - [Windows, step by step (with uv)](#windows-step-by-step-with-uv)
   - [Installed from the ZIP? Switch to git](#installed-from-the-zip-switch-to-git)
@@ -165,12 +166,26 @@ GUI, planets and moons, and the report.
 > | installed with | type | where |
 > |---|---|---|
 > | uv | `uv run pysyzygos …` | in the PySyzygos folder |
+> | from PyPI with pipx or `uv tool` | `pysyzygos …` | anywhere |
 > | pip, environment activated (`source .venv/bin/activate`; Windows: `.venv\Scripts\activate`) | `pysyzygos …` | anywhere, in that terminal |
 > | pip, not activated | `.venv/bin/pysyzygos …` (Windows: `.venv\Scripts\pysyzygos …`) | in the PySyzygos folder |
 >
 > Activation lasts for one terminal only. To type just `pysyzygos` in every terminal, add an alias once, e.g. in
 > `~/.bashrc`: `alias pysyzygos=~/PySyzygos/.venv/bin/pysyzygos` (with your folder), or with uv
 > `alias pysyzygos='uv run --project ~/PySyzygos pysyzygos'`, which also works from any folder.
+
+## Releases or the developer version: three ways
+
+| | What you get | Install | Update |
+|---|---|---|---|
+| **PyPI** (from 1.6.0 on) | the releases (x.y.0, each with its Zenodo DOI) | `pipx install pysyzygos` or `uv tool install pysyzygos` (or `pip install pysyzygos` in a venv), then `pysyzygos setup` | `pysyzygos update` or the System tab's **Update**: runs `pipx upgrade` / `uv tool upgrade` / `pip install -U`, whichever made the install |
+| **git clone** (below) | the developer version: every fix as soon as it is committed | `git clone`, then `uv run pysyzygos` | System tab **Update** or `pysyzygos update` (`git pull --ff-only`, the packages with it) |
+| ZIP from GitHub (least suggested) | the version of the day you downloaded | unpack, then `uv run pysyzygos` | by hand only: a new ZIP; better [switch it to git](#installed-from-the-zip-switch-to-git) or install from PyPI |
+
+The System tab says which of the three it is and what is newer. A PyPI install keeps your data in its own data
+folder (`~/PySyzygos` unless setup is told otherwise), so moving from PyPI to a clone or back keeps everything: point
+the new install at the same folder (`pysyzygos setup --home <folder>`). On Windows, close PySyzygos before an update
+from a terminal if the upgrade cannot replace `pysyzygos.exe`.
 
 ## Easiest: with uv (Linux, macOS, Windows)
 

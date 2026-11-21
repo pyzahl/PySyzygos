@@ -45,7 +45,14 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   check + build; the PDF is not in git, decided 2026-10-20: a committed PDF goes stale).
   With each such release update the PDF link at the top of ABOUT.md (tag in the URL and the link text; now v1.5.1).
   GitHub releases (tag -> Zenodo DOI) only for 1.x.0 (user's rule, 2026-10-19: not too often); patch versions
-  (1.3.2, ...) are only committed, users get them with git pull / the update. Every version increase gets a
+  (1.3.2, ...) are only committed, users get them with git pull / the update.
+  PyPI (decided 2026-11-21, first upload planned with 1.6.0): only the x.y.0 releases, with the Zenodo DOI;
+  `.github/workflows/pypi.yml` publishes on a GitHub release (trusted publishing, no token; checks tag == version;
+  manual run to TestPyPI); the PyPI page is `PYPI_README.md` (pyproject `readme`; absolute links only, short, links
+  to the GitHub README). The developer version stays the git clone. Install kinds (`selfupdate.install_kind`):
+  git (clone: pull), pypi (site-packages without direct_url.json: `upgrade_command` = uv tool upgrade / pipx
+  upgrade / pip -U, or `uv pip --python` where the venv has no pip; status from URL_PYPI_JSON, changelog entries up
+  to the PyPI version from URL_CHANGELOG_RAW), zip (a source folder without .git, `source_dir`: release link only). Every version increase gets a
   `CHANGELOG.md` entry (Keep a Changelog style, newest first) (semver; keep CITATION.cff `version` and the README line in step);
   every module imports it, tools have `--version`, GUI header, run summary/report, picks and favorites record it.
 - `pysyzygos/search.py`: main search script. Kernel setup runs at import time (not import-safe). Driver is the `__main__` block.

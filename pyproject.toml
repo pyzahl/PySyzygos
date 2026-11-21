@@ -1,25 +1,29 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=77", "wheel"]   # 77: license as an SPDX expression (PEP 639)
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pysyzygos"
 dynamic = ["version"]
 description = "Asteroid occultation predictions for your observing site: JPL Horizons orbits, a local Gaia DR3 catalog, a web interface"
-readme = "README.md"
-license = { file = "LICENSE" }
-requires-python = ">=3.10"
+readme = { file = "PYPI_README.md", content-type = "text/markdown" }   # short, absolute links; full README on GitHub
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"   # tested 3.11-3.14 (2026-11-21); 3.10: end of life, two tests fail
 authors = [{ name = "Percy Zahl" }]
 keywords = ["asteroid", "occultation", "astronomy", "Gaia", "SPICE", "IOTA", "syzygy"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 dependencies = [
@@ -36,7 +40,11 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/pyzahl/PySyzygos"
+Documentation = "https://github.com/pyzahl/PySyzygos#readme"
+Source = "https://github.com/pyzahl/PySyzygos"
+Issues = "https://github.com/pyzahl/PySyzygos/issues"
 Changelog = "https://github.com/pyzahl/PySyzygos/blob/main/CHANGELOG.md"
+DOI = "https://doi.org/10.5281/zenodo.23149371"
 
 [project.scripts]
 pysyzygos = "pysyzygos.__main__:main"

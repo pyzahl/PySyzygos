@@ -26,6 +26,10 @@ GAIA_DR3_LISTING_PREFIX = "Gaia/gdr3/gaia_source/"                              
 URL_GIT_DOWNLOAD = "https://git-scm.com/downloads"                                # git installers (System tab, ZIP install)
 URL_GITHUB_LATEST_RELEASE = "https://api.github.com/repos/pyzahl/PySyzygos/releases/latest"   # selfupdate.py
 URL_CHANGELOG = "https://github.com/pyzahl/PySyzygos/blob/main/CHANGELOG.md"                 # System tab link
+URL_CHANGELOG_RAW = "https://raw.githubusercontent.com/pyzahl/PySyzygos/main/CHANGELOG.md"    # selfupdate (PyPI installs)
+URL_PYPI_JSON = "https://pypi.org/pypi/pysyzygos/json"                                       # selfupdate: newest on PyPI
+URL_PYPI_PAGE = "https://pypi.org/project/pysyzygos/"                                         # + <version>/
+URL_GITHUB_REPO = "https://github.com/pyzahl/PySyzygos"                                       # clone / developer version
 URL_ZENODO_CATALOG_RECORD = "https://zenodo.org/api/records/23113337"           # concept record: newest version
 # mirrors of the ready-made catalog archives (starcat.fetch; the same file names, checked against the SHA-256 stored
 # in starcat.ARCHIVE_SHA256): folder addresses ending in /, tried with Zenodo, the fastest wins. Env

@@ -778,7 +778,8 @@ def handlers(pg):
         pg.upd_info.text = "checking for updates ..."
         s = await run.io_bound(selfupdate.status)
         rel = s.get("release") or {}
-        pg.upd_rel.set_visibility(bool(rel.get("url")) and (s.get("kind") == "zip" or s.get("release_newer")))
+        pg.upd_rel.set_visibility(bool(rel.get("url")) and s.get("kind") != "pypi"
+                                  and (s.get("kind") == "zip" or s.get("release_newer")))
         pg.upd_git.set_visibility(s.get("kind") == "zip")
         if rel.get("url"):
             pg.upd_rel.props(f"href={rel['url']}")
@@ -789,6 +790,14 @@ def handlers(pg):
             pg.upd_info.text = (f"new version {v} available ({behind} change(s))" if s.get("possible") else
                                 f"new version {v} available ({behind} change(s)); update by hand: {s.get('reason')}")
             pg.upd_info.classes(replace="text-sm text-amber-700")
+        elif s.get("kind") == "pypi":
+            if s.get("possible"):
+                pg.upd_info.text = (f"new version {s.get('remote_version')} on PyPI: Update runs "
+                                    f"'{s.get('command')}'")
+                pg.upd_info.classes(replace="text-sm text-amber-700")
+            else:
+                pg.upd_info.text = (s.get("reason") or "up to date") + " \u00b7 installed from PyPI (x.y.0 releases)"
+                pg.upd_info.classes(replace="text-sm text-slate-600")
         elif s.get("kind") == "zip":
             pg.upd_info.text = ((f"release {rel.get('tag')} available: download it" if s.get("release_newer") else
                                  "up to date with the releases" if rel else "no update information (offline?)")

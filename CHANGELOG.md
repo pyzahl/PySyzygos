@@ -15,8 +15,20 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   local copies (System tab, `pysyzygos star-info add wds vsx`): GSU's current WDS (12 MB) and the VSX variables
   brighter than mag 17 (6.0 M of 10.3 M, 0.29 GB; a 2.2 GB download, ~2 min), < 1 ms per star, offline.
   Reference only: the predictions do not use them.
+- **Ready for PyPI** (`pip install pysyzygos`, from the 1.6.0 release on): a short PyPI page (`PYPI_README.md`,
+  absolute links, pointing to the full README), project links, the license as an SPDX expression
+  (`GPL-3.0-or-later`), and a GitHub workflow that publishes each x.y.0 release (with its Zenodo DOI) to PyPI.
+  The developer version stays the git clone.
+
+### Changed
+- **Updates for every way of installing**: the System tab and `pysyzygos update` recognize a git clone (pull, as
+  before), a PyPI install (the newest release there and its changelog; the update runs `uv tool upgrade`,
+  `pipx upgrade` or `pip install -U`, whichever made the install) and a folder without git (a ZIP: the release
+  link, and how to switch to git or PyPI). Before, a PyPI install would have been taken for a ZIP.
+- **Python 3.11 or newer** (tested 3.11 to 3.14); 3.10 reached its end of life in October 2026.
 
 ### Fixed
+- **Exports on Python 3.11**: an f-string form that only Python 3.12 accepts stopped the CSV exports there.
 - **VizieR error pages taken for answers**: CDS and CfA have answered with status 200 and an error page ("Page
   unavailable", a database error) when down; the proper-motion and double-star checks then found nothing. Such an
   answer now counts as no answer, and the mirror is asked (`net.asu_ok`).

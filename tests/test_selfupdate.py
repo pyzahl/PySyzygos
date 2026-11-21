@@ -53,4 +53,39 @@ run("git", "add", "mine.txt", cwd=inst); run("git", *env_git, "commit", "-qm", "
 s = S.status(repo=inst, release=False)
 assert not s["possible"] and s["ahead"] == 1 and "diverged" in s["reason"], s
 shutil.rmtree(T)
+
+# install kinds (stand-ins for the folder checks and the installed metadata)
+orig = (S.repo_dir, S.source_dir, S._direct_url)
+try:
+    S.repo_dir, S.source_dir, S._direct_url = (lambda: "/r"), (lambda: "/r"), (lambda: {})
+    assert S.install_kind() == "git"
+    S.repo_dir = lambda: None
+    assert S.install_kind() == "zip"                               # source folder without git (ZIP, uv run there)
+    S.source_dir = lambda: None
+    assert S.install_kind() == "pypi"                              # site-packages, no direct_url.json: from PyPI
+    S._direct_url = lambda: {"url": "file:///tmp/pysyzygos-1.5.5-py3-none-any.whl", "archive_info": {}}
+    assert S.install_kind() == "zip"                               # a local wheel or folder
+    # PyPI: status from a given 'latest', changelog only up to the PyPI version, the upgrade by the install's tool
+    st = S.pypi_status(dict(version=S.__version__), fetch=False, latest=dict(version="99.0.0", url="u", published=""))
+    assert st["kind"] == "pypi" and st["possible"] and st["remote_version"] == "99.0.0", st
+    st = S.pypi_status(dict(), fetch=False, latest=dict(version=S.__version__, url="u", published=""))
+    assert not st["possible"] and st["reason"].startswith("up to date"), st
+    assert not S.pypi_status(dict(), fetch=False, latest=None)["possible"]
+    t = "# C\n\n## [99.7.2] x\n- patch\n\n## [99.7.0] x\n- minor\n\n## [0.0.1]\n- old\n"
+    assert S.changelog_between(t, "0.0.1", "99.7.0") == "## [99.7.0] x\n- minor"
+    which = shutil.which
+    S.shutil.which = lambda n: f"/bin/{n}"
+    assert S.upgrade_command("/home/u/.local/share/uv/tools/pysyzygos")[1:] == ["tool", "upgrade", "pysyzygos"]
+    assert S.upgrade_command("/home/u/.local/share/pipx/venvs/pysyzygos")[1:] == ["upgrade", "pysyzygos"]
+    S.shutil.which = which
+    ran = []
+    class P: returncode, stdout, stderr = 0, "Successfully installed pysyzygos-99.0.0", ""
+    st_orig = S.status
+    S.status = lambda **k: dict(possible=True, remote_version="99.0.0", pypi={"version": "99.0.0"})
+    assert S.update_pypi(log=lambda *a: None, run=lambda cmd, **k: ran.append(cmd) or P()) == 0 and ran
+    S.status = lambda **k: dict(possible=False, reason="up to date", pypi={"version": "1"})
+    assert S.update_pypi(log=lambda *a: None, run=lambda cmd, **k: 1 / 0) == 0      # nothing run
+    S.status = st_orig
+finally:
+    S.repo_dir, S.source_dir, S._direct_url = orig
 print("SELFUPDATE TESTS PASSED")

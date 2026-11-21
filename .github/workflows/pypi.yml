@@ -1,0 +1,59 @@
+# Publish to PyPI when a GitHub release is published (only x.y.0 releases are made: they also go to Zenodo).
+# No password or token stored: PyPI "trusted publishing" (OpenID Connect). One-time setup on pypi.org:
+#   Account -> Publishing -> Add a pending publisher: project pysyzygos, owner pyzahl, repository PySyzygos,
+#   workflow pypi.yml, environment pypi.
+# A first trial: run this workflow by hand (Actions -> Publish to PyPI -> Run workflow) with target "testpypi"
+# (the same pending publisher set up on test.pypi.org).
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "pypi or testpypi"
+        required: true
+        default: "testpypi"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check that the tag matches the version
+        if: github.event_name == 'release'
+        run: |
+          v=$(python3 -c "import re; print(re.search(r'__version__ = \"([^\"]+)\"', open('src/pysyzygos/version.py').read()).group(1))")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "version $v, tag $tag"
+          test "$v" = "$tag"
+      - name: Build
+        run: uv build
+      - name: Check
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: github.event_name == 'release' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1

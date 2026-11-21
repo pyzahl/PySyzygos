@@ -111,7 +111,13 @@ are easier to review and merge. For bigger ideas, open an issue first to agree o
 
 No GitHub account? A patch file works too: `git format-patch upstream/main` and send the files to the maintainer.
 
-## 8. Licence
+## 8. License
 
 PySyzygos is licensed under GPL-3.0-or-later (see `LICENSE`). By contributing you agree that your contribution is
 licensed under the same terms. Data used by PySyzygos keep their own terms (Gaia DR3: CC BY-NC 3.0 IGO).
+
+By contributing you also grant the maintainer (Percy Zahl) a non-exclusive, perpetual, worldwide right to license
+your contribution, as part of PySyzygos, under other terms as well: for example a written permission that lets
+another program include PySyzygos, or a later change of the project's license. Your contribution always stays
+available under GPL-3.0-or-later, and you keep your copyright. If you cannot agree to this, say so in your pull
+request before it is merged.

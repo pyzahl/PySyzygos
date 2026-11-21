@@ -184,7 +184,8 @@ def pick_shown(r, targets):
     flag = star_flag(r.get("star_kind") or 0, r.get("star_ruwe"))
     s["star_flag"] = flag
     if flag:                                                     # no proper motion at all: the strong warning sign
-        s["star_mag"] = f"{s['star_mag']} {'\u26a0' if 'NO proper motion' in flag else '\u2691'} {flag}"
+        mark = "\u26a0" if "NO proper motion" in flag else "\u2691"   # (no backslash inside an f-string: Python < 3.12)
+        s["star_mag"] = f"{s['star_mag']} {mark} {flag}"
     from pysyzygos.report import twilight_text                       # Sun above -12 deg at the site: twilight
     try:
         twi = twilight_text(float(r["sun_alt"])) if r.get("sun_alt") not in (None, "") else ""
