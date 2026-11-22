@@ -44,10 +44,12 @@ def panel(pg):
                 "Or one pre-screen by name (listed if it fits)")
         pg.p_mag_note = ui.label().classes("text-xs text-slate-500")
         # asteroid groups by JPL's orbit class: ticked = screened (picks.GROUPS); remembered (gui_state pick_groups);
-        # a semi-major-axis range, inside or (exclude) outside; the bands table fills the range
+        # first start: all but the main belt (user's choice 2026-11-21: a fast pick of the rarer groups; the CLI pick
+        # still screens all groups without --groups); a semi-major-axis range, inside or (exclude) outside; the bands
+        # table fills the range
         from pysyzygos.picks import GROUP_NAMES
         st = load_ui_state()
-        saved = set(st.get("pick_groups") or GROUP_NAMES)
+        saved = set(st.get("pick_groups") or (set(GROUP_NAMES) - {"main"}))
         with ui.column().classes("w-full gap-1 border rounded p-3"):
             ui.label("Which asteroids to screen").classes("font-semibold text-sm")
             ui.label("By JPL's orbit class (ticked = screened): Main belt = MBA, IMB (with the Hungarias) and OMB (with "

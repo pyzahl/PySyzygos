@@ -132,14 +132,18 @@ source; the PDF comes with each release, or `make` there with a LaTeX installati
 **New to PySyzygos?** [GETTING_STARTED.md](GETTING_STARTED.md) walks you from the install to your first prediction
 and a look at all its details in six steps, and explains why the first runs are slow.
 
-A few commands, one download (about 3 GB), then everything happens in your browser:
+A few commands, one download (about 3 GB), then everything happens in your browser. **We suggest
+[uv](https://docs.astral.sh/uv/) for every way of installing:** one small tool that brings the right Python and all
+packages by itself, keeps PySyzygos in its own environment, and needs no admin rights (pip and pipx work too, see
+[Install](#install)).
 
 1. **Get it:** install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
    `git clone https://github.com/pyzahl/PySyzygos`. **Use git rather than the ZIP:** with git, updates are one click
    (System tab, **Update**); a ZIP install has to be downloaded and copied over by hand for every update, and patch
    versions come only through git. Windows users: install [Git for Windows](https://git-scm.com/download/win) first,
    then see [Windows, step by step](#windows-step-by-step-with-uv). Without uv on Linux/macOS: `sh linux_install.sh` does
-   steps 2 and 3 with pip.
+   steps 2 and 3 with pip. Only the releases, without git (from 1.6.0 on): `uv tool install pysyzygos`, then
+   `pysyzygos setup` and `pysyzygos` (see [the three ways](#releases-or-the-developer-version-three-ways)).
 2. **Set up once**, in the PySyzygos folder: `uv run pysyzygos setup`. It downloads the SPICE kernels and the local
    Gaia catalog (G <= 16, ready-made from Zenodo or a mirror; resumes if interrupted) and asks for your first
    observing site.
@@ -166,7 +170,7 @@ GUI, planets and moons, and the report.
 > | installed with | type | where |
 > |---|---|---|
 > | uv | `uv run pysyzygos …` | in the PySyzygos folder |
-> | from PyPI with pipx or `uv tool` | `pysyzygos …` | anywhere |
+> | from PyPI with `uv tool` or pipx | `pysyzygos …` | anywhere |
 > | pip, environment activated (`source .venv/bin/activate`; Windows: `.venv\Scripts\activate`) | `pysyzygos …` | anywhere, in that terminal |
 > | pip, not activated | `.venv/bin/pysyzygos …` (Windows: `.venv\Scripts\pysyzygos …`) | in the PySyzygos folder |
 >
@@ -178,11 +182,13 @@ GUI, planets and moons, and the report.
 
 | | What you get | Install | Update |
 |---|---|---|---|
-| **PyPI** (from 1.6.0 on) | the releases (x.y.0, each with its Zenodo DOI) | `pipx install pysyzygos` or `uv tool install pysyzygos` (or `pip install pysyzygos` in a venv), then `pysyzygos setup` | `pysyzygos update` or the System tab's **Update**: runs `pipx upgrade` / `uv tool upgrade` / `pip install -U`, whichever made the install |
+| **PyPI** (from 1.6.0 on) | the releases (x.y.0, each with its Zenodo DOI) | `uv tool install pysyzygos` (recommended: uv brings its own Python) or `pipx install pysyzygos` (or `pip install pysyzygos` in a venv), then `pysyzygos setup` | `pysyzygos update` or the System tab's **Update**: runs `uv tool upgrade` / `pipx upgrade` / `pip install -U`, whichever made the install |
 | **git clone** (below) | the developer version: every fix as soon as it is committed | `git clone`, then `uv run pysyzygos` | System tab **Update** or `pysyzygos update` (`git pull --ff-only`, the packages with it) |
 | ZIP from GitHub (least suggested) | the version of the day you downloaded | unpack, then `uv run pysyzygos` | by hand only: a new ZIP; better [switch it to git](#installed-from-the-zip-switch-to-git) or install from PyPI |
 
-The System tab says which of the three it is and what is newer. A PyPI install keeps your data in its own data
+`uv tool` and `pipx` give PySyzygos its own environment and put the `pysyzygos` command on your PATH; plain `pip
+install` into the system Python is refused on many current systems ("externally-managed-environment"). The System
+tab says which of the three it is and what is newer. A PyPI install keeps your data in its own data
 folder (`~/PySyzygos` unless setup is told otherwise), so moving from PyPI to a clone or back keeps everything: point
 the new install at the same folder (`pysyzygos setup --home <folder>`). On Windows, close PySyzygos before an update
 from a terminal if the upgrade cannot replace `pysyzygos.exe`.
@@ -563,8 +569,9 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    for actual events at your site and saves the best targets for this site and window. Without a pre-screen this is
    the slow step (several minutes); a saved pick is reused by every later search of the same site and window.
    **Which asteroids to screen**: tick the **asteroid groups** (Main belt, Jupiter Trojans, Mars-crossers, NEO, TNO,
-   Everything else; by JPL's orbit class) and optionally a **semi-major axis** range (a band table fills it). Without
-   the main belt a pick screens ~15,000 instead of ~465,000 asteroids: campaign targets in seconds. A line shows how
+   Everything else; by JPL's orbit class) and optionally a **semi-major axis** range (a band table fills it). At
+   first all groups but the main belt are ticked (remembered once changed): without the main belt a pick screens
+   ~15,000 instead of ~465,000 asteroids, campaign targets in seconds; tick **Main belt** to screen all. A line shows how
    many asteroids the settings screen. Details: [Which asteroids: groups, orbit class and a
    range](#which-asteroids-groups-orbit-class-and-a-range). **CSV**
    downloads the selected pick's events as a table (the Results tab has the same button for the search results, named
@@ -1101,8 +1108,8 @@ pysyzygos pick --a-min 3.7 --a-max 4.2  # only a semi-major axis of 3.7-4.2 AU (
 
 ### Which asteroids: groups, orbit class and a range
 
-By default a pick screens every numbered asteroid below the H limit, ~465,000 at H < 17, nearly all of them in the
-main belt. For campaign targets (Jupiter Trojans for Lucy, TNOs, NEOs, Centaurs) choose the asteroids by their orbit
+The command-line pick screens every numbered asteroid below the H limit by default, ~465,000 at H < 17, nearly all
+of them in the main belt; the GUI starts with the main belt unticked (since 1.6.0; your choice is remembered). For campaign targets (Jupiter Trojans for Lucy, TNOs, NEOs, Centaurs) choose the asteroids by their orbit
 instead: without the main belt a pick screens ~15,000 asteroids (H < 17) and takes seconds, also with faint stars.
 
 **In the GUI**: Pick tab, box **Which asteroids to screen** (above **Run pick**):

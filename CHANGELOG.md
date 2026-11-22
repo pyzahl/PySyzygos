@@ -4,6 +4,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 [semantic versioning](https://semver.org) (MAJOR.MINOR.PATCH). The version and its code name live in
 `src/pysyzygos/version.py`; the code name changes at major milestones. Details of the computations: `ABOUT.md`.
 
+## [Unreleased]
+
+### Changed
+- **Pick tab: Main belt unticked at first.** A first start of the GUI screens all groups but the main belt (Jupiter
+  Trojans, NEOs, Mars-crossers, TNOs, the rest: ~15,000 asteroids, seconds); tick **Main belt** for a full pick.
+  A choice made before is kept. The command-line `pysyzygos pick` still screens all groups without `--groups`.
+
 ## [1.5.5] "Beyond Horizons" - 2026-11-21
 
 ### Added

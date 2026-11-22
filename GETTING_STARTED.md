@@ -24,6 +24,8 @@ kept, so later runs take seconds. See [Why the first run is slow](#why-the-first
    [Git for Windows](https://git-scm.com/download/win) first): later updates are then one click, **Update** in the
    System tab. On GitHub the green **Code** button, **Download ZIP** works too, but you then download and copy every
    update by hand ([switching a ZIP install to git](README.md#installed-from-the-zip-switch-to-git) keeps your data).
+   Only want the releases, without git? From version 1.6.0 on, `uv tool install pysyzygos` installs PySyzygos from
+   PyPI; then type `pysyzygos` wherever this guide says `uv run pysyzygos`, from any folder.
 3. In the PySyzygos folder, run the setup:
 
    ```bash
@@ -97,8 +99,9 @@ path for events at your site. The log at the bottom shows its progress.
 > **The first pick is the slow one.** It first downloads JPL's list of all asteroids (about 100 MB, a minute or
 > two), then screens them: several minutes, more for a long window. Later picks reuse the list.
 
-**Only some asteroids?** The box **Which asteroids to screen** chooses them by orbit: untick **Main belt** to screen
-only Jupiter Trojans, NEOs, TNOs and the other rarer kinds (~15,000 instead of ~465,000: seconds), or set a range of
+**Which asteroids?** The box **Which asteroids to screen** chooses them by orbit. At first **Main belt** is unticked:
+the pick screens Jupiter Trojans, NEOs, TNOs and the other rarer kinds (~15,000 instead of ~465,000: seconds); tick
+it to screen the main belt too (the GUI remembers your choice). Or set a range of
 the semi-major axis (click a band, e.g. Hildas). A line there says how many asteroids your choice screens. See
 "Which asteroids" in the [README](README.md#which-asteroids-groups-orbit-class-and-a-range).
 
