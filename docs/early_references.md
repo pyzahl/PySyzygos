@@ -1,7 +1,8 @@
 # Early reference notes (first tests and development)
 
 For the record only; not linked from the other documents. The references used while writing the first
-version of the solver (September 2026), found by searching the web for its parts, and what that first version did.
+version of the solver (September 2026), found by searching the web for its parts (the Explanatory Supplement
+after D. Herald recommended it on the IOTA mailing list, July 2026), and what that first version did.
 
 ## First version: geocentric basics
 
