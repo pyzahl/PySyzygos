@@ -1604,6 +1604,12 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
     if np.isfinite(met['mag_drop']) and met['mag_drop'] < getattr(config, "min_mag_drop", 0.1):
         print (f" --- too low mag drop dM = {met['mag_drop']} --- ")
         return False
+    # the site's minimum duration (min_dur_s), on the nominal central duration as shown in the results: applied here
+    # only, never in the pick or the pre-screens, which keep any short dip (user, 2026-10-29 and 2026-11-23)
+    dur = 2 * size['r_km'] / met['speed_kms'] if met['speed_kms'] > 0 else np.inf
+    if dur < float(getattr(config, "pick_min_dur_s", 0.0) or 0.0):
+        print (f" --- too short: {dur:.2f} s < min. duration {config.pick_min_dur_s:g} s --- ")
+        return False
     moon = moon_info(res['best_et'], star_dir, obs_geo)
 
     record = dict(target_id=target_id, target_name=get_asteroid_name(target_id),

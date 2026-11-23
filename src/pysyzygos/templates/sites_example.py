@@ -13,7 +13,7 @@
 #             + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust:
 #             aperture_cm (default 25), frames (detection frames, default 4), mag_adjust (default 0; + for dark sky or
 #             a sensitive camera, - for worse), extinction (mag per airmass at the star's altitude, default 0 = off,
-#             ~0.2 typical), min_dur_s (hard limit, default 0.4), max_exp_s (longest usable exposure, default 0.64).
+#             ~0.2 typical), min_dur_s (shortest event the search keeps, default 0.4; the pick keeps all), max_exp_s (longest usable exposure, default 0.64).
 #             The faintest star searched follows (25 cm: G 15.0, 50 cm: G 16.5), or set it with mag_limit.
 #   camera    focal_mm (default f/10 = 100 x aperture_cm), sensor_mm (width, height; default (5.6, 3.2)):
 #             the camera field drawn in the event preview.

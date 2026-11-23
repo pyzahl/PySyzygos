@@ -107,7 +107,7 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `pysyzygos/pick.py`: event finder over all asteroids (OWC-style) for a window; writes `pick_events.csv` and
   `targets.py`, and saves both per site + window in `picks/` (`pysyzygos/picks.py`; pysyzygos/search.py with
   `targets_source = "auto"` uses the newest saved pick of its site covering the search window; an explicit
-  `targets` override sets `"list"`). Engine `pysyzygos/screen.py` (site solve, OWC observability formula; no min duration since 1.5.1, user: keep any short dip; `--prescreen all|none` = full screen), orbits `pysyzygos/orbits.py` (SBDB full-precision
+  `targets` override sets `"list"`). Engine `pysyzygos/screen.py` (site solve, OWC observability formula; no min duration since 1.5.1, user: keep any short dip, as picks and pre-screens may be shared; the SEARCH applies the site's min_dur_s on the nominal duration (handle_star, after the drop check; 2026-11-23: between 1.5.1 and then no step applied it); `--prescreen all|none` = full screen), orbits `pysyzygos/orbits.py` (SBDB full-precision
   elements + planets, RK4, ~0.01" vs Horizons; 1.5.1: `step_for` halves the 0.5 d step down to 0.5 x (q/1 AU)^1.5
   and the Sun's 1PN term (`_accel(..., v)`): Phaethon q 0.14 was 9,200 km off after its 2026-09 perihelion, the
   pick and all pre-screens missed its events; pre-screens built before miss such events), stars `BrightIndex` (G <= index_gmax(cam_limit) = max(15, ceil(limit)), cells sorted by G; a missing one is

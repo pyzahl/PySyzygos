@@ -176,7 +176,8 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
             m_ast = hg_mag(row["H"], row["G"], rh[k], delta[k] / AU_KM, cos_ph[k])
             # brightest-star rules on the visible part: drop, exposure (with the slowest relative speed ~ v - 0.5).
             # Detectability uses the upper size bound (an H-only size is uncertain by ~1.7x): "can be detectable".
-            # No minimum duration here (user, 2026-10-29): any short dip is kept; the final search applies min_dur.
+            # No minimum duration here (user, 2026-10-29): any short dip is kept; the search applies min_dur_s
+            # (search.handle_star, since 1.5.6 / 2026-11-23; before, no step applied it).
             dur_max = row["D_max_km"] / np.maximum(speed[k][vis] - 0.5, 0.3)
             cap = min(opt["cam_limit"], float(m_ast[vis].max()) + dm_drop, float(owc_limit(dur_max.max(), opt)))
             if cap < 0:

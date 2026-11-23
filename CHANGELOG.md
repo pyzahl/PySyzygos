@@ -6,6 +6,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+- **The site's minimum duration (`min_dur_s`) applies to the search again.** Since 1.5.1 the pick and the
+  pre-screens keep any short dip (on purpose), but no step applied the limit any more, although the Site tab and the
+  report header ("duration ≥ 0.4 s") named it. The search now leaves out events whose nominal central duration
+  (the "Max dur" shown) is shorter; the pick and the pre-screens still keep them, so lowering the limit needs no new
+  pick. Found with a 0.27 s event kept at a site with 0.4 s.
+
 ### Changed
 - **Pick tab: Main belt unticked at first.** A first start of the GUI screens all groups but the main belt (Jupiter
   Trojans, NEOs, Mars-crossers, TNOs, the rest: ~15,000 asteroids, seconds); tick **Main belt** for a full pick.
