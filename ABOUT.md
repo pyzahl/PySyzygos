@@ -95,6 +95,11 @@ comparison; it shares the per-star solve and checks (`handle_star`).
 
 ### 2.2 Fundamental (Besselian) plane, frames and time scales: `besselian_offsets`
 
+Classical background: the Besselian fundamental plane through the Earth's center and the shadow geometry of eclipses
+and occultations (Urban & Seidelmann (eds.), *Explanatory Supplement to the Astronomical Almanac*, 3rd ed., 2013,
+chapter on eclipses, transits and occultations; Meeus, *Astronomical Algorithms*, 2nd ed., 1998). PySyzygos puts
+the plane through the observer instead (below).
+
 - **Axes:** in J2000, **z** = unit vector to the star; **x** = (0,0,1) × z, normalised (east); **y** = z × x (north).
 - **Reference frame:** ICRS/ICRF throughout. "J2000" is SPICE's name for its inertial frame, which NAIF treats as the
   ICRF (the ~20 mas frame bias of the old FK5 J2000 is not applied anywhere). JPL's ephemerides (DE440, Horizons SPK

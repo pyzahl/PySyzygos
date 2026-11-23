@@ -1799,7 +1799,9 @@ DOI 10.1016/0032-0633(95)00107-7
 DOI 10.1016/j.pss.2017.02.013
    https://doi.org/10.1016/j.pss.2017.02.013
 
+- [Expl. Suppl.] Urban, S. E., Seidelmann, P. K. (eds.) (2013). Explanatory Supplement to the Astronomical Almanac, 3rd ed. University Science Books, Mill Valley, CA. The chapter on eclipses, transits and occultations: the Besselian fundamental plane and shadow geometry.
 
+- [Meeus] Meeus, J. (1998). Astronomical Algorithms, 2nd ed. (1st ed. 1991). Willmann-Bell, Richmond, VA. Practical recipes for eclipses and their local circumstances.
 
 - [NiceGUI] https://nicegui.io/
 
