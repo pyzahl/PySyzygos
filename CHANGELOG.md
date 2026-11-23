@@ -10,6 +10,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **Pick tab: Main belt unticked at first.** A first start of the GUI screens all groups but the main belt (Jupiter
   Trojans, NEOs, Mars-crossers, TNOs, the rest: ~15,000 asteroids, seconds); tick **Main belt** for a full pick.
   A choice made before is kept. The command-line `pysyzygos pick` still screens all groups without `--groups`.
+- **Search tab: the saved pick's targets are shown in the Targets box.** With "Targets from the saved pick of this
+  site" on, the box lists that pick's asteroid numbers (read only, can be copied). A pick belongs to its site; to
+  search the same targets at another site, switch it off: the list stays and can be edited, and changing the site
+  keeps it.
+- **Site tab: the event limits grouped and highlighted.** Min. star altitude, max. Sun altitude, min. duration,
+  reach and reach from the n-σ limit sit together in a light amber box ("Event limits: check these first") below the
+  equipment, with the faintest star the equipment reaches ("Stars searched to G ..."): the settings that decide
+  whether an event is kept, at a glance.
 
 ## [1.5.5] "Beyond Horizons" - 2026-11-21
 

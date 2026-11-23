@@ -1354,7 +1354,9 @@ window, e.g. a pick for Oct 1 + 30 d serves any search from Oct 1 to Oct 31 at t
 uses, and the report header names it. Without one it falls back to `targets.py` or the list in `pysyzygos_config.py`
 (`targets_source = "list"` always uses that list). `pysyzygos picks list` shows the saved picks;
 `pysyzygos picks import` saves an existing `targets.py` + `pick_events.csv` (from before saved picks) under
-the site and window in its header.
+the site and window in its header. In the GUI's Search tab, the Targets box shows the numbers of the pick in use;
+a pick belongs to its site, so to search the same targets at another (nearby) site switch "Targets from the saved
+pick of this site" off: the list stays, can be edited, and is kept when you change the site.
 
 `pysyzygos/search.py` then computes these events exactly (JPL Horizons orbit, exact solver, maps). Run it over the same window
 (`ct`, `days` in `pysyzygos_config.py`; the pick tool uses them as its defaults).

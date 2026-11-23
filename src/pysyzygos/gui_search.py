@@ -94,10 +94,12 @@ def handlers(pg):
     def saved_info(*_):
         """Search tab: which saved pick the search will use for the selected site and window."""
         if pg.s_scope.value == "earth":
+            pg.s_targets.props(remove="readonly")
             pg.targets_warn_s.text = "Anywhere on Earth: the search uses the list below (a pick is per site)."
             pg.targets_warn_s.classes(replace="text-sm w-full text-slate-600")
             return
         if not pg.s_use_file.value:
+            pg.s_targets.props(remove="readonly")            # the list shown last (a pick's) stays, now editable
             pg.targets_warn_s.text = "The search uses the list below."
             pg.targets_warn_s.classes(replace="text-sm w-full text-slate-600")
             return
@@ -107,11 +109,17 @@ def handlers(pg):
         except ValueError:
             p = None
         if p:
-            pg.targets_warn_s.text = f"The search uses the {pg.picks.describe(p)}." + (
+            # the pick's targets in the box (read only while the switch is on): to copy, or to keep for another site
+            # by switching off (user's wish 2026-11-23: picks are per site, the list is not)
+            pg.s_targets.value = ", ".join(str(t) for t in p.get("targets") or [])
+            pg.s_targets.props("readonly")
+            pg.targets_warn_s.text = f"The search uses the {pg.picks.describe(p)} (its targets below; switch off to " \
+                                     f"edit them or use them at another site)." + (
                 f" {pg.picks.warnings_text(p)}" if p.get("warnings") else "")
             pg.targets_warn_s.classes(replace="text-sm w-full " + ("text-orange-600 font-semibold" if p.get("warnings")
                                                                    else "text-slate-600"))
         else:
+            pg.s_targets.props(remove="readonly")
             pg.targets_warn_s.text = (f"No saved pick of site {pg.state['name']} covers this window: the search uses "
                                       f"targets.py or the config list. Run a pick for it (Pick tab) for better targets.")
             pg.targets_warn_s.classes(replace="text-sm w-full text-amber-700")

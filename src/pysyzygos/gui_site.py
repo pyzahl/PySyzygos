@@ -12,6 +12,9 @@ from nicegui import background_tasks, run, ui
 from pysyzygos.sitesfile import load_sites, save_sites
 from pysyzygos.gui_common import SITE_KEYS, fov, load_ui_state, mag_limit, save_ui_state
 
+# the site's event limits, shown together in a highlighted box (the rest of SITE_KEYS: equipment)
+LIMIT_KEYS = ("min_alt", "max_sun_alt", "min_dur_s", "reach_km", "reach_sigma")
+
 
 def panel(pg):
     """The site tab's controls (inside its ui.tab_panel)."""
@@ -80,10 +83,19 @@ def panel(pg):
                         "adds the geoid's height there (EGM96, saved in sites.py as geoid_m). MPC observatory "
                         "codes (and GPS set to ellipsoid height) give it above the WGS84 ellipsoid already.")
                 pg.fields = {}
+                # equipment first; the limits checked and changed most often grouped below on a light background,
+                # with the faintest star the equipment reaches (user's wish 2026-11-23: what to check at a glance)
                 with ui.grid(columns=3).classes("w-full"):
                     for key, label, default, step in SITE_KEYS:
-                        pg.fields[key] = ui.number(label, value=default, step=step)
-                pg.derived = ui.label().classes("text-sm text-slate-600")
+                        if key not in LIMIT_KEYS:
+                            pg.fields[key] = ui.number(label, value=default, step=step)
+                with ui.column().classes("w-full gap-1 rounded border border-amber-300 bg-amber-50 px-3 py-2"):
+                    ui.label("Event limits: check these first").classes("text-xs font-semibold text-amber-800")
+                    with ui.grid(columns=3).classes("w-full"):
+                        for key, label, default, step in SITE_KEYS:
+                            if key in LIMIT_KEYS:
+                                pg.fields[key] = ui.number(label, value=default, step=step)
+                    pg.derived = ui.label().classes("text-sm font-medium text-amber-900")
                 with ui.expansion("Horizon (optional): trees, buildings, hills").classes("w-full") as hz_exp:
                     ui.label("Load OccultWatcher's UserHorizon.txt (the same file works in both programs) for "
                              "the site in this form, then save the site: events whose star is behind your horizon "
