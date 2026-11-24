@@ -580,8 +580,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `pysyzygos/horizon.py` (2026-10-17): OccultWatcher's [User Horizon] format (`parse` -> {station: [(az, alt)]},
   `check` rules, `altitude` (linear, vertical steps: higher side), `assess` -> behind / near (margin, any direction,
   line sampled every 0.5 deg), `svg`, `to_text`). sites.py keys horizon, horizon_name, horizon_margin (15),
-  horizon_filter (False). search.handle_star after star_az: record horizon_flag/_alt/_sep_deg (end); filter returns
-  False. report `horizon_text`/`horizon_mark` (⛰ yellow behind, red near) in `alt_cell`; exports altitude text.
+  horizon_filter (False). search.handle_star after star_az: record horizon_flag/_alt/_sep_deg (end); behind -> dropped
+  (horizon_limit, see Conventions "Altitude limits"). report `horizon_text`/`horizon_mark` (⛰ yellow behind, red near) in `alt_cell`; exports altitude text.
   GUI Site tab expansion (hz_upload: for the form's site, station named like it else the first; hz_set marks
   unsaved; collect/show_site). parse strips a byte-order mark (OW/Windows files have one). tests/test_horizon.py uses OW's own
   example stations (never the user's real file: it names the site).
@@ -595,6 +595,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   favorites `fav_pano` (site by lat/lon in sites.py; star_alt/star_az, else report.alt_az) -> f_pano. Dependency
   Pillow (uv.lock). horizons/ gitignored, in cleanup SETTINGS. tests/test_panorama.py (synthetic photo). First use:
   Seewis observatory (GoPro MAX, transparent-sky PNG): left edge 195.8 deg, 1.2 deg median vs its UserHorizon.
+  `points_lower(prof, az_left, pts)` (2026-11-23, user: clouds over a hill): per whole degree min(photo
+  `per_degree`, horizon.altitude(pts)) -> `simplify` (Douglas-Peucker, shared with `points`); GUI Site
+  `pg.hz_lower` "Lower of photo and points" (shown with photo profile + points), `pano_lower`.
   Sky detection (2026-10-22) for photos without a transparent sky: `sky_mask(rgb)` (blue: b > r+8, b >= g-5, v > 70;
   or bright grey v > 200, sat < 0.18 (haze, glare); opening; only regions touching the top rows (blue roofs/water
   below do not count); closing; top 3 deg = sky; fill holes (clouds); padded with wrap-around first, else the
@@ -938,6 +941,21 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   object with `kernels.body_alias` (kernel pool NAIF_BODY_NAME/CODE). Never `spice.boddef` for names: CSPICE N0067
   holds 853 name/code pairs, ~692 built in, so boddef fails after ~161 (SPICE(TOOMANYPAIRS); a 400-target search on
   2026-10-19). The pool takes thousands (tests/test_body_alias.py); kclear() empties it, body_alias restores all.
+- Altitude limits (2026-11-23, user's rule): a site's horizon REPLACES its min_alt in its pick and search (config
+  `horizon_limit`, template True): config.py (after both files) sets `HORIZON`, `MIN_STAR_ALT_SITE` (the site's
+  min_alt) and MIN_STAR_ALT = max(0, lowest horizon point) (early gates loose); final tests = the line at the star's
+  azimuth: `screen.screen` (opt 'horizon', `Site.azimuth`; pick passes it only for the config site, `--no-horizon`)
+  and search handle_star (behind -> dropped; old site key horizon_filter only matters with horizon_limit False).
+  Pre-screens never take site limits: cut at the geometric horizon; whole-Earth (shareable) ones exactly
+  `prescreen.SHARED_CUTS` (min_alt 0, max_sun_alt 0; build --global and publish refuse others; user 2026-11-23: no
+  Sun > 0, the criterion has no sky brightness; a bright-star daytime exemption was offered, not built). owc-check, path-check, obs-check set horizon_limit False. Run summary limits
+  horizon_limit (report "star above the site's horizon"), pick header "# star altitude:", pick_meta min_alt/horizon.
+  Negative horizon_margin (GUI -30..45) = allowance below the line (`horizon.allowance`/`limit`; config
+  HORIZON_MARGIN; MIN_STAR_ALT = max(0, lowest - allowance); screen opt horizon_margin; search drops only below
+  hz_alt - allowance, kept ones flagged 'behind'; no 'near' for margin <= 0).
+  User (2026-11-23): the horizon is rough on purpose (no refraction, floor 0, near-margin only marks; ABOUT 2.7);
+  no extinction in pick/screens (screen.screen margin without it; pick --extinction ignored), search records only.
+  Duration cut on the nominal size (documented, ABOUT 2.7).
 - Sun limit default 0 deg (2026-10-15; was -6); events with the Sun above `report.TWILIGHT_SUN_ALT` (-12) are marked
   "☼ −8°" after the star magnitude (`twilight_text`/`twilight_mark`; report rows, Markdown, exports.event_shown and
   pick_shown: keep them in step).

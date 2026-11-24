@@ -392,7 +392,7 @@ def run(key, folder=None):
         ele += float(site.get("geoid_m") if site.get("geoid_m") is not None else geoid.height(lat, lon))
     mag = float(r.get("mag") or 15.0)
     ov = dict(ct=t0, days=2.0 / 24.0, targets=[str(r["target_id"])], targets_source="list", LAT=lat, LON=lon, ELE=ele,
-              MIN_STAR_ALT=-90.0, MAX_SUN_ALT=90.0, max_shadow_dist=1e5, MAG_MIN=mag + 0.5, min_mag_drop=0.0,
+              MIN_STAR_ALT=-90.0, horizon_limit=False, MAX_SUN_ALT=90.0, max_shadow_dist=1e5, MAG_MIN=mag + 0.5, min_mag_drop=0.0,
               pick_min_dur_s=0.0, debug_save_paths=True, write_maps=True, write_globes=False, map_dir=work,
               results_db=os.path.join(work, "check.db"), hits_output_cvs_file=os.path.join(work, "hits.csv"),
               results_new_series=True, gaia_online_check=False)

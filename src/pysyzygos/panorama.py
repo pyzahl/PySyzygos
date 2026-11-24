@@ -212,10 +212,29 @@ def at_azimuth(prof, az_left):
 def points(prof, az_left, tol_deg=1.0):
     """UserHorizon points (whole degrees, 0 first, 360 last, altitudes 0..90) from the profile: per whole degree the
     highest altitude (rounded up), then simplified (Douglas-Peucker, tol_deg) without cutting off a peak."""
+    return simplify(per_degree(prof, az_left), tol_deg)
+
+
+def per_degree(prof, az_left):
+    """The profile's horizon per whole degree of azimuth 0..359: the highest altitude in it, rounded up, 0..90."""
     alt = at_azimuth(prof, az_left)
     per = int(round(1.0 / (360.0 / len(alt))))
     deg = np.array([alt[i * per:(i + 1) * per].max() for i in range(360)])
-    deg = np.clip(np.ceil(deg), 0, 90)
+    return np.clip(np.ceil(deg), 0, 90)
+
+
+def points_lower(prof, az_left, pts, tol_deg=1.0):
+    """UserHorizon points from the LOWER of the photo's line and the horizon points pts at each whole degree (user,
+    2026-11-23): clouds resting on a hill raise the photo's line, never lower it, so the other horizon cuts them off
+    while the photo's detail (trees) stays where it is lower."""
+    from pysyzygos import horizon
+    other = np.array([horizon.altitude(pts, a) for a in range(360)], float)
+    return simplify(np.minimum(per_degree(prof, az_left), np.clip(np.ceil(other), 0, 90)), tol_deg)
+
+
+def simplify(deg, tol_deg=1.0):
+    """UserHorizon points (0 first, 360 last) from altitudes per whole degree 0..359 (Douglas-Peucker, tol_deg)."""
+    deg = np.asarray(deg, float)
     xs = np.arange(361)
     ys = np.append(deg, deg[0])
     keep = np.zeros(361, bool)

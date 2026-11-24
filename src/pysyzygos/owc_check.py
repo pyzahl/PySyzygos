@@ -58,6 +58,7 @@ def read_owc(path):
     settings = dict(max_shadow_dist=num(r"([\d.]+)\s*km from shadow", 20.0), MAG_MIN=num(r"StarMag:\s*([\d.]+)", 15.0),
                     pick_min_dur_s=num(r"MinDur:\s*([\d.]+)", 0.4), pick_aperture_cm=num(r"Aperture:\s*([\d.]+)", 25.0),
                     pick_frames=int(num(r"DetectionFrames:\s*(\d+)", 4)), MIN_STAR_ALT=num(r"MinStarAltitude:\s*([\d.]+)", 10.0),
+                    horizon_limit=False,     # OWC's flat MinStarAltitude, like for like
                     ct=t0.strftime("%Y-%m-%dT%H:%M:%S"), days=(t1 - t0).days, write_maps=False, search_mode="corridor")
     if ref.sun_alt_deg.notna().any():               # OWC lists twilight events: allow the Sun up to the brightest one
         settings["MAX_SUN_ALT"] = float(ref.sun_alt_deg.max()) + 1.0

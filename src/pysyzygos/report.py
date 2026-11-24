@@ -115,7 +115,8 @@ def header_info(run, lat, lon):
            ("Equipment", f"{s['aperture_cm']:g} cm aperture, {s['frames']} detection frames, MagAdjust "
                          f"{s['mag_adjust']:+g}, extinction " +
                          (f"{s['extinction']:g} mag/airmass" if s["extinction"] else "off")),
-           ("Limits", f"stars G ≤ {L['mag_limit']:g}, star altitude ≥ {L['min_star_alt']:g}°, Sun ≤ "
+           ("Limits", f"stars G ≤ {L['mag_limit']:g}, " + ("star above the site's horizon" if L.get("horizon_limit")
+                                    else f"star altitude ≥ {L['min_star_alt']:g}°") + f", Sun ≤ "
                       f"{L['max_sun_alt']:g}°, reach {L['reach_km']:g} km, drop ≥ {L['min_mag_drop']:g} mag, "
                       f"duration ≥ {L['min_dur_s']:g} s"),
            ("Run", (f"PySyzygos {run['version']}, " if run.get("version") else "") + f"{run['run_utc']} UT, {run['window_start'][:10]} + {run['window_days']:g} d, {run['targets']} asteroids, "

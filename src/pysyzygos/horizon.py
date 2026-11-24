@@ -12,9 +12,11 @@ Format (OccultWatcher's UserHorizon.txt, so the same file serves both programs):
 The first point is at azimuth 0, the last at 360; azimuths rise; at most two points share an azimuth (a vertical
 step). Lines starting with # and empty lines are ignored. Several stations can be in one file.
 
-Like OccultWatcher, PySyzygos uses the horizon to WARN: a star behind the horizon line is marked 'behind', one closer
-to it than the site's margin (in any direction on the sky) 'near'. Optionally (site key horizon_filter) events behind
-it are left out. Standard library only.
+A star behind the horizon line is 'behind', one closer to it than the site's margin (in any direction on the sky)
+'near'. With config horizon_limit (default) the horizon replaces the site's min_alt in its pick (screen.screen) and
+search (events behind it left out; config.py lowers MIN_STAR_ALT to its lowest point, >= 0); horizon_limit = False:
+min_alt applies and the horizon only marks (as OccultWatcher; the old site key horizon_filter then leaves them out).
+Pre-screens never use it (shared ones are cut at altitude 0). Standard library only.
 """
 from pysyzygos.version import __version__
 import math, re
@@ -73,6 +75,17 @@ def to_text(name, pts):
     return "Name = " + name + "\n" + "\n".join(f"{int(a)}, {int(h)}" for a, h in pts) + "\n"
 
 
+def allowance(margin_deg):
+    """How far (deg) a star may be below the horizon line and still be used: a NEGATIVE margin (user, 2026-11-23:
+    the horizon is rough; -3 keeps stars up to 3 deg behind it, marked 'behind'), else 0."""
+    return max(0.0, -float(margin_deg or 0.0))
+
+
+def limit(pts, az, margin_deg=15.0):
+    """Lowest usable star altitude (deg) at azimuth az: the horizon line, lowered by a negative margin."""
+    return altitude(pts, az) - allowance(margin_deg)
+
+
 def altitude(pts, az):
     """Horizon altitude (deg) at azimuth az: straight lines between the points; at a vertical step the higher side."""
     az = float(az) % 360.0
@@ -92,7 +105,7 @@ def _sep(az1, alt1, az2, alt2):
 
 def assess(pts, star_alt, star_az, margin_deg=15.0):
     """(flag, horizon altitude at the star's azimuth, angular distance to the horizon line in deg): flag 'behind'
-    (below the line), 'near' (above it, but closer than margin_deg in any direction) or ''. Without a horizon
+    (below the line), 'near' (above it, but closer than margin_deg in any direction; never for a margin <= 0) or ''. Without a horizon
     (pts empty): ('', None, None)."""
     if not pts or star_alt is None or star_az is None:
         return "", None, None

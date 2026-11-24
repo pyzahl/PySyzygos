@@ -885,8 +885,8 @@ can also describe its view and its equipment; keys it leaves out take the defaul
 | `aperture_cm` | 25 | telescope aperture, cm |
 | `frames` | 4 | detection frames: video frames the event must cover |
 | `mag_adjust` | 0 | OWC's MagAdjust: + for better conditions (dark sky, sensitive camera), - for worse |
-| `extinction` | `atm_extinction` (0, off) | atmospheric extinction, mag per airmass (~0.2): low stars count as fainter |
-| `min_dur_s` | 0.4 | shortest event, s (recorded; since 1.5.1 the pick keeps any short dip) |
+| `extinction` | `atm_extinction` (0, off) | atmospheric extinction, mag per airmass (~0.2): recorded per event by the search (`extinction_mag`, `mag_margin`, the "frames" filter); not used by the pick or to leave events out |
+| `min_dur_s` | 0.4 | shortest event, s: applied by the search to the nominal central duration; the pick and the pre-screens keep any short dip (since 1.5.1) |
 | `max_exp_s` | 0.64 | longest usable exposure, s; sets the faintest star searched |
 | `mag_limit` | from the above | faintest star searched (Gaia G), if you want to set it directly |
 | `focal_mm` | 100 x `aperture_cm` (f/10) | focal length, mm: with `sensor_mm` gives the camera field of the event preview |
@@ -914,7 +914,8 @@ Events are judged with OWC's General Observability Criterion: an event is kept i
 
     StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust
 
-(minus the extinction loss at the star's altitude, if enabled). The faintest star searched is the one that passes at the
+(the search records the extinction loss at the star's altitude, if enabled, in `extinction_mag` and `mag_margin`,
+without filtering on it; the pick uses no extinction). The faintest star searched is the one that passes at the
 longest usable exposure, `MaxDuration / frames = max_exp_s`: G 15.0 at 25 cm, G 16.5 at 50 cm.
 
 `default_site` is used unless the environment variable `PYSYZYGOS_SITE` names another one, so one site can be run
@@ -1192,8 +1193,8 @@ uses the current JPL Horizons orbit for the final prediction anyway).
   (the site's `reach_km`, else `max_shadow_dist`), the reach counted from the path's n-sigma limit (`reach_sigma`,
   default 1: radius + 1 σ + reach).
 * Detection follows OWC's General Observability Criterion with the site's equipment (see "Observing sites"):
-  `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust`, optionally less the extinction
-  at the star's altitude, plus the hard limit `min_mag_drop` (since 1.5.1 no minimum duration: any short dip is kept). Bright stars therefore allow short
+  `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + mag_adjust` (no extinction in the pick;
+  the search records it per event), plus the hard limit `min_mag_drop` (since 1.5.1 no minimum duration in the pick: any short dip is kept; the search then applies the site's `min_dur_s`). Bright stars therefore allow short
   events (a G 5.6 star with a 0.25 s event counts), faint stars need long ones. For asteroids whose size is only
   estimated from H, the duration uses the upper size bound, so they are not dismissed too early.
 
@@ -1416,7 +1417,12 @@ pysyzygos --port 8090 --no-browser
   to the selected site are saved automatically when you start a run. **Save sites.py** rewrites `sites.py` (comments
   in it are not kept); "Default for command-line runs" sets `default_site`, used when the scripts run without the GUI.
   **Horizon (optional)**: load OccultWatcher's `UserHorizon.txt` for the site (the same file works in both
-  programs); events whose star is behind it are marked ⛰ yellow, those closer to it than the margin (default 15°) red.
+  programs). The horizon then **replaces Min. star altitude** for this site's picks and searches: events whose star is
+  behind it are left out, those closer to it than the margin (default 15°) are marked ⛰ red. A negative margin
+  (e.g. -3°) allows stars up to that far behind the line, for a rough horizon (kept, marked ⛰ yellow) (config `horizon_limit =
+  False`: Min. star altitude applies and the horizon only marks, yellow behind / red near, as OccultWatcher does).
+  Pre-screens never use a site's horizon or limits: they stop at the geometric horizon (star above 0°, Sun below 0°),
+  and shared (whole-Earth) pre-screens must be built so.
   A **360° photo** of the site (equirectangular, 2:1, as a 360° camera or a phone's photo sphere saves it, taken level
   at the telescope) shows the horizon over the real view, and in the favorites panel the star at the event time on it.
   Set the azimuth at the photo's left edge, or let **Fit to the horizon line** find it. The horizon line is read from
@@ -1429,7 +1435,9 @@ pysyzygos --port 8090 --no-browser
   Sun visible in the photo the alignment then happens by itself on loading. A GPS position in the photo (phones,
   many cameras; not GoPro exports) is offered for the site when it is more than 100 m from the site's. Azimuth ticks every 5° and 10° help to
   read directions. **Horizon from the photo** turns the line into
-  horizon points, and
+  horizon points; **Lower of photo and points** takes, per degree of azimuth, the lower of the photo's line and the
+  points loaded before (e.g. UserHorizon.txt): clouds resting on a hill, which the photo takes for ground, are cut
+  off (so are trees where the other points are lower); and
   **UserHorizon.txt** downloads them for OccultWatcher. The photo is kept as a small copy in `horizons/` in the data folder (private, not in git).
 * **Pick**: window, H limit or all asteroids, number of targets, workers and ranking, **Which asteroids to screen**
   (asteroid groups by orbit class, a semi-major-axis range, with a live count: see "Which asteroids: groups, orbit

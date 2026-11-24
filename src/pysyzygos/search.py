@@ -1755,9 +1755,15 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
                                                  float(site_.get("horizon_margin", 15.0)))
         record.update(horizon_flag=hz_flag, horizon_alt=float("nan") if hz_alt is None else round(hz_alt, 1),
                       horizon_sep_deg=float("nan") if hz_sep is None else round(hz_sep, 1))
-        if hz_flag == "behind" and site_.get("horizon_filter"):
+        # with horizon_limit (default) the horizon replaces min_alt (config.py lowered MIN_STAR_ALT to its lowest
+        # point, never below 0): behind it = not visible; else only with the old horizon_filter key
+        # a negative horizon_margin lets the star be that far behind the line (kept, marked 'behind')
+        allow = horizon.allowance(site_.get("horizon_margin", 15.0))
+        if (hz_flag == "behind" and record["star_alt"] < hz_alt - allow
+                and (getattr(config, "horizon_limit", True) or site_.get("horizon_filter"))):
             print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
-                  f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there): left out (horizon_filter)")
+                  f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there"
+                  + (f", {allow:g} deg allowed" if allow else "") + "): left out")
             return False
         # the site's height moves the center line it sees across the track (the map lines are at height 0)
         try:
@@ -1884,7 +1890,9 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
                        mag_adjust=config.pick_mag_adjust, extinction=config.pick_extinction),
              limits=dict(mag_limit=config.MAG_MIN, min_star_alt=config.MIN_STAR_ALT, max_sun_alt=config.MAX_SUN_ALT,
                          reach_km=config.max_shadow_dist, min_mag_drop=getattr(config, "min_mag_drop", 0.1),
-                         min_dur_s=config.pick_min_dur_s),
+                         min_dur_s=config.pick_min_dur_s,
+                         horizon_limit=bool(getattr(config, "horizon_limit", True)
+                                            and (getattr(config, "site", None) or {}).get("horizon"))),
              earth_pck=EARTH_PCK, targets_from=globals().get("TARGETS_FROM", ""), scope="earth" if EARTH else "site",
              corrections=dict(star_parallax=bool(getattr(config, "star_parallax", True)),
                               light_deflection=bool(getattr(config, "light_deflection", True)),

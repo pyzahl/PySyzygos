@@ -6,6 +6,24 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+- **A site's horizon replaces its minimum star altitude.** With a horizon (UserHorizon.txt or from a 360° photo) the
+  pick and the search keep an event when the star is above the horizon line at its azimuth, whatever Min. star
+  altitude says (before: both applied, so a 10° star under a 5° horizon was still dropped by a 20° minimum, and stars
+  behind the horizon were only marked). Config `horizon_limit = False` restores the old behavior. Pre-screens stay
+  cut at the geometric horizon only (star above 0°, Sun below 0°); building or publishing a whole-Earth (shareable)
+  pre-screen with other limits is refused. The pick's targets.py header names the altitude limit used; the report's Limits line says "star above
+  the site's horizon". The Site tab's "leave out events behind it" box is gone (no longer needed).
+- **Site tab: "Lower of photo and points".** With a photo and horizon points (e.g. a loaded UserHorizon.txt), the
+  horizon becomes the lower of the two per degree of azimuth: clouds on a hill that the photo's sky detection took
+  for ground are cut off.
+- **Site tab: the horizon margin can be negative.** -3° keeps stars up to 3° behind the horizon line (marked ⛰
+  yellow), for a rough horizon; a positive margin marks stars closer than it, as before. Margin 0 is now kept as 0
+  (it used to fall back to 15°).
+- **The pick uses no atmospheric extinction.** It had made low stars count as fainter in the brightness test; the
+  pick (like the pre-screens) now keeps them, and the search records the extinction per event as before (it never
+  left events out for it). `pick --extinction` is accepted and ignored.
+
 ### Fixed
 - **The site's minimum duration (`min_dur_s`) applies to the search again.** Since 1.5.1 the pick and the
   pre-screens keep any short dip (on purpose), but no step applied the limit any more, although the Site tab and the

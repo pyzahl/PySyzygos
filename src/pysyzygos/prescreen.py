@@ -396,6 +396,12 @@ def open_partial(path, settings, fresh=False):
     return con
 
 
+# the only cuts of a whole-Earth (shareable) pre-screen: star above and Sun below the geometric horizon (user's rule,
+# 2026-11-23): site-independent; each site's min_alt / horizon / max_sun_alt apply in its own pick and search. No
+# sky-brightness model exists, so a Sun above 0 (daylight) would admit stars nobody can see.
+SHARED_CUTS = (0.0, 0.0)                                    # (min_alt, max_sun_alt), deg
+
+
 def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km=EDGE_KM, max_sun_alt=0.0,
           min_alt=0.0, workers=4, out=None, catalog=None, sbdb_cache=None, name=None, chunk=None, mp_start="spawn",
           max_mem=None, mem_frac=0.6, fresh=False, selection=None, reach_sigma=None):
@@ -403,6 +409,10 @@ def build(start, days, region, cam_limit=16.0, hmax=17.0, min_drop=0.1, reach_km
     pick's) restricts it to those asteroids: a much smaller file, used only by picks inside that selection (check). Progress is saved after every chunk in out + '.partial'; a
     rerun with the same settings resumes there. Chunk size and workers follow the free memory (max_mem bytes or
     mem_frac of the available memory) unless chunk is given. Returns (path, n_events, n_asteroids)."""
+    if region is None and (min_alt, max_sun_alt) != SHARED_CUTS:
+        sys.exit(f"a whole-Earth pre-screen serves every site: star above {SHARED_CUTS[0]:g} deg and Sun below "
+                 f"{SHARED_CUTS[1]:g} deg only (not {min_alt:g} / {max_sun_alt:g}); a site's own limits and horizon "
+                 "apply in its pick and search")
     import gc, multiprocessing
     from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
     import spiceypy as spice
@@ -947,6 +957,10 @@ def publish(path, dest=SHARE_DIR, log=print, remote=None):
     if not is_global(path):
         sys.exit("only global (whole-Earth) pre-screens are shared: a region one is cut from them in seconds")
     m = read_meta(path)
+    cuts = (float(m.get("min_alt") or 0.0), float(m.get("max_sun_alt") or 0.0))
+    if cuts != SHARED_CUTS:                                  # shared = any site: the geometric horizon, star and Sun
+        sys.exit(f"built with star altitude >= {cuts[0]:g} and Sun <= {cuts[1]:g} deg: shared pre-screens must use "
+                 f"{SHARED_CUTS[0]:g} and {SHARED_CUTS[1]:g} (sites' horizons and limits apply in their own pick and search)")
     if not has_index(path):
         log("no index yet: building it first (pysyzygos prescreen index)")
         index(path)

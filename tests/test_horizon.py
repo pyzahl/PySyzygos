@@ -47,4 +47,19 @@ for bad, why in (("Name = X\n0, 10\n180, 5\n", "360"), ("Name = X\n0, 0\n20, 5\n
         assert why in str(e), (why, str(e))
 assert H.parse(H.to_text("Marsfield", m))["Marsfield"] == m       # written back in the same format
 assert "<polygon" in H.svg(m, star=(280, 30))
+
+# the pick screen's azimuth (screen.Site.azimuth, the search's az_deg formula); stand-in SPICE: ITRF = J2000
+import math, types
+import numpy as np
+from pysyzygos import screen as SC
+fake = types.SimpleNamespace(georec=lambda lon, lat, alt, a, f: [a + alt, 0.0, 0.0], pxform=lambda a, b, t: np.eye(3))
+site = SC.Site(fake, 0.0, 0.0, 0.0)                               # at lat 0, lon 0: east = +y, north = +z
+for v, az in (((0, 0, 1), 0.0), ((0, 1, 0), 90.0), ((0, 0, -1), 180.0), ((0, -1, 0), 270.0)):
+    assert abs(site.azimuth(0.0, np.array(v, float)) - az) < 1e-9, (v, site.azimuth(0.0, np.array(v, float)))
+# a negative margin: stars up to that far behind the line count (kept, marked 'behind'); positive: no allowance
+assert H.allowance(15) == 0 and H.allowance(0) == 0 and H.allowance(-3) == 3 and H.allowance(None) == 0
+assert H.limit(m, 280, 15) == 20 and H.limit(m, 280, -3) == 17 and H.limit(m, 0, -3) == -3
+assert H.assess(m, 18, 280, -3)[0] == "behind" and H.assess(m, 30, 0, -3)[0] == ""      # no 'near' when <= 0
+# a star at 10 deg: behind the obstacle at 280 deg (20 deg), above the flat part at 0 deg
+assert 10 < H.altitude(m, 280) and 10 > H.altitude(m, 0)
 print("HORIZON TESTS PASSED")

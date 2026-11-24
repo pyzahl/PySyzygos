@@ -98,19 +98,22 @@ def panel(pg):
                     pg.derived = ui.label().classes("text-sm font-medium text-amber-900")
                 with ui.expansion("Horizon (optional): trees, buildings, hills").classes("w-full") as hz_exp:
                     ui.label("Load OccultWatcher's UserHorizon.txt (the same file works in both programs) for "
-                             "the site in this form, then save the site: events whose star is behind your horizon "
-                             "are marked \u26f0 yellow, those closer to it than the margin red, in the results and "
-                             "favorites. A file with several stations: the one named like the site, else the "
-                             "first.").classes(
+                             "the site in this form, then save the site. The horizon then REPLACES the minimum "
+                             "star altitude in this site's picks and searches: events whose star is behind it are "
+                             "left out; those closer to it than the margin are marked \u26f0 red in the results and "
+                             "favorites. Shared (world) pre-screens never use it: they stop at altitude 0. A file "
+                             "with several stations: the one named like the site, else the first.").classes(
                         "text-xs text-slate-500")
                     with ui.row().classes("items-center gap-3"):
                         ui.upload(label="Load UserHorizon.txt", auto_upload=True,
                                   on_upload=lambda e: pg.hz_upload(e)).props("accept=.txt flat dense").classes("w-56")
-                        pg.hz_margin = ui.number("Margin (°)", value=15, min=0, max=45, step=1).classes("w-28").tooltip(
+                        pg.hz_margin = ui.number("Margin (°)", value=15, min=-30, max=45, step=1).classes("w-28").tooltip(
                             "A star closer than this to the horizon line, in any direction, is marked (red); "
-                            "OccultWatcher's default warning threshold is 15°")
-                        pg.hz_filter = ui.checkbox("leave out events behind it").tooltip(
-                            "Otherwise they are kept and marked yellow (as OccultWatcher does)")
+                            "OccultWatcher's default warning threshold is 15°. Negative: stars up to this far "
+                            "BEHIND the line are still used (marked yellow), e.g. -3 for a rough horizon")
+                        # old key horizon_filter: kept in sites.py as it is (the horizon now always limits;
+                        # config horizon_limit = False restores marking only), so no control is shown
+                        pg.hz_filter = ui.checkbox("leave out events behind it").classes("hidden")
                         ui.button("Remove", on_click=lambda: pg.hz_set(None)).props("flat dense color=negative")
                     with ui.row().classes("items-center gap-3"):
                         ui.upload(label="Load a 360° photo", auto_upload=True,
@@ -127,6 +130,10 @@ def panel(pg):
                         pg.hz_from = ui.button("Horizon from the photo", on_click=lambda: pg.pano_points()).props(
                             "flat dense").tooltip("The horizon points from the photo's horizon line (whole "
                                                   "degrees, as UserHorizon.txt); replaces the points above")
+                        pg.hz_lower = ui.button("Lower of photo and points", on_click=lambda: pg.pano_lower()).props(
+                            "flat dense").tooltip("Per degree of azimuth the lower of the photo's line and the horizon "
+                                                  "points above (e.g. a loaded UserHorizon.txt): cuts off clouds that "
+                                                  "the photo took for hills, keeps its trees; replaces the points")
                         pg.hz_dl = ui.button("UserHorizon.txt", on_click=lambda: pg.hz_download()).props(
                             "flat dense").tooltip("Download the horizon as OccultWatcher's UserHorizon.txt")
                         ui.button("Remove photo", on_click=lambda: pg.pano_set(None)).props(
@@ -174,7 +181,7 @@ def handlers(pg):
             else:
                 pg.fields[key].value = s.get(key, default)
         pg.is_default.value = name == pg.state.get("default", pg.default_site)
-        pg.hz_margin.value = s.get("horizon_margin", 15)
+        pg.hz_margin.value = 15 if s.get("horizon_margin") is None else s["horizon_margin"]
         pg.hz_filter.value = bool(s.get("horizon_filter", False))
         pg.HZ["image"] = s.get("horizon_image") if s.get("horizon_image") and os.path.isfile(s["horizon_image"]) else None
         pg.hz_az.value = float(s.get("horizon_image_az", 0.0))
@@ -304,9 +311,10 @@ def handlers(pg):
         prof = panorama.load_meta(img).get("profile") if img else None
         pg.hz_fit.set_visibility(bool(img and prof and pts))
         pg.hz_from.set_visibility(bool(img and prof))
+        pg.hz_lower.set_visibility(bool(img and prof and pts))
         pg.hz_dl.set_visibility(bool(pts))
         if img:
-            pg.hz_pic.content = panorama.svg(img, float(pg.hz_az.value or 0), pts, float(pg.hz_margin.value or 15),
+            pg.hz_pic.content = panorama.svg(img, float(pg.hz_az.value or 0), pts, float(15 if pg.hz_margin.value is None else pg.hz_margin.value),
                                              width=900, sun=pg.HZ.get("sun"))
         else:
             pg.hz_pic.content = horizon.svg(pts, width=540, height=110) if pts else ""
@@ -322,6 +330,8 @@ def handlers(pg):
     def hz_set(pts, name=""):
         pg.HZ["pts"], pg.HZ["name"] = (pts, name) if pts else (None, "")
         pg.hz_draw()
+        if getattr(pg, "update_derived", None):
+            pg.update_derived()                                        # the summary line names the altitude limit
     pg.hz_set = hz_set
 
     def pano_set(img):
@@ -421,6 +431,15 @@ def handlers(pg):
             pg.hz_set(panorama.points(prof, float(pg.hz_az.value or 0)), f"{pg.state['name']} (from the photo)")
     pg.pano_points = pano_points
 
+    def pano_lower():
+        from pysyzygos import panorama
+        prof = panorama.load_meta(pg.HZ["image"]).get("profile") if pg.HZ["image"] else None
+        if prof and pg.HZ["pts"]:
+            old = pg.HZ["name"] or "points"
+            pg.hz_set(panorama.points_lower(prof, float(pg.hz_az.value or 0), pg.HZ["pts"]),
+                      f"{pg.state['name']} (lower of the photo and {old})")
+    pg.pano_lower = pano_lower
+
     def hz_download():
         from pysyzygos import horizon
         if pg.HZ["pts"]:
@@ -455,7 +474,7 @@ def handlers(pg):
                  name=pg.desc.value or pg.state["name"])
         if pg.HZ["pts"]:
             s.update(horizon=[list(p) for p in pg.HZ["pts"]], horizon_name=pg.HZ["name"],
-                     horizon_margin=float(pg.hz_margin.value or 15), horizon_filter=bool(pg.hz_filter.value))
+                     horizon_margin=float(15 if pg.hz_margin.value is None else pg.hz_margin.value), horizon_filter=bool(pg.hz_filter.value))
         if pg.HZ["image"]:
             s.update(horizon_image=pg.HZ["image"].replace(os.sep, "/"), horizon_image_az=float(pg.hz_az.value or 0))
         if pg.ele_ref.value == "ellipsoid":
@@ -566,7 +585,9 @@ def handlers(pg):
         w, h = fov(s)
         pg.mag_apply(s)
         pg.derived.text = (f"Stars searched to G {mag_limit(s):.1f} · camera field {w:.1f}′ × {h:.1f}′ "
-                           f"(focal {s.get('focal_mm') or 100 * s.get('aperture_cm', 25):.0f} mm)")
+                           f"(focal {s.get('focal_mm') or 100 * s.get('aperture_cm', 25):.0f} mm)"
+                           + (" · star altitude: the horizon line (Min. star altitude not used)"
+                              if pg.HZ["pts"] and getattr(pg.config, "horizon_limit", True) else ""))
     pg.update_derived = update_derived
 
     def set_position(la, lo, el=None):

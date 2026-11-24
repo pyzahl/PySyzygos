@@ -70,8 +70,8 @@ before carries over.
 From this, PySyzygos works out how faint a star your equipment can use (shown as **Star G limit** in the next
 tabs).
 
-Optional, under **Horizon**: your own horizon (trees, buildings, hills), so that events whose star is behind it are
-marked. Either load OccultWatcher's `UserHorizon.txt`, or make the horizon from a **360° photo** of the site:
+Optional, under **Horizon**: your own horizon (trees, buildings, hills). It replaces **Min. star altitude** for this
+site: events whose star is behind it are left out, those close to it are marked. Either load OccultWatcher's `UserHorizon.txt`, or make the horizon from a **360° photo** of the site:
 1. Take the photo level at the telescope on a day with a reasonably clear blue sky (a 360° camera or a phone's
    photo sphere), and note the time.
 2. **Load a 360° photo**: the horizon line is found in it automatically (a few clouds are fine).

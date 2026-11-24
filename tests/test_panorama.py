@@ -120,4 +120,16 @@ def _pos(ex):
 w = P.photo_location(_jpg(_pos))
 assert abs(w["lat"] - 40.869931) < 1e-6 and abs(w["lon"] + 72.861969) < 1e-6 and w["alt_m"] == 29.5, w
 assert P.photo_location(_jpg(_loc)) is None
+# lower of the photo's line and other points (clouds on a hill cut off): per_degree replaced by a stand-in profile
+import numpy as _np
+from pysyzygos import horizon as _H
+_photo = _np.full(360, 5.0); _photo[100:111] = 30.0; _photo[200:221] = 8.0      # a cloud bump, a low dip
+_orig, P.per_degree = P.per_degree, lambda prof, az: _photo
+try:
+    lo = P.points_lower(None, 0.0, [(0, 10), (360, 10)])
+finally:
+    P.per_degree = _orig
+assert lo[0][0] == 0 and lo[-1][0] == 360
+assert _H.altitude(lo, 105) == 10 and _H.altitude(lo, 50) == 5 and _H.altitude(lo, 210) == 8, lo
+assert P.simplify(_np.full(360, 7.0)) == [(0, 7), (360, 7)]
 print("PANORAMA TESTS PASSED")

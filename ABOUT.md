@@ -308,8 +308,35 @@ their last separation and position angle) and the AAVSO VSX (known variables): "
 ### 2.7 Checks before logging: `handle_star`
 
 - Rejected if the minimum lies within 1 s of the interval edge (not a real minimum), outside the run, already logged
-  (same asteroid and star within 300 s), not observable (star altitude < `MIN_STAR_ALT` or Sun above `MAX_SUN_ALT`), or
-  the drop is below `min_mag_drop`.
+  (same asteroid and star within 300 s), not observable (star altitude < `MIN_STAR_ALT` or Sun above `MAX_SUN_ALT`),
+  behind the site's horizon (below), the drop is below `min_mag_drop`, or the nominal central duration is shorter
+  than the site's `min_dur_s` (the pick and pre-screens keep any short dip; only the search cuts).
+- **Altitude limits** (conventions): a site with a horizon (`sites.py` `horizon`: OccultWatcher's UserHorizon points or
+  those from a 360° photo) uses it *instead of* its `min_alt` in its pick and search (`horizon_limit = True`, the
+  default): the star must be above the horizon line at its azimuth. `MIN_STAR_ALT` then becomes the horizon's lowest
+  point (never below 0), so the early gates stay loose, and the horizon line is the final test (pick:
+  `screen.screen`; search: `handle_star`). Without a horizon, `min_alt` applies as before. Pre-screens are never cut
+  by a site's limits: they stop at the geometric horizon, for the star (altitude above 0) and the Sun (below 0).
+  Whole-Earth (shareable) pre-screens must be built and published with exactly these cuts (`prescreen.SHARED_CUTS`;
+  `prescreen build --global`/`publish` refuse others), since they serve every site. The Sun cut stays at 0: its
+  altitude is geometric (the disk has already risen by ~0.5 deg), and with no sky-brightness model a Sun above 0
+  (daylight) would admit stars nobody can see. A pick with a Sun limit above 0 falls back to the full screen. Checks that
+  compare with other programs or measured chords (owc-check, path-check, obs-check) turn the horizon off
+  (`horizon_limit = False`). With `horizon_limit = False` the horizon only marks events (⛰), as OccultWatcher does.
+  The horizon is a rough limit on purpose: star altitudes are geometric (no refraction; near 0° a star looks ~0.5°
+  higher, at 10° ~0.1°), while horizon points are as seen, and a horizon below 0° (looking down from a mountain)
+  is still cut at 0°. Differences of about a degree do not matter in practice: anything near 0° is hardly
+  observable anyway, and in doubt lower the horizon points and decide case by case. Events closer to the line
+  than the site's margin (default 15°) are marked ⛰ red, never left out. A NEGATIVE margin lowers the line instead:
+  -3 keeps stars up to 3° behind it (marked ⛰ yellow "behind"; `horizon.allowance`/`limit`; the flat early limit
+  drops with it, still >= 0), and marks none as near.
+- **Extinction** (conventions): the pick and the screens use no atmospheric extinction (a superset, and faster). The
+  search records it per event (`airmass`, `extinction_mag`, `mag_margin` = OWC limit - star magnitude - extinction)
+  but filters on none of them; the results' filters (e.g. "frames ≥ N", which includes it) and SQL can.
+- **Duration** (conventions): the search cuts on the NOMINAL central duration (diameter / speed, the "Max dur"
+  shown) against `min_dur_s`. An asteroid whose size is only estimated from H (marked as estimated) can therefore
+  be left out although its largest likely size would pass; the pick's brightness test uses the upper size bound,
+  so such asteroids are not dismissed there.
 - Logged if `min_distance < r_max + n sigma + max_shadow_dist` (the reach counted from the path's n-sigma limit,
   2.7.1; n = 0 gives the old `r_max + max_shadow_dist`); `observable` says "yes" inside `r_max`, "yes, in search
   range" outside it.
@@ -538,8 +565,8 @@ Stars are moved linearly by proper motion (no parallax), and stars faster than 1
 
 OWC's General Observability Criterion (video recording, aperture and detection frames): an event is observable if
 `StarMag < 5 log10(aperture_cm) + 2.5 log10(MaxDuration / frames) + 8.5 + MagAdjust`. With extinction enabled (site
-key `extinction`, mag per airmass), the star counts as fainter by `extinction x (airmass - 1)` at its altitude (Kasten &
-Young airmass). Hard limit: `min_mag_drop` (since 1.5.1 no minimum duration, `min_dur_s` is only recorded); OWC also found the drop itself has no significant effect.
+key `extinction`, mag per airmass), the search records the star as fainter by `extinction x (airmass - 1)` at its
+altitude (Kasten & Young airmass) in `mag_margin`; the pick and screens leave extinction out (2.7, Extinction). Hard limit: `min_mag_drop` (since 1.5.1 no minimum duration in the pick and the pre-screens, so they can be shared between sites; the search applies the site's `min_dur_s` to the nominal central duration); OWC also found the drop itself has no significant effect.
 All OWC reference events pass at 25 cm, 4 frames, MagAdjust 0 (and some would not if the aperture were in inches).
 The site's star limit `MAG_MIN` is the magnitude that passes at the longest usable exposure `max_exp_s` (0.64 s gives
 G 15.0 at 25 cm, as in the OWC search). For sizes estimated from H (uncertain by ~1.7x) the duration test uses the

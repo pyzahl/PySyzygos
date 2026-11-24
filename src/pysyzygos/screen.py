@@ -88,12 +88,19 @@ class Site:
         lat, lon = math.radians(lat_deg), math.radians(lon_deg)
         self.itrf = np.asarray(spice.georec(lon, lat, alt_m / 1000.0, earth.A_KM, earth.F))
         self.up_itrf = np.array([math.cos(lat) * math.cos(lon), math.cos(lat) * math.sin(lon), math.sin(lat)])
+        self.east_itrf = np.array([-math.sin(lon), math.cos(lon), 0.0])
+        self.north_itrf = np.array([-math.sin(lat) * math.cos(lon), -math.sin(lat) * math.sin(lon), math.cos(lat)])
         self.lat, self.lon = lat_deg, lon_deg
 
     def at(self, et):
         """Observer position (km) and local vertical, geocentric J2000, at times et: (T,3), (T,3)."""
         R = np.array([self.spice.pxform("ITRF93", "J2000", float(t)) for t in np.atleast_1d(et)])
         return R @ self.itrf, R @ self.up_itrf
+
+    def azimuth(self, et, sdir):
+        """Azimuth (deg, north 0, east 90) of the direction sdir (J2000 unit vector) at time et."""
+        R = np.asarray(self.spice.pxform("ITRF93", "J2000", float(et)))
+        return math.degrees(math.atan2(float(sdir @ (R @ self.east_itrf)), float(sdir @ (R @ self.north_itrf)))) % 360.0
 
 
 # ----------------------------------------------------------------------------------------------- helpers
@@ -141,7 +148,8 @@ def solve_site(spice, site, g_of_t, sdir, t0, half_bracket, iters=6, dt=5.0):
 # Math: CO.1-CO.4 (slide CO), the pick of slide PS: own orbits, corridor scan, site solve.
 def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, progress=None):
     """rows: list of dicts with number, name, H, G, D_km, D_max_km, a, e, i, om, w, ma, epoch (JD TDB).
-    opt: reach_km, min_alt, max_sun_alt, min_drop, cam_limit, aperture, frames, mag_adjust, extinction. Returns a list of event dicts (one per asteroid/star/time)."""
+    opt: reach_km, min_alt, max_sun_alt, min_drop, cam_limit, aperture, frames, mag_adjust (extinction: not used,
+    the search applies it), horizon. Returns a list of event dicts (one per asteroid/star/time)."""
     ets = np.arange(et0, et1 + step_s, step_s)
     obs, up = site.at(ets)
     sun = np.asarray(spice.spkpos("SUN", ets, "J2000", "LT+S", "EARTH")[0])
@@ -152,6 +160,9 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
     pad = pad_for_pm(1500.0, ets)
     years = 2000.0 + ets.mean() / (365.25 * 86400.0) - GAIA_EPOCH_YEAR
     dm_drop = drop_cut(opt["min_drop"])
+    hz = opt.get("horizon") or []                 # the site's horizon [(az, alt)]: replaces min_alt (config horizon_limit)
+    if hz:
+        from pysyzygos import horizon
     events, n_searched = [], 0
     for c0 in range(0, len(rows), chunk):
         part = rows[c0:c0 + chunk]
@@ -230,13 +241,17 @@ def screen(spice, rows, et0, et1, site, index, opt, step_s=600.0, chunk=1000, pr
                 sun_alt = math.degrees(math.asin(float(s_ @ upv[0] / np.linalg.norm(s_))))
                 if star_alt < opt["min_alt"] or sun_alt > opt["max_sun_alt"]:
                     continue
+                if hz and star_alt < horizon.limit(hz, site.azimuth(t[q], sdir[q]), opt.get("horizon_margin", 15.0)):
+                    continue                                                  # behind the site's horizon (opt horizon)
                 m_s = float(sdf.phot_g_mean_mag.iloc[cands.star.iloc[q]])
                 j = int(np.clip(round((t[q] - ets[0]) / step_s), 0, len(ets) - 1))
                 m_a = float(m_ast[j])
                 drop = 2.5 * math.log10(1 + 10 ** (0.4 * (m_a - m_s)))
                 dur = row["D_km"] / max(vrel[q], 1e-6)                                # nominal size
                 dur_hi = row["D_max_km"] / max(vrel[q], 1e-6)                         # upper size bound
-                margin = float(owc_limit(dur_hi, opt)) - m_s - float(extinction_loss(star_alt, opt))
+                # no extinction here (user, 2026-11-23): the pick and the screens stay a superset, the search
+                # applies the site's extinction at the star's altitude (search.handle_star)
+                margin = float(owc_limit(dur_hi, opt)) - m_s
                 if drop < opt["min_drop"] or margin <= 0:
                     continue
                 events.append(dict(number=row["number"], spkid=row.get("spkid"), name=row["name"], H=row["H"], et=float(t[q]),

@@ -78,6 +78,10 @@ ELE = ELE_MSL + GEOID_M                            # height above the WGS84 elli
 
 # view
 MIN_STAR_ALT = site.get("min_alt", 10.0)           # deg, lowest usable star altitude (trees, houses, haze)
+# A site with a horizon (sites.py `horizon`: OccultWatcher's UserHorizon points or a photo's) uses it INSTEAD of
+# min_alt in the pick and the search: the star must be above the horizon line at its azimuth (events behind it are
+# left out). False: min_alt applies and the horizon only marks events (⛰), as OccultWatcher does.
+horizon_limit = True
 MAX_SUN_ALT = site.get("max_sun_alt", 0.0)         # deg, the Sun must be below this; events with the Sun above -12
                                                    # are marked as twilight (☼ -8°); -12 or lower for faint stars only
 max_shadow_dist = site.get("reach_km", max_shadow_dist)   # km, travel distance from the site (default: search setup)
