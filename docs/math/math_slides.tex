@@ -119,7 +119,7 @@
         \tcbhighmath{T = 2 \cdot 1.3\, \mathrm{margin}/v} \tag{CO.5}
       \end{gather*}
       \vspace*{-1ex}
-      {\scriptsize $R_\oplus$: Earth's equatorial radius (WGS84, \SI{6378.137}{km}); $r_{\max}$: the asteroid's
+      {\scriptsize \OWN\ (NumPy scan). $R_\oplus$: Earth's equatorial radius (WGS84, \SI{6378.137}{km}); $r_{\max}$: the asteroid's
       largest radius (nominal $+3\sigma$, top of the albedo range, or the largest extent);
       $\Delta_j$: distance at $t_j$; $\mu_{\max}$ \SI{1500}{mas/yr} (faster stars added apart).
       CO.3: none slips between samples; then refined, kept below $1.05\,$margin.
@@ -135,7 +135,7 @@
   \begin{columns}[c]
     \begin{column}{0.56\textwidth}
       \footnotesize
-      \textbf{World pre-screen} (built once, shared): no site, the corridor covers the whole Earth (CO.1); each event
+      \OWN\ \SP\ \textbf{World pre-screen} (built once, shared): no site, the corridor covers the whole Earth (CO.1); each event
       kept in \SI{80}{bytes} as \emph{shadow elements}, its track over the plane, quadratic in time:
       \begin{equation*}
         \tcbhighmath{x(t) = x_0 + v_x \Delta t + a_x \Delta t^2,\quad y(t) = y_0 + v_y \Delta t + a_y \Delta t^2} \tag{PS.1}
@@ -201,7 +201,7 @@
     \end{column}
     \begin{column}{0.52\textwidth}
       \footnotesize
-      The screens measure $\rho = r + \mathrm{reach}$ \emph{in the plane}. Seen from the star the Earth is a disk:
+      \OWN\ The screens measure $\rho = r + \mathrm{reach}$ \emph{in the plane}. Seen from the star the Earth is a disk:
       near its edge, where the star is low, the same $\rho$ covers far more ground.
       \begin{gather*}
         \tcbhighmath{|\text{proj}| = R_\oplus\cos h} \tag{RE.1}\\
@@ -303,6 +303,39 @@
       \end{tabular}
     \end{column}
   \end{columns}
+\end{frame}
+
+% the frame choice: everything in the ICRS, only the observer carried into it (article Sect. 4.1)
+\begin{frame}{One frame: the ICRS, and the Earth carried into it}\slideid{FR}
+  \scriptsize
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{Classical: Besselian elements on axes of date}
+      \begin{itemize}\setlength{\itemsep}{0pt}
+        \item $x$ along the \alert{true equator of date} (TETE)
+        \item apparent places: precession, nutation, aberration
+        \item observer from Greenwich sidereal time
+      \end{itemize}
+      {\tiny Expl.\ Suppl.\ 2013 \S8.32; Occult, OccultWatcher}
+    \end{column}
+    \begin{column}{0.50\textwidth}
+      \textbf{\OWN: ICRS throughout}
+      \begin{itemize}\setlength{\itemsep}{0pt}
+        \item Gaia, DE440, Horizons, axes FP.1: \alert{no star or asteroid rotated}
+        \item \alert{one} transform of \alert{one} point: $\vv{O} = \vv{E} + \mathsf{R}(t)\,\vv{r}_{\mathrm{ITRF}}$ (OB.2), $\mathsf{R}$: \SP\ \texttt{pxform} (Earth kernels)
+        \item no aberration (equal for star and asteroid)
+      \end{itemize}
+      {\tiny SORA: ICRS-aligned (GCRS) too, but a geocentric plane}
+    \end{column}
+  \end{columns}
+  \vspace{0.8ex}
+  \textbf{Same result:} $d$, $t^*$, duration, chance do not depend on the axes; only $(\xi,\eta)$ differ, by a turn about
+  $\uv{s}$ of $\approx 0.14^\circ\sin\alpha/\cos\delta$ (2026): \SI{16}{km} at $R_\oplus$ ($\delta = 0$),
+  \SI{32}{km} at $\delta = 60^\circ$. \alert{Compare plane coordinates only after turning one set.}\\[0.8ex]
+  \textbf{Cheaper:} Earth matrix \SI{7}{\micro s} per step vs.\ precession--nutation \SI{56}{\micro s} plus turning every
+  position: star coordinates of date drift $5.6''$ in 41 days ($\sim$\SI{4000}{km} at \SI{1}{AU}), so the screens would
+  turn tens of millions of stars at every step: $+$tens of \% (whole-Earth pre-screen) up to several times (local pick);
+  exact search: negligible.
 \end{frame}
 
 \subsection{Astrometry}
@@ -460,7 +493,7 @@
 \end{frame}
 
 \begin{frame}{Astrometry: the asteroid in the screen, precision factors}\slideid{AS}
-  {\footnotesize
+  {\footnotesize \OWN\ (NumPy), \SP\ (DE440 positions and GM)\\[0.3ex]
   \renewcommand{\arraystretch}{1.25}
   \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.16\linewidth} >{\raggedright\arraybackslash}p{0.82\linewidth}@{}}
     Elements & SBDB osculating, \emph{full precision} (rounded ones: $\sim 40''$); ecliptic J2000 $\to$ ICRF (IAU 1976 obliquity) \\
@@ -549,7 +582,7 @@
 % the asteroid's size (search.get_asteroid_size): the order of the sources, and the size from H and albedo
 \begin{frame}{The asteroid's size}\slideid{SZ}
   \footnotesize\tightdisplays
-  The shadow radius $r = D/2$ decides the hit test (CA.2) and the duration (OV.2); its range ($r_{\min}$, $r_{\max}$)
+  \OWN\ The shadow radius $r = D/2$ decides the hit test (CA.2) and the duration (OV.2); its range ($r_{\min}$, $r_{\max}$)
   widens the search (CO.1). First found wins:
   \begin{enumerate}\setlength{\itemsep}{0.3ex}
     \item A curated value (\texttt{SIZE\_OVERRIDES}), if set
@@ -677,7 +710,7 @@
 \end{frame}
 
 \begin{frame}{Step 3: the plane and the ground}\slideid{FP}
-  The plane is perpendicular to the star, \alert{not level}: tilted by $90^\circ - h_\star$ against the horizon.
+  \OWN\ The plane is perpendicular to the star, \alert{not level}: tilted by $90^\circ - h_\star$ against the horizon.
   \begin{itemize}\setlength{\itemsep}{0.5ex}
     \item \textbf{Exact without projection:} in the shadow $\iff d < r$, duration, chance (all sky-plane quantities)
     \item \textbf{On the ground} the footprint is stretched: at $t^{*}$ the offset lies along $\uv{n}$ (across the motion
@@ -992,7 +1025,7 @@
 
 \begin{frame}{Shadow path: duration and the site's height}\slideid{PD}
   \footnotesize\tightdisplays
-  \OWN\ Center-line duration: the shadow's speed relative to the rotating ground point $\vv{G}$ (one second later):
+  \OWN\ \SP\ Center-line duration: the shadow's speed relative to the rotating ground point $\vv{G}$ (one second later):
   \[
     \tcbhighmath{\vv{v}_G = \bigl[\mathsf{M}\bigl(\mathsf{R}(t{+}1\,\mathrm{s})^{\mathsf T} - \mathsf{R}(t)^{\mathsf T}\bigr)\,\mathsf{R}(t)\vv{G}\bigr]_{xy}/\mathrm{s},
     \qquad
@@ -1024,8 +1057,8 @@
   \footnotesize\tightdisplays
   \begin{columns}[T]
   \begin{column}{0.60\textwidth}
-  \OWN\ \SP\ Each station $\vv{O}$ relative to the \alert{predicted} asteroid, in its fundamental plane (FP.1, axes of
-  date as Occult's archive; light time from the station, LT.1):
+  \OWN\ \SP\ \AP\ Each station $\vv{O}$ relative to the \alert{predicted} asteroid, in its fundamental plane (FP.1, axes of
+  date as Occult's archive: ERFA \texttt{pnm06a}; light time from the station, LT.1):
   \[
     \tcbhighmath{\pv{q}(t) = -\bigl(\xi(t),\ \eta(t)\bigr)}
     \tag{CH.1}

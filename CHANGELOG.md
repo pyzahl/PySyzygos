@@ -6,6 +6,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.6.0] "Beyond Horizons" - 2026-11-25
+
+First release on PyPI (`uv tool install pysyzygos`, `pipx install pysyzygos`).
+
 ### Changed
 - **A site's horizon replaces its minimum star altitude.** With a horizon (UserHorizon.txt or from a 360° photo) the
   pick and the search keep an event when the star is above the horizon line at its azimuth, whatever Min. star
@@ -23,15 +27,6 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 - **The pick uses no atmospheric extinction.** It had made low stars count as fainter in the brightness test; the
   pick (like the pre-screens) now keeps them, and the search records the extinction per event as before (it never
   left events out for it). `pick --extinction` is accepted and ignored.
-
-### Fixed
-- **The site's minimum duration (`min_dur_s`) applies to the search again.** Since 1.5.1 the pick and the
-  pre-screens keep any short dip (on purpose), but no step applied the limit any more, although the Site tab and the
-  report header ("duration ≥ 0.4 s") named it. The search now leaves out events whose nominal central duration
-  (the "Max dur" shown) is shorter; the pick and the pre-screens still keep them, so lowering the limit needs no new
-  pick. Found with a 0.27 s event kept at a site with 0.4 s.
-
-### Changed
 - **Pick tab: Main belt unticked at first.** A first start of the GUI screens all groups but the main belt (Jupiter
   Trojans, NEOs, Mars-crossers, TNOs, the rest: ~15,000 asteroids, seconds); tick **Main belt** for a full pick.
   A choice made before is kept. The command-line `pysyzygos pick` still screens all groups without `--groups`.
@@ -43,6 +38,13 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   reach and reach from the n-σ limit sit together in a light amber box ("Event limits: check these first") below the
   equipment, with the faintest star the equipment reaches ("Stars searched to G ..."): the settings that decide
   whether an event is kept, at a glance.
+
+### Fixed
+- **The site's minimum duration (`min_dur_s`) applies to the search again.** Since 1.5.1 the pick and the
+  pre-screens keep any short dip (on purpose), but no step applied the limit any more, although the Site tab and the
+  report header ("duration ≥ 0.4 s") named it. The search now leaves out events whose nominal central duration
+  (the "Max dur" shown) is shorter; the pick and the pre-screens still keep them, so lowering the limit needs no new
+  pick. Found with a 0.27 s event kept at a site with 0.4 s.
 
 ## [1.5.5] "Beyond Horizons" - 2026-11-21
 
@@ -1417,6 +1419,8 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
+[Unreleased]: https://github.com/pyzahl/PySyzygos/compare/v1.6.0...main
+[1.6.0]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...v1.6.0
 [1.5.2]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...main
 [1.5.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.1
 [1.5.0]: https://github.com/pyzahl/PySyzygos/compare/v1.4.0...v1.5.1

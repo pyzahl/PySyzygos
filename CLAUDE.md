@@ -43,10 +43,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   [1.5.0] links the compare v1.4.0...v1.5.1).
   Each 1.x.0 GitHub release also carries docs/math/pysyzygos_math.pdf as an asset (`make` in docs/math: formula
   check + build; the PDF is not in git, decided 2026-10-20: a committed PDF goes stale).
-  With each such release update the PDF link at the top of ABOUT.md (tag in the URL and the link text; now v1.5.1).
+  With each such release update the PDF link at the top of ABOUT.md (tag in the URL and the link text; now v1.6.0).
   GitHub releases (tag -> Zenodo DOI) only for 1.x.0 (user's rule, 2026-10-19: not too often); patch versions
   (1.3.2, ...) are only committed, users get them with git pull / the update.
-  PyPI (decided 2026-11-21, first upload planned with 1.6.0): only the x.y.0 releases, with the Zenodo DOI;
+  PyPI (decided 2026-11-21, first upload with 1.6.0, 2026-11-25): only the x.y.0 releases, with the Zenodo DOI;
   `.github/workflows/pypi.yml` publishes on a GitHub release (trusted publishing, no token; checks tag == version;
   manual run to TestPyPI); the PyPI page is `PYPI_README.md` (pyproject `readme`; absolute links only, short, links
   to the GitHub README). The developer version stays the git clone. Install kinds (`selfupdate.install_kind`):
@@ -888,8 +888,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   first runs are slow, caches); linked at the top of README's Quick start. Keep it in step with GUI labels.
 - `docs/math/` (2026-10-20, tracked): the math slides on their own (beamer): `pysyzygos_math.tex` (main),
   `math_slides.tex` (the slides, single source: workflow, need for speed SP (funnel), search corridor CO
-  (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, astrometry ST1 ST2
-  AS, solver IN OB LT, Besselian figure, FG FP CA OV, shadow path on the map PG (geocentric-plane figure + inputs)
+  (corridor.py), pre-screens and picks PS (shadowtrack.py), conventions, who computes what, notation, frame choice FR (2026-11-24: ICRS vs classical axes of date/TETE, article Sect. 4.1),
+  astrometry ST1 ST2 AS, solver IN OB LT, Besselian figure, FG FP CA OV, shadow path on the map PG (geocentric-plane figure + inputs)
   PT PL PD (paths.shadow_path, height_shift_km; added 2026-10-26); section "Observed events: the chord plot" CH.1-CH.7 (chords.py: plane points, fit,
   O-C; three slides, added 2026-11-03); "variables and outputs" slides (no ID) after the
   astrometry, solver and PG slides: inputs, intermediate symbols, outputs with record field names (keep in step)), `preamble.tex` (theme, colours, \vv \uv \slideid \eqtag \grp,
