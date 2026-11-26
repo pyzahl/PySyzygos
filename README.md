@@ -1310,10 +1310,21 @@ client's conflict copies of `prescreens.json`, `l` log, `c` settings, `a` run th
 current build, delete local pre-screens whose window is over or that a newer build covers, withdraw those from the
 mirror (the newest is always kept), and start the next build (start today, 70 days by default) when fewer than 21
 days ahead are covered, resuming a stopped build instead where it can. It does not start a build when memory, swap or
-disk are short. Builds run detached: closing the screen or the ssh session does not stop them. For hands-off
-maintenance run one step from a timer, e.g. hourly in `crontab -e`:
-`0 * * * * cd ~/PySyzygos && .venv/bin/pysyzygos prescreen manage --auto >> logs/prescreen_manager.log 2>&1`
-(`--auto --dry-run` and `--status` only print). Settings in `prescreen_manager.json` of the data folder.
+disk are short. Builds run detached: closing the screen or the ssh session does not stop them. Settings in
+`prescreen_manager.json` of the data folder (key `c`).
+
+*Hands-off maintenance.* Run one step from a timer, **daily** (not monthly): the plan itself decides when a build is
+due, so a run on a day with nothing to do only prints "covered N days ahead". A monthly run would publish a finished
+build (about a day on an 8-core machine for 70 days) only at the next run, and could miss the moment coverage drops
+below the lead time, so the shared pre-screens could run out before the next one exists. On the server, `crontab -e`
+(the data folder and venv of that machine; set `--share` there once and try `--auto --dry-run` first):
+
+    30 3 * * * cd ~/PySyzygos && .venv/bin/pysyzygos prescreen manage --auto >> logs/prescreen_manager.log 2>&1
+
+With the defaults (70-day windows, 21 days lead time) a new build starts about every 7 weeks; when it is published,
+the one it supersedes is withdrawn from the mirror and deleted locally. Change the rhythm with `days` and `lead_days`.
+Only one machine should build with `--auto` (`auto_build` False on the others): machines do not see each other's
+running builds, only the published results. `--auto --dry-run` and `--status` only print.
 
 **Regions.** Named: usa, north-america, central-america, south-america, europe, africa, middle-east, east-asia, japan,
 australia, new-zealand; or `lat_min,lat_max,lon_min,lon_max`. A region is a latitude/longitude box (a rectangle on the

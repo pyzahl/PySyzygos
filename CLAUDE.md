@@ -205,7 +205,8 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   (`mem_check`: min_avail_gb, max_swap_frac, min_disk_gb). Jobs: `launch` = detached sh wrapper (start_new_session,
   '--- exit code N' last log line, logs/<stamp>_prescreen_<kind>.log), `scan_processes` (/proc, same cwd: builds
   started by hand or GUI), `alive` (zombie + pid-reuse check), `reap`. State HOME/prescreen_manager.json (settings +
-  last 30 jobs; gitignored, cleanup SETTINGS). README "Build server". tests/test_prescreen_manager.py.
+  last 30 jobs; gitignored, cleanup SETTINGS). README "Build server" (timer: daily, not monthly; only one machine
+  with auto_build: machines do not see each other's running builds). tests/test_prescreen_manager.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via

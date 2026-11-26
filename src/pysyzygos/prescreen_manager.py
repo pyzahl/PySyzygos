@@ -7,6 +7,10 @@ withdrawn / deleted when they are old, without typing the commands.
     pysyzygos prescreen manage --status                                # the same as text, and what --auto would do
     pysyzygos prescreen manage --auto [--dry-run]                      # one maintenance step (cron / systemd timer)
 
+Timer: daily, e.g. `30 3 * * * cd ~/PySyzygos && .venv/bin/pysyzygos prescreen manage --auto >> logs/prescreen_manager.log
+2>&1`. Not monthly: a finished build is published only at the next run, and coverage could run out between runs.
+Only one machine builds with --auto (auto_build False on the others: they do not see each other's running builds).
+
 The share folder is the mirror's pre-screen folder (world-prescreens/) synced to this machine (Nextcloud client):
 publishing packs into it (`prescreen publish --to SHARE --synced`), withdrawing deletes there, and the sync client
 uploads. Its prescreens.json is the mirror's list; copies the sync client makes on a conflict ("prescreens

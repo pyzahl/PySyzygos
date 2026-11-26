@@ -1011,8 +1011,11 @@ def publish(path, dest=SHARE_DIR, log=print, remote=None):
                                  if os.path.isfile(os.path.join(dest, e["archive"]))])
     man = merge_manifests([there, local, dict(prescreens=[entry])])
     write_manifest(man, mp)
-    log(f"{mp}: {len(man['prescreens'])} pre-screen(s) ({', '.join(e['name'] for e in man['prescreens'])}). Upload "
-        f"{archive}, {archive}.sha256 and {MANIFEST} to the mirror's pre-screen folder (urls.URL_PRESCREEN_MIRRORS)")
+    synced = remote is not None and list(remote) == synced_remote(dest)
+    log(f"{mp}: {len(man['prescreens'])} pre-screen(s) ({', '.join(e['name'] for e in man['prescreens'])}). "
+        + ("The folder is the mirror's synced copy: the sync client uploads them." if synced else
+           f"Upload {archive}, {archive}.sha256 and {MANIFEST} to the mirror's pre-screen folder "
+           f"(urls.URL_PRESCREEN_MIRRORS)"))
     return entry
 
 
