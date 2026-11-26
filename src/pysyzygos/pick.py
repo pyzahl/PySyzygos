@@ -422,7 +422,19 @@ def main(argv=None):
                    + (", index" if PS.has_index(a.prescreen) else "; no index: pysyzygos prescreen index FILE")
                    + f") in {time.time() - t_q:.1f} s")
         else:
-            keep = PS.numbers(a.prescreen, et0, et1, a.cam_limit)
+            print(f"pre-screen {os.path.basename(a.prescreen)}: reading its events in the window "
+                  f"({os.path.getsize(a.prescreen) / 1e9:.1f} GB) ...", file=sys.stderr, flush=True)
+            t_r, t_said = time.time(), [time.time()]
+
+            def said(frac):                             # percent and ETA every few seconds (slow disks)
+                now = time.time()
+                if now - t_said[0] >= 3.0 and frac < 1.0:
+                    t_said[0] = now
+                    el = now - t_r
+                    print(f"  {100 * frac:3.0f} %, {el:.0f} s, ETA {el / max(frac, 1e-9) - el:.0f} s",
+                          file=sys.stderr, flush=True)
+            keep = PS.numbers(a.prescreen, et0, et1, a.cam_limit, progress=said)
+            print(f"  read in {time.time() - t_r:.1f} s", file=sys.stderr, flush=True)
             how = f"events in the window with a star G <= {a.cam_limit:g}"
         rows = [r for r in rows if int(r["number"]) in keep or int(r["number"]) in kn or other(r)]
         print(f"pre-screen {PS.describe(a.prescreen, meta)}: {len(rows)} of {n_all} asteroids ({how})", file=sys.stderr)

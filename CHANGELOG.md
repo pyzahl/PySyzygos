@@ -16,6 +16,11 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   the same 10 events as online, chances within 0.3 %.
 
 ### Fixed
+- **A pick with a large regional pre-screen looked hung** (reported from a 300 km pre-screen of 8.7 M events,
+  1.1 GB): the lookup of the pre-screen's asteroids in the window went through the time index, which reads the rows
+  in random order (37 s with the file in memory, many minutes from a disk, with no output meanwhile). It now reads
+  the table straight through (4.6 s in the same test), in blocks with percent and ETA every few seconds on slow
+  drives.
 - **Path uncertainties without JPL Horizons** (outage, offline, local only): from the cached Horizons answer of the
   same asteroid nearest in date (within 30 days, scaled to the distance), else the sigma table, else the default.
   Before, every such hit got the default (10 km 3-sigma), which changed its chance and reach. Each hit's Horizons

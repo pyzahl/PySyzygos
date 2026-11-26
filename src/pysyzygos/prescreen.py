@@ -633,16 +633,34 @@ def read_meta(path):
         con.close()
 
 
-def numbers(path, et0, et1, gmax=None):
+NUMBERS_BLOCK = 500_000   # rows per block of numbers(): progress after each (~0.3 s from memory)
+
+
+def numbers(path, et0, et1, gmax=None, progress=None):
     """The asteroid numbers with events of a region pre-screen between et0 and et1 (+- HALF_MAX_S: the stored time
     is the Earth-centre one, the site's can be hours away for slow asteroids), with a star no fainter than gmax (the
     pick's star limit: the pick never uses fainter stars, screen.screen caps at cam_limit; same Gaia G). A pre-screen
-    built to G 16 keeps ~1 in 6 asteroids, to G 13.2 only ~1 in 40."""
+    built to G 16 keeps ~1 in 6 asteroids, to G 13.2 only ~1 in 40.
+    The table is read straight through (NOT INDEXED), not via the time index: a pick window covers most of a
+    pre-screen, and the index visits the rows in random order (2026-11-26: a 1.1 GB file of 8.7 M events, 37 s with
+    the file in RAM vs 4.6 s straight through; from a disk many minutes, the pick looked hung). It goes in blocks of
+    NUMBERS_BLOCK rows by rowid (the table's own order: still one pass through the file); progress(fraction) is
+    called after each block."""
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     g = 99.0 if gmax is None else float(gmax) + 1e-4
+    out = set()
     try:
-        return {int(r[0]) for r in con.execute("SELECT DISTINCT number FROM events WHERE et BETWEEN ? AND ? AND g <= ?",
-                                               (et0 - HALF_MAX_S, et1 + HALF_MAX_S, g))}
+        lo, hi = con.execute("SELECT MIN(rowid), MAX(rowid) FROM events").fetchone()
+        if lo is None:
+            return out
+        for a in range(int(lo), int(hi) + 1, NUMBERS_BLOCK):
+            b = min(a + NUMBERS_BLOCK - 1, int(hi))
+            out.update(int(r[0]) for r in con.execute(
+                "SELECT number FROM events NOT INDEXED WHERE rowid BETWEEN ? AND ? AND et BETWEEN ? AND ? AND g <= ?",
+                (a, b, et0 - HALF_MAX_S, et1 + HALF_MAX_S, g)))
+            if progress:
+                progress((b - int(lo) + 1) / (int(hi) - int(lo) + 1))
+        return out
     finally:
         con.close()
 
