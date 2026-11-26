@@ -193,6 +193,19 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `check_archives` = one-byte GET per archive; 2026-11-02: `archive_state` there/gone/unknown, only GONE_STATUS 404/410 drops an entry, unknown kept with a WARNING, on_mirror logs 'mirror's list: n kept (...)'). The mirror's folder cannot be listed anonymously (Nextcloud
   WebDAV needs login), single files can be read. First use: the 40 d (2026-10-01) + 70 d (2026-10-21) lists merged.
   Tests: publish(remote=[]) (no network), two-machine case via file:// in test_prescreen_share.py.
+  Manager (2026-11-26, user's build server, after a desktop froze building with full swap): `pysyzygos/prescreen_manager.py`,
+  `prescreen manage [--share DIR] [--status] [--auto [--dry-run]]` (curses screen; stdlib only, POSIX). Share = the
+  mirror's world-prescreens/ synced locally (Nextcloud): `publish --synced` (`synced_remote`: file:// of the folder =
+  the mirror's list), `PS.withdraw(name, dest)`, `merge_share` (+ conflict copies CONFLICT_GLOB, deleted after).
+  `inventory` (local_items, partial_items from the .partial's settings/done, share_items state ok/incomplete/missing,
+  orphans) -> `mark` expired (end <= today) / superseded (`_covers`: newer built, window holds the rest, G/H no
+  narrower, unrestricted) -> pure `plan(inv, mem)` [(action, target, why)]: merge, publish (one at a time), delete,
+  delete_partial, withdraw (newest keep_min protected), build (start today, cfg days, when coverage ahead <
+  lead_days) / resume (`resume_args`: stored settings, repr floats, --region=; selection partials by hand) / wait
+  (`mem_check`: min_avail_gb, max_swap_frac, min_disk_gb). Jobs: `launch` = detached sh wrapper (start_new_session,
+  '--- exit code N' last log line, logs/<stamp>_prescreen_<kind>.log), `scan_processes` (/proc, same cwd: builds
+  started by hand or GUI), `alive` (zombie + pid-reuse check), `reap`. State HOME/prescreen_manager.json (settings +
+  last 30 jobs; gitignored, cleanup SETTINGS). README "Build server". tests/test_prescreen_manager.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via

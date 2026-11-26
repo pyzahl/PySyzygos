@@ -85,6 +85,7 @@ weather_cache.json
 /observations/
 /gui_observation_state.json
 /catalog_build.json
+/prescreen_manager.json
 
 # per-asteroid path uncertainties outside the main belt (pysyzygos sigmas build; reach from the n-sigma limit)
 /sigma_table.json

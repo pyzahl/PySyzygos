@@ -7,6 +7,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Pre-screen manager for a build server** (`pysyzygos prescreen manage`): a terminal screen (curses, works over
+  ssh) for whole-Earth pre-screens: local files, running and stopped builds with progress, the mirror's list (the
+  mirror's folder synced to the machine, `--share DIR`), and the next maintenance step. Keys start a build, resume,
+  stop, publish, delete or withdraw, merge the sync client's conflict copies of `prescreens.json`, show a log, edit
+  the settings. `--auto` does one step without the screen (for cron or a systemd timer): publish a finished build,
+  delete and withdraw pre-screens whose window is over or that a newer build covers (the newest is kept), and start
+  the next build when fewer than 21 days ahead are covered, but not when memory, swap or disk are short. New:
+  `prescreen publish --synced` (the share folder is the mirror's own folder) and `prescreen.withdraw`.
 - **Search with local data only** (Search tab checkbox "Local data only (no network)", config `local_only`, env
   `PYSYZYGOS_LOCAL_ONLY=1`): no look-up at all, not even a try. The run refuses every internet connection from the
   start (curl too), so orbits, sizes and the rest come from the caches and the offline copies at once, without

@@ -1301,6 +1301,20 @@ one, so builds made on different machines all stay listed. To combine lists afte
 `pysyzygos prescreen merge [other lists] --check` (the mirror's list plus files, URLs or names of lists on the
 mirror; `--check` confirms every listed archive is there) writes `release/world-prescreens/prescreens.json`.
 
+**Build server: the pre-screen manager.** On a machine that builds the shared pre-screens, `pysyzygos prescreen
+manage` is a terminal screen (works over ssh) listing the local pre-screens, running and stopped builds, and the
+mirror's list, with what it would do next. Give it the mirror's folder synced to that machine (Nextcloud client) once:
+`pysyzygos prescreen manage --share ~/Nextcloud/world-prescreens`. Keys: `n` new whole-Earth build, `r` resume a
+stopped one, `s` stop, `p` publish (packs straight into the synced folder), `d` delete / withdraw, `m` merge the sync
+client's conflict copies of `prescreens.json`, `l` log, `c` settings, `a` run the plan. The plan: publish a finished
+current build, delete local pre-screens whose window is over or that a newer build covers, withdraw those from the
+mirror (the newest is always kept), and start the next build (start today, 70 days by default) when fewer than 21
+days ahead are covered, resuming a stopped build instead where it can. It does not start a build when memory, swap or
+disk are short. Builds run detached: closing the screen or the ssh session does not stop them. For hands-off
+maintenance run one step from a timer, e.g. hourly in `crontab -e`:
+`0 * * * * cd ~/PySyzygos && .venv/bin/pysyzygos prescreen manage --auto >> logs/prescreen_manager.log 2>&1`
+(`--auto --dry-run` and `--status` only print). Settings in `prescreen_manager.json` of the data folder.
+
 **Regions.** Named: usa, north-america, central-america, south-america, europe, africa, middle-east, east-asia, japan,
 australia, new-zealand; or `lat_min,lat_max,lon_min,lon_max`. A region is a latitude/longitude box (a rectangle on the
 map), not a circle. *Around this site*: +-km/111.2 degrees of latitude and +-km/(111.2 cos(site latitude)) degrees of

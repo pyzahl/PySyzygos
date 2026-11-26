@@ -1016,6 +1016,27 @@ def publish(path, dest=SHARE_DIR, log=print, remote=None):
     return entry
 
 
+def withdraw(name, dest=SHARE_DIR, log=print):
+    """Take a shared pre-screen off the share folder (the upload folder, or the mirror's synced copy): its .tar.xz
+    and .sha256 deleted, its entry dropped from the folder's prescreens.json. Returns True if it was listed or there.
+    (A share folder that is not synced: delete the two files on the mirror by hand and upload the list.)"""
+    name = name[:-len(".tar.xz")] if name.endswith(".tar.xz") else name
+    mp = os.path.join(dest, MANIFEST)
+    man = load_manifest(mp) or dict(prescreens=[])
+    keep = [e for e in man.get("prescreens", []) if e.get("name") != name]
+    found = len(keep) != len(man.get("prescreens", []))
+    for f in (name + ".tar.xz", name + ".tar.xz.sha256", name + ".tar.xz.part"):
+        p = os.path.join(dest, f)
+        if os.path.exists(p):
+            os.remove(p)
+            found = True
+            log(f"   deleted {p}")
+    if os.path.exists(mp) or keep:
+        write_manifest(merge_manifests([dict(prescreens=keep)]), mp)
+    log(f"{name}: withdrawn from {dest} ({len(keep)} pre-screen(s) left in {MANIFEST})")
+    return found
+
+
 def load_manifest(src):
     """A prescreens.json from a file or a URL (http(s):// or file://), or None if it cannot be read."""
     try:
@@ -1094,6 +1115,11 @@ def on_mirror(man, mirror, log=print):
     kept = [e for e in man.get("prescreens", []) if e["name"] not in gone]
     log(f"   mirror's list: {len(kept)} kept ({', '.join(e['name'] for e in kept) or 'none'}), {len(gone)} left out")
     return dict(man, prescreens=kept)
+
+
+def synced_remote(dest):
+    """The mirror list for a share folder that is the mirror's own folder (synced copy): the folder itself."""
+    return ["file://" + os.path.abspath(dest).rstrip(os.sep) + "/"]
 
 
 def mirrors():
@@ -1280,6 +1306,12 @@ def main(argv=None):
     pb.add_argument("file", help="a global pre-screen (.global.npy)")
     pb.add_argument("--to", default=SHARE_DIR, help=f"share folder (default {SHARE_DIR})")
     pb.add_argument("--no-mirror", action="store_true", help="do not start the list from the mirror's current one")
+    pb.add_argument("--synced", action="store_true", help="the share folder IS the mirror's folder (synced, e.g. "
+                    "Nextcloud): its own list is the mirror's, no web request")
+    mn = sub.add_parser("manage", help="terminal manager for a build server: build, publish, withdraw, clean up "
+                        "(curses; --auto for a timer)")
+    from pysyzygos import prescreen_manager as PM
+    PM.add_arguments(mn)
     mg = sub.add_parser("merge", help="one prescreens.json from the mirror's and other lists (builds on several "
                                       "machines), without repacking")
     mg.add_argument("lists", nargs="*", help="more lists: files, URLs, or file names on the mirror (e.g. "
@@ -1296,8 +1328,11 @@ def main(argv=None):
     fe.add_argument("name", nargs="?", default="latest", help="its name (see remote), default: the latest")
     a = ap.parse_args(argv)
     if a.cmd == "publish":
-        publish(a.file, a.to, remote=[] if a.no_mirror else None)
+        publish(a.file, a.to, remote=[] if a.no_mirror else (synced_remote(a.to) if a.synced else None))
         return 0
+    if a.cmd == "manage":
+        from pysyzygos import prescreen_manager as PM
+        return PM.main(a)
     if a.cmd == "merge":
         mirror, there = (None, None) if a.no_mirror else remote_list()
         if there is not None:
