@@ -268,7 +268,9 @@ def pck_comment_dates(path="earth_latest_high_prec.bpc"):
 
 
 # Basic Kerenls and Data
-def download_kernels(earth_pck_max_age=7):
+def download_kernels(earth_pck_max_age=7, refresh=True):
+    """The base kernels in the data folder (missing ones downloaded; the Earth file refreshed after earth_pck_max_age
+    days, -1 never). refresh False: no leap-second check either (search with local data only)."""
     urls = {
         # fname: [url, maxage]
         "naif0012.tls": [U.URL_NAIF_LSK, -1],
@@ -318,7 +320,8 @@ def download_kernels(earth_pck_max_age=7):
                     continue
                 return False
                 
-    refresh_lsk(".", earth_pck_max_age)                  # a newer leap-second kernel? (weekly, with the Earth file)
+    if refresh:
+        refresh_lsk(".", earth_pck_max_age)              # a newer leap-second kernel? (weekly, with the Earth file)
     print("✅ All kernels verified and downloaded cleanly via curl.")
 
     return True

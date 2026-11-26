@@ -99,6 +99,34 @@ ARCHIVE_COLS = "source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, ruwe, non_sing
                "duplicated_source, " + ERROR_COLS
 
 
+_STATUS = []               # archive_status() answer, once per process
+STATUS_TIMEOUT_S = 15
+LAST_SKIP = {}             # why the last fetch_online gave None ('why'), for the run warning
+
+
+def archive_status(timeout=STATUS_TIMEOUT_S):
+    """(ok, why) of the Gaia archive (TAP VOSI availability), asked once per process before any astroquery call:
+    when down, the archive answers every address with status 200 and a 1.5 MB maintenance page, which astroquery's
+    import printed into the run log line by line (2026-11-25) before the query failed with '1:0: syntax error'."""
+    if not _STATUS:
+        from pysyzygos import net, urls as U
+        try:
+            with net.urlopen(U.URL_GAIA_TAP_AVAILABILITY, timeout=timeout) as r:
+                text = r.read(2_000_000).decode("utf-8", "replace")
+            low = text.lower()
+            if "available>true" in low:
+                _STATUS.append((True, ""))
+            elif "maintenance" in low:
+                _STATUS.append((False, "Gaia archive down for maintenance"))
+            elif "available>false" in low:
+                _STATUS.append((False, "Gaia archive reports itself unavailable"))
+            else:
+                _STATUS.append((False, "Gaia archive answered with an unexpected page (down?)"))
+        except Exception as ex:                                   # noqa: BLE001 - offline, timeout, HTTP error
+            _STATUS.append((False, f"Gaia archive not reachable ({str(ex)[:100]})"))
+    return _STATUS[0]
+
+
 def query_text(points, radius_arcsec):
     """One ADQL query for all events: circles around each (ra, dec) at the Gaia epoch, padded for proper motion."""
     r = (radius_arcsec + 3.0) / 3600.0
@@ -113,6 +141,11 @@ def fetch_online(points, radius_arcsec, timeout_s=120):
     synchronous 2000-row cap (checked: a chunk that reaches it is reported); the asynchronous job's status polling
     hung for minutes in 2026-10 while the synchronous query answered in seconds."""
     import pandas as pd
+    ok, why = archive_status()
+    if not ok:
+        LAST_SKIP["why"] = why
+        print(f"* Gaia online check skipped: {why}")
+        return None
     box = {"parts": []}
 
     def work():
@@ -130,7 +163,8 @@ def fetch_online(points, radius_arcsec, timeout_s=120):
     th.start()
     th.join(timeout_s)
     if not box.get("done"):
-        print(f"* Gaia online check skipped: {box.get('err', f'no answer within {timeout_s} s')}")
+        LAST_SKIP["why"] = str(box.get("err", f"no answer within {timeout_s} s"))[:160]
+        print(f"* Gaia online check skipped: {LAST_SKIP['why']}")
         return None
     df = pd.concat(box["parts"], ignore_index=True) if box["parts"] else pd.DataFrame()
     df.columns = [c.lower() for c in df.columns]
@@ -148,6 +182,8 @@ def fetch_star_errors(source_ids, timeout_s=120):
     ids = sorted({int(s) for s in source_ids})
     if not ids:
         return {}
+    if not archive_status()[0]:
+        return None
     box = {"rows": []}
 
     def work():

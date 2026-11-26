@@ -45,7 +45,8 @@ ns.update(star_test=star_test,
           event_metrics=lambda et, sd, geo, t, r, ms, ma: dict(speed_kms=12.0, chord_km=20.0, duration_s=1.5, mag_drop=0.8),
           moon_info=lambda et, sd, geo: dict(moon_sep_deg=40.0),
           besselian_offsets=lambda et, sd, geo, t: (1.0, 2.0), get_asteroid_name=lambda t: "Test", horizons_up=lambda: True,
-          path_sigma3_km=lambda t, utc: None, path_error=lambda t, utc: None)
+          path_sigma3_km=lambda t, utc: None, path_error=lambda t, utc: None, save_hit_sigmas=lambda pairs: None,
+          cached_path_error=lambda t, utc: None, _sigma_warning=lambda perrs, why: None, LOCAL_ONLY=False)
 exec(funcs, ns)
 ns.update(WARNINGS={}, NIMA_USED={}, DB=_con, RUN_ID=pysyzygos_db.start_run(_con, "corridor")[0])   # after the excerpt (it resets them)
 from pysyzygos import reach as pysyzygos_reach            # the reach from the n-sigma limit: defined above the excerpt

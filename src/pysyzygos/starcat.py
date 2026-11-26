@@ -889,6 +889,10 @@ def _gaia_ids(table, col, lo_id, hi_id, cap=50000, log=print, query=None):
     """{source_id: original_ext_source_id} from a Gaia DR3 cross-match table, split by source_id range so each
     asynchronous query stays below the archive's cap for anonymous users."""
     if query is None:
+        from pysyzygos import doubles
+        ok, why = doubles.archive_status()
+        if not ok:
+            raise RuntimeError(why)
         from astroquery.gaia import Gaia                     # imported here: its import contacts the archive
         query = lambda q: Gaia.launch_job_async(q, verbose=False).get_results().to_pandas()
     out, todo = {}, [(lo_id, hi_id)]

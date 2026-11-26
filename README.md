@@ -688,7 +688,11 @@ pysyzygos                 # opens http://127.0.0.1:8080 in your browser (local o
    `pysyzygos offline on|off|copy|status|remove`. A search downloads an orbit again when the cached one is older than
    `orbit_max_age_days` (default 7 days; a file of an earlier search whose window covers this one counts too). When JPL
    Horizons does not answer, the search says so at once and takes the cached orbit files that cover the window, however
-   old, naming their download date in the log. *Download orbits again* deletes the cached orbit files at once, *Empty
+   old, naming their download date in the log; the path uncertainties then come from the cached Horizons answers
+   (nearest day within 30 days), else the sigma table, else the default, as the Warnings line says. **Local data
+   only**: the Search tab's checkbox (config `local_only`, env `PYSYZYGOS_LOCAL_ONLY=1`) runs a search with no network
+   at all, not even a try: cached orbits and sizes (or the offline copies), cached path uncertainties, the local
+   catalog's double-star checks and local WDS/VSX copies; no Gaia archive, VizieR or kernel refresh. *Download orbits again* deletes the cached orbit files at once, *Empty
    cache* also the asteroid list and size data (`pysyzygos cleanup --orbits` / `--cache`; the offline copies stay).
    **Orbits of TNOs and Centaurs**: JPL Horizons (default), *NIMA when it has newer data*, or *NIMA whenever it has the
    object*. NIMA is the Lucky Star project's ephemeris (LESIA, Paris Observatory; [list](https://lesia.obspm.fr/lucky-star/nima.php))

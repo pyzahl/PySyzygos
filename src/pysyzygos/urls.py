@@ -21,6 +21,7 @@ URL_NAIF_PCK_DIR = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/"   #
 URL_GAIA_DR3_FILES = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/"     # + file name
 URL_GAIA_DR3_LISTING = "https://gaia.eu-1.cdn77-storage.com/"                   # S3-style listing of the same files
 GAIA_DR3_LISTING_PREFIX = "Gaia/gdr3/gaia_source/"                               # its prefix parameter
+URL_GAIA_TAP_AVAILABILITY = "https://gea.esac.esa.int/tap-server/tap/availability"  # Gaia archive up? (doubles.archive_status)
 
 # --- ready-made local catalogs on Zenodo (gaia_local.py, setup.py)
 URL_GIT_DOWNLOAD = "https://git-scm.com/downloads"                                # git installers (System tab, ZIP install)

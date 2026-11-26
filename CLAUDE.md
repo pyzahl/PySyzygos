@@ -361,6 +361,9 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   mag_drop_blended, double_hint only if the drop changes >= 0.1 mag or Gaia flags). Online (`gaia_online_check`):
   `search.online_double_check` after pass 2: one async ADQL job (OR of circles, daemon thread, 120 s timeout) ->
   `online_fields` -> `db.update_events` (this run's events in the results database).
+  `archive_status()` (2026-11-25, archive down for maintenance answers status 200 + a 1.5 MB HTML page that astroquery's
+  import printed into the log): URL_GAIA_TAP_AVAILABILITY once per process before any astroquery.gaia import
+  (fetch_online, fetch_star_errors, search.gaia_cone, starcat._gaia_ids); reason in LAST_SKIP -> run warning.
   New record fields go at the END of the hit record (the log is appended; mixed headers otherwise).
 - `pysyzygos/starinfo.py` (1.5.5, 2026-11-21, user's request; `pysyzygos star-info status|add|remove|lookup`): WDS
   (GSU's current wdsweb_summ2.txt, URL_WDS_SUMMARY, fixed columns per wdsweb_format.txt, precise coords 113-130) and
@@ -680,6 +683,17 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   "Warnings" (`info_html` class warn, orange). Pick: pick.WARNINGS (older SBDB list) -> pick_meta warnings + header
   "# WARNINGS:" -> picks `warnings_text` (GUI Pick `pg.pick_warn`, Search tab targets line orange) and the search's
   WARNINGS["pick"]. A new fallback anywhere: add it there. tests: test_orbit_cache (run warnings), test_offline.
+- Local data only (2026-11-25, user's request: a full search run with local data only): search `LOCAL_ONLY`
+  (`local_only()`: env PYSYZYGOS_LOCAL_ONLY, else config `local_only`; GUI Search `pg.s_local` -> run override) at
+  import, before the kernels: `net.block(why)` (socket getaddrinfo/create_connection/connect(_ex) for AF_INET/INET6
+  raise OSError; AF_UNIX allowed; proxy env -> dead 127.0.0.1:9 for curl; `net._unblock` for tests), astropy iers
+  auto_download False + auto_max_age None, `download_kernels(-1, refresh=False)` (no LSK check), horizons_up False
+  without a probe (WARNINGS local_only), Gaia online check skipped, star_info how='local'; pmcheck fails fast ->
+  'pm ?'. Path uncertainty without Horizons (also outages): `cached_path_error` = PySyzygos_path_sigma.json entry of
+  the same system nearest in date (any age, <= SIGMA_NEAR_DAYS 30; sigma3_km x distance ratio via SPICE, 'from'
+  'cache <day>'), else sigmatable (x3, no ellipse, 'from' table), else None; used by prefetch_sigmas,
+  target_sigma1_km and finish_pending (`_sigma_warning` -> WARNINGS path_error); `save_hit_sigmas` caches each hit's
+  answer by event day. Checked with strace: 0 AF_INET connects, same 10 hits as online. tests/test_local_only.py.
 - Search hit flow (1.3.3): `handle_star` solves and checks, then for asteroids appends (target, best_utc, finish) to
   `PENDING`; `finish(perr)` (inner function: sigma, chance, star fields, db.add_event, maps) runs in `finish_pending()`
   after pass 2 (corridor and windows mode): `path_error` for all hits PATH_ERROR_WORKERS (2) at a time in threads

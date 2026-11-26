@@ -20,7 +20,7 @@ assert len(code) == len(WANT), [getattr(n, "name", None) for n in code]
 cache = tempfile.mkdtemp()
 config = SimpleNamespace(cache_path=cache, orbit_max_age_days=3)
 U = SimpleNamespace(URL_JPL_HORIZONS_API="https://127.0.0.1:1/api/horizons.api")      # port 1: refused at once
-ns = dict(config=config, Path=Path, time=time, os=os, U=U, print=lambda *a, **k: None)
+ns = dict(config=config, Path=Path, time=time, os=os, U=U, print=lambda *a, **k: None, LOCAL_ONLY=False)
 exec(compile(ast.Module(code, []), SRC, "exec"), ns)
 
 

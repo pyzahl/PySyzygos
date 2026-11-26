@@ -56,3 +56,55 @@ def read_first(bases, query, timeout=30, ok=None):
         except OSError as ex:                                     # URLError, HTTPError and timeouts are OSErrors
             err = ex
     raise err
+
+
+BLOCKED = {}                                                      # "why": set by block()
+_DEAD_PROXY = "http://127.0.0.1:9"                                # nothing listens there: curl fails at once
+
+
+def block(why="local data only"):
+    """No network for the rest of this process (search with local data only): every internet connection (requests,
+    urllib, astroquery, astropy downloads) fails at once with OSError, so each existing fallback (cached orbits,
+    offline copies, local catalogs) applies without waiting for a timeout; curl (kernel downloads) and other child
+    processes get a dead proxy. Local sockets (AF_UNIX) still work. Cannot be undone (tests: _unblock)."""
+    import os, socket
+    if BLOCKED:
+        return
+    BLOCKED["why"] = why
+    BLOCKED["saved"] = (socket.getaddrinfo, socket.create_connection, socket.socket.connect, socket.socket.connect_ex,
+                        {k: os.environ.get(k) for k in _PROXY_KEYS})
+    msg = f"no network: {why}"
+
+    def refuse(*a, **k):
+        raise OSError(msg)
+
+    def connect(self, address, _orig=socket.socket.connect):
+        if self.family in (socket.AF_INET, socket.AF_INET6):
+            raise OSError(msg)
+        return _orig(self, address)
+
+    def connect_ex(self, address, _orig=socket.socket.connect_ex):
+        if self.family in (socket.AF_INET, socket.AF_INET6):
+            raise OSError(msg)
+        return _orig(self, address)
+    socket.getaddrinfo, socket.create_connection = refuse, refuse
+    socket.socket.connect, socket.socket.connect_ex = connect, connect_ex
+    for k in _PROXY_KEYS:
+        os.environ[k] = "" if k.lower() == "no_proxy" else _DEAD_PROXY
+
+
+_PROXY_KEYS = ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "no_proxy", "NO_PROXY")
+
+
+def _unblock():
+    """Tests only: the network back."""
+    import os, socket
+    if not BLOCKED:
+        return
+    socket.getaddrinfo, socket.create_connection, socket.socket.connect, socket.socket.connect_ex, env = BLOCKED["saved"]
+    for k, v in env.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+    BLOCKED.clear()

@@ -53,6 +53,11 @@ def panel(pg):
                 "After the search, one query to the Gaia archive: Gaia's double-star hints for each event star, "
                 "and close neighbours the local catalog leaves out. Close neighbours from the local catalog "
                 "are always checked. Skipped when offline")
+            pg.s_local = ui.checkbox("Local data only (no network)",
+                                     value=bool(getattr(pg.config, "local_only", False))).tooltip(
+                "No look-ups at all in this search: orbits, sizes and path uncertainties from the caches and the "
+                "offline copies (System tab), star checks from the local catalog and local WDS/VSX copies. The "
+                "run's Warnings line says what came from where")
         with ui.row():
             ui.button("Run search", on_click=lambda: pg.run_search()).props("color=primary")
             ui.button("Stop", on_click=lambda: stop_process(pg.log)).props("outline color=negative")
@@ -68,7 +73,7 @@ def handlers(pg):
                     **({"MAG_MIN": float(pg.s_mag.value)} if pg.s_mag.value else {}),
                     write_maps=bool(pg.s_maps.value), write_previews=bool(pg.s_prev.value),
                     star_parallax=bool(pg.s_plx.value), light_deflection=bool(pg.s_defl.value),
-                    gaia_online_check=bool(pg.s_dbl.value))
+                    gaia_online_check=bool(pg.s_dbl.value), local_only=bool(pg.s_local.value))
         earth = pg.s_scope.value == "earth"
         if not pg.s_use_file.value or earth:
             over["targets"] = split_targets(pg.s_targets.value)     # '2026 ED138': one (unnumbered) target

@@ -38,6 +38,8 @@ owc_feeds = True           # "Check OWC Feeds" buttons (GUI Results, Favorites):
 binary_bodies = True       # binaries with JPL ephemerides of their bodies (Patroclus, Quaoar, Orcus, Salacia,
                            # Haumea, Eris, Kagara: components.KNOWN): each body searched instead of the system
                            # point, every hit's map with all bodies; False: the system orbit only
+local_only = False         # search with local data only: no network at all (orbits, sizes, path uncertainties from the
+                           # caches and offline copies; no Gaia/VizieR look-ups); env PYSYZYGOS_LOCAL_ONLY=1, GUI Search tab
 gaia_online_check = True   # after a search: check the event stars in the Gaia archive (doubles, neighbours the local
                            # catalog leaves out); one query per run, skipped when offline
 star_info = "auto"         # after a search: known double stars (WDS) and variables (AAVSO VSX) at each event star

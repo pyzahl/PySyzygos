@@ -63,4 +63,39 @@ txt = "\n".join(D.vizier_text(v))
 assert "WDS 06275+2432 AG  112 AB: 2.80\" at 208" in txt and "Gaia DR3:" in txt, txt
 assert D.vizier_text(None) == []
 
+# archive status (2026-11-25: down for maintenance, status 200 with an HTML page): no astroquery call, the reason kept
+import io
+from pysyzygos import net
+
+
+def answer(text=None, err=None):
+    def fake(url, timeout=30):
+        if err:
+            raise err
+        return io.BytesIO(text.encode())
+    return fake
+
+
+real = net.urlopen
+try:
+    for text, err, ok, why in [
+            ('<vosi:availability><vosi:available>true</vosi:available></vosi:availability>', None, True, ""),
+            ('<html><div class="maintenance">Archive down for maintenance</div></html>', None, False, "maintenance"),
+            ('<vosi:available>false</vosi:available>', None, False, "unavailable"),
+            ('<html>something else</html>', None, False, "unexpected"),
+            (None, OSError("no route"), False, "not reachable")]:
+        D._STATUS.clear()
+        net.urlopen = answer(text, err)
+        got = D.archive_status()
+        assert got[0] is ok and why in got[1], (text, got)
+    D._STATUS.clear()
+    net.urlopen = answer('<html>Archive down for maintenance</html>')
+    D.LAST_SKIP.clear()
+    assert D.fetch_online([(10.0, 20.0)], 4.0) is None and "maintenance" in D.LAST_SKIP["why"]
+    assert D.fetch_star_errors([123]) is None and D.fetch_star_errors([]) == {}
+    assert "astroquery.gaia" not in sys.modules                              # never imported when down
+finally:
+    net.urlopen = real
+    D._STATUS.clear()
+
 print("DOUBLE STAR TESTS PASSED")

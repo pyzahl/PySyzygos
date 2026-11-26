@@ -6,6 +6,26 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- **Search with local data only** (Search tab checkbox "Local data only (no network)", config `local_only`, env
+  `PYSYZYGOS_LOCAL_ONLY=1`): no look-up at all, not even a try. The run refuses every internet connection from the
+  start (curl too), so orbits, sizes and the rest come from the caches and the offline copies at once, without
+  waiting for timeouts. Also skipped: the Gaia online check, VizieR (WDS/VSX from the local copies only; the
+  proper-motion check marked "pm ?"), the leap-second and Earth orientation refresh, and astropy's IERS download.
+  The Warnings line says so. Checked on a 40-target, 20-day search with network present: no connection attempted,
+  the same 10 events as online, chances within 0.3 %.
+
+### Fixed
+- **Path uncertainties without JPL Horizons** (outage, offline, local only): from the cached Horizons answer of the
+  same asteroid nearest in date (within 30 days, scaled to the distance), else the sigma table, else the default.
+  Before, every such hit got the default (10 km 3-sigma), which changed its chance and reach. Each hit's Horizons
+  answer is now cached too, so a rerun without network gets the same values.
+- **Gaia archive down:** the search asks the archive's availability first (one small request, 15 s). When it is
+  down (2026-11-25: "Archive down for maintenance"), the online double check is skipped at once with that reason in
+  the run's Warnings line. Before, astroquery printed the archive's whole maintenance page (~240 KB of HTML) into the
+  run log and the check failed with "1:0: syntax error". The same check guards the favorites' star error ellipses,
+  the old windows mode and the catalog's Tycho/Hipparcos cross-match.
+
 ## [1.6.0] "Beyond Horizons" - 2026-11-25
 
 First release on PyPI (`uv tool install pysyzygos`, `pipx install pysyzygos`).

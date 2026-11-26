@@ -38,6 +38,28 @@ from pysyzygos import reach            # the reach from the path's n-sigma limit
 from pysyzygos import sbdb as sbdb_cache
 from pysyzygos import screen          # OWC observability formula, extinction
 
+
+
+def local_only():
+    """Search with local data only (no look-ups at all): env PYSYZYGOS_LOCAL_ONLY (1/0), else config local_only (GUI
+    Search tab checkbox: a run override). Orbits, sizes and path uncertainties then come from the caches and the
+    offline copies, the star checks from the local catalog and local WDS/VSX copies."""
+    v = (os.environ.get("PYSYZYGOS_LOCAL_ONLY") or "").strip().lower()
+    if v:
+        return v in ("1", "on", "true", "yes")
+    return bool(getattr(config, "local_only", False))
+
+
+LOCAL_ONLY = local_only()
+if LOCAL_ONLY:
+    from pysyzygos import net as _net
+    _net.block("search with local data only")
+    from astropy.utils import iers as _iers                 # the cached Earth orientation table, whatever its age
+    _iers.conf.auto_download = False                        # (UT1 for the star's place of date; mas level)
+    _iers.conf.auto_max_age = None
+    print("* Local data only: no network in this run (orbits, sizes and path uncertainties from the caches and the "
+          "offline copies; star checks from the local catalog)", flush=True)
+
 ########################## PROLOGUE KERNEL INIT SECTION
 
 
@@ -63,7 +85,7 @@ from pysyzygos.kernels import check_file_age, download_kernels, pck_comment_date
 
 
 EARTH_PCK = {}                                     # coverage of the Earth orientation file (run summary)
-if download_kernels(config.earth_pck_max_age):
+if download_kernels(-1 if LOCAL_ONLY else config.earth_pck_max_age, refresh=not LOCAL_ONLY):   # local only: as they are
     try:
         print (f'* PySyzygos {__version__}: loading compute kernels *')
         # Load all required kernels
@@ -172,6 +194,10 @@ def gaia_cone(ra_deg, dec_deg, radius_arcmin, mag_limit):
     AND pmra IS NOT NULL AND pmdec IS NOT NULL -- Required for propagation
     AND ruwe < 1.4
     """
+    ok, why = doubles.archive_status()
+    if not ok:
+        print(f"An error occurred: {why}")
+        return None
     try:
         from astroquery.gaia import Gaia        # here only: importing it contacts the Gaia archive (7 s, 2026-10-16)
         return Gaia.launch_job_async(query).get_results().to_pandas()
@@ -353,6 +379,12 @@ def horizons_up(connect_s=10):
     """Whether JPL Horizons accepts connections: probed once per run (connect_s at most), False from the first failed
     connection on. When it does not, the run takes cached orbit files and the default path uncertainty at once instead
     of waiting for every request (an outage cost ~1 min per target before). Network only: safe in threads."""
+    if "up" not in HORIZONS and LOCAL_ONLY:
+        HORIZONS["up"] = False
+        WARNINGS["local_only"] = ("local data only (no network): orbits, sizes and path uncertainties from the caches "
+                                  "and offline copies, no Gaia online check, WDS/VSX from local copies only")
+        print("Local data only: orbits from cached files that cover the window (any age), path uncertainties from "
+              "the caches", flush=True)
     if "up" not in HORIZONS:
         import socket
         from urllib.parse import urlparse
@@ -485,15 +517,81 @@ SIGMA_FUT = {}           # target -> Future (or cached dict) of its Horizons pat
 SIGMA_CACHE = "PySyzygos_path_sigma.json"   # in cache_path: per target and day, kept orbit_max_age_days
 
 
-def _sigma_cache():
+def _sigma_cache(any_age=False):
     path = os.path.join(config.cache_path, SIGMA_CACHE)
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         return {}
+    if any_age:
+        return data
     keep = time.time() - 86400.0 * float(getattr(config, "orbit_max_age_days", 7))
     return {k: v for k, v in data.items() if v.get("t", 0) > keep}
+
+
+SIGMA_NEAR_DAYS = 30.0     # a cached Horizons uncertainty of the same target this many days apart stands in
+_SIGMA_TABLE = []          # sigmatable.load(), once
+
+
+def cached_path_error(target_id, utc):
+    """The path uncertainty without JPL Horizons (outage, local data only): the cached Horizons answer of the same
+    target nearest in date (within SIGMA_NEAR_DAYS, any age; sigma3_km scaled to the distance at utc, the ellipse in
+    mas as it was), else the sigma table's 1 sigma (sigmatable.py: non-main-belt targets; no ellipse), else None
+    (the default). The dict carries 'from' (cache <date> | table) for the run warning."""
+    sysid = components.system(target_id)
+    day = str(utc)[:10]
+    best = None
+    for k, v in _sigma_cache(any_age=True).items():
+        t, _, d = k.partition("|")
+        if t != sysid or not d:
+            continue
+        try:
+            gap = abs((datetime.fromisoformat(d) - datetime.fromisoformat(day)).days)
+        except ValueError:
+            continue
+        if gap <= SIGMA_NEAR_DAYS and (best is None or gap < best[0]):
+            best = (gap, d, v)
+    if best:
+        out = {k: v for k, v in best[2].items() if k != "t"}
+        try:                                                  # km at the target: its distance then vs now
+            d_now = np.linalg.norm(spice.spkpos(str(target_id), spice.str2et(str(utc)), 'J2000', 'CN', 'EARTH')[0])
+            d_then = np.linalg.norm(spice.spkpos(str(target_id), spice.str2et(f"{best[1]}T00:00:00"), 'J2000', 'CN',
+                                                 'EARTH')[0])
+            out["sigma3_km"] = float(out["sigma3_km"]) * float(d_now / d_then)
+        except Exception:                                     # outside the orbit file: as cached
+            pass
+        out["from"] = f"cache {best[1]}"
+        return out
+    if not _SIGMA_TABLE:
+        from pysyzygos import sigmatable
+        try:
+            _SIGMA_TABLE.append(sigmatable.load())
+        except Exception:                                     # noqa: BLE001 - no table: the default
+            _SIGMA_TABLE.append({})
+    s1 = _SIGMA_TABLE[0].get(int(sysid)) if str(sysid).isdigit() else None
+    if s1:
+        return dict(sigma3_km=3.0 * float(s1), smaa_mas=None, smia_mas=None, pa_deg=None, **{"from": "table"})
+    return None
+
+
+def save_hit_sigmas(pairs):
+    """Keep the per-hit Horizons answers [(target, utc, perr)] in the cache too (key target|day of the event), so a
+    later run without network finds them."""
+    got = [(components.system(t), str(u)[:10], p) for t, u, p in pairs if p and "from" not in p]
+    if not got:
+        return
+    path, now = os.path.join(config.cache_path, SIGMA_CACHE), time.time()
+    cache = _sigma_cache(any_age=True)
+    for t, d, p in got:
+        cache[f"{t}|{d}"] = dict(p, t=now)
+    try:
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(cache, fh)
+        os.replace(tmp, path)
+    except OSError as ex:
+        print(f"path uncertainty cache not written ({ex})")
 
 
 def prefetch_sigmas(targets, et_mid, workers=2):
@@ -515,6 +613,8 @@ def prefetch_sigmas(targets, et_mid, workers=2):
         key = f"{components.system(t)}|{utc[:10]}"
         if key in cache:
             SIGMA_FUT[t] = cache[key]
+        elif not horizons_up():                               # outage or local data only: the caches
+            SIGMA_FUT[t] = cached_path_error(t, utc)
         else:
             SIGMA_FUT[t] = ex.submit(_paths.path_error, components.system(t), utc)
             n_ask += 1
@@ -585,7 +685,7 @@ def target_sigma1_km(target_id, et):
             return across_sigma_km(target_id, et, pe, 0.0, d_km) or pe["sigma3_km"] / 3.0
     f = SIGMA_FUT.get(str(target_id))                         # queried in the background (prefetch_sigmas)
     if f is None:
-        pe = path_error(components.system(target_id), utc)
+        pe = path_error(components.system(target_id), utc) if horizons_up() else cached_path_error(target_id, utc)
     elif hasattr(f, "result"):
         try:
             pe = f.result()
@@ -1182,11 +1282,11 @@ def finish_pending():
     items = list(PENDING)
     PENDING.clear()
     t0 = time.time()
-    if not horizons_up():                                    # outage: the default uncertainty for all, no waiting
-        print(f"path uncertainties: JPL Horizons does not answer: the default for {len(items)} hit(s)", flush=True)
-        WARNINGS["path_error"] = f"default path uncertainty for {len(items)} hit(s) (none from JPL Horizons)"
+    if not horizons_up():                                    # outage or local data only: the caches, no waiting
+        perrs = [cached_path_error(t, u_) for (t, u_, _) in items]
+        _sigma_warning(perrs, "JPL Horizons not asked" if LOCAL_ONLY else "JPL Horizons does not answer")
         STEPS.add("hit: path uncertainty (JPL Horizons)", time.time() - t0, len(items), "hits", group=P2)
-        return sum(bool(fin(None)) for (_, _, fin) in items)
+        return sum(bool(fin(perr)) for (_, _, fin), perr in zip(items, perrs))
     with ThreadPoolExecutor(max_workers=min(PATH_ERROR_WORKERS, len(items))) as ex:
         perrs = list(ex.map(lambda it: path_error(components.system(it[0]), it[1]), items))   # network only
     again = [k for k, p in enumerate(perrs) if p is None]
@@ -1194,13 +1294,29 @@ def finish_pending():
         time.sleep(1.0)
         perrs[k] = path_error(components.system(items[k][0]), items[k][1])
     dt = time.time() - t0
-    if any(p is None for p in perrs):
-        WARNINGS["path_error"] = (f"default path uncertainty for {sum(p is None for p in perrs)} of {len(perrs)} "
-                                  f"hit(s) (none from JPL Horizons)")
+    save_hit_sigmas([(t, u_, p) for (t, u_, _), p in zip(items, perrs)])
+    missing = [k for k, p in enumerate(perrs) if p is None]
+    for k in missing:                                        # no answer: the caches
+        perrs[k] = cached_path_error(items[k][0], items[k][1])
+    if missing:
+        _sigma_warning([perrs[k] for k in missing], f"JPL Horizons gave none for {len(missing)} of {len(perrs)}")
     STEPS.add("hit: path uncertainty (JPL Horizons)", dt, len(items), "hits", group=P2)
     print(f"path uncertainties: {len(items)} from JPL Horizons in {dt:.1f} s ({PATH_ERROR_WORKERS} at a time"
-          + (f"; {len(again)} asked again, {sum(perrs[k] is None for k in again)} without" if again else "") + ")")
+          + (f"; {len(again)} asked again, {len(missing)} without" if again else "") + ")")
     return sum(bool(fin(perr)) for (_, _, fin), perr in zip(items, perrs))
+
+
+def _sigma_warning(perrs, why):
+    """Run warning: where the path uncertainties of hits without a fresh Horizons answer came from."""
+    n_cache = sum(1 for p in perrs if p and str(p.get("from", "")).startswith("cache"))
+    n_table = sum(1 for p in perrs if p and p.get("from") == "table")
+    n_def = sum(1 for p in perrs if not p)
+    parts = ([f"{n_cache} from cached Horizons values (nearest day within {SIGMA_NEAR_DAYS:g} d)"] if n_cache else []) \
+        + ([f"{n_table} from the sigma table (no ellipse)"] if n_table else []) \
+        + ([f"{n_def} default ({config.default_sigma3_km:g} km 3-sigma)"] if n_def else [])
+    text = f"path uncertainty of {len(perrs)} hit(s) without JPL Horizons ({why}): " + ", ".join(parts)
+    print(f"path uncertainties: {text}", flush=True)
+    WARNINGS["path_error"] = text
 
 
 def _phys_fresh(n, age):
@@ -1860,7 +1976,8 @@ def run_warnings():
                    + (", ..." if len(SKIPPED) > 10 else ""))
     pmc = sys.modules.get("pysyzygos.pmcheck")              # imported only when a 2-parameter star came up
     if getattr(pmc, "FAILED", None):
-        out.append(f"proper-motion check not done for {len(pmc.FAILED)} star(s) (VizieR did not answer)")
+        out.append(f"proper-motion check not done for {len(pmc.FAILED)} star(s) ("
+                   + ("local data only" if LOCAL_ONLY else "VizieR did not answer") + ")")
     for kind, items in NOTED.items():
         if items:
             out.append(f"{len(items)} target(s) {NOTE_TEXT.get(kind, kind)}: " + ", ".join(items[:10])
@@ -1874,7 +1991,7 @@ def run_summary(mode, t_main, t_pass1, t_pass2, n_targets):
     (read by report.py for the page header)."""
     t_end = time.time()
     n_ok = max(n_targets, 1)
-    s = dict(run_utc=datetime.fromtimestamp(T_START, tz=__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), mode=mode,
+    s = dict(run_utc=datetime.fromtimestamp(T_START, tz=__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"), mode=mode, local_only=LOCAL_ONLY,
              version=__version__,
              window_start=str(config.ct), window_days=config.days, targets=n_targets,
              candidates=RUN["candidates"], gated=RUN["gated"], solves=RUN["solves"], hits=RUN["hits"],
@@ -1938,6 +2055,9 @@ def online_double_check(records):
     query for all; updates their rows in the hit log. Skipped quietly when off, offline or slow."""
     if not records or not getattr(config, "gaia_online_check", True):
         return
+    if LOCAL_ONLY:
+        print(f"* Gaia online check: local data only, not asked ({len(records)} event star(s))")
+        return
     # a format-2 catalog with its quality part has the star's flags, and every neighbour that matters (up to DMAG
     # fainter) when it reaches that deep with all stars (supplement on): the archive adds nothing for such events
     local_all = (LOCAL is not None and getattr(LOCAL, "quality", None) is not None and getattr(LOCAL, "sup", False))
@@ -1961,8 +2081,9 @@ def online_double_check(records):
     print(f"* Gaia online check of {len(records)} event star(s) (close and double stars; {why}) ...")
     archive = doubles.fetch_online([(r["star_ra"], r["star_dec"]) for r in records], rad)
     if archive is None:
-        WARNINGS["online_check"] = (f"Gaia online check of {len(records)} event star(s) not done (archive offline or "
-                                    f"slow): close/double-star notes from the local catalog only")
+        WARNINGS["online_check"] = (f"Gaia online check of {len(records)} event star(s) not done "
+                                    f"({doubles.LAST_SKIP.get('why', 'archive offline or slow')}): close/double-star "
+                                    f"notes from the local catalog only")
         return
     upd = doubles.online_fields(records, rad, archive)
     n = db.update_events(DB, records, upd, lst=getattr(config, "results_list", "main"))
@@ -1974,10 +2095,13 @@ def star_info_check(records):
     """After the search: known double stars (WDS) and variables (AAVSO VSX) at the event stars (starinfo.py; config
     star_info / GUI System checkbox), local copies or VizieR; updates their rows in the results database."""
     from pysyzygos import starinfo
-    if not records or starinfo.mode() == "off":
+    how = starinfo.mode()
+    if not records or how == "off":
         return
+    if LOCAL_ONLY:
+        how = "local"                                             # the local copies only (none installed: nothing)
     try:
-        upd, note = starinfo.check(records)
+        upd, note = starinfo.check(records, how=how)
     except Exception as ex:                                       # noqa: BLE001 - reference data, never fatal
         upd, note = [], f"WDS/VSX look-up failed ({str(ex)[:120]})"
     if note:
