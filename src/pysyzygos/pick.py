@@ -337,6 +337,8 @@ def main(argv=None):
         if not sig:
             WARNINGS.append(f"{SIGMA_WARNING} (pysyzygos sigmas build): NEOs, Mars-crossers, Trojans, Centaurs and TNOs "
                             "with the fixed allowance")
+            print(f"WARNING: {WARNINGS[-1]} (thousands of km: their events can be far from the site; System tab: "
+                  f"build the sigma table, ~1 h once)", file=sys.stderr)   # in the log too, not only the pick's meta
     T["list"] = time.time()
     N = {"list": len(rows)}                             # counts for the step summary
     import spiceypy as spice

@@ -21,6 +21,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   in random order (37 s with the file in memory, many minutes from a disk, with no output meanwhile). It now reads
   the table straight through (4.6 s in the same test), in blocks with percent and ETA every few seconds on slow
   drives.
+- **Pick without a sigma table:** the warning that NEOs, Mars-crossers, Trojans, Centaurs and TNOs get the fixed
+  allowance (thousands of km) is now printed in the pick's log too, not only kept in the pick's header.
 - **Path uncertainties without JPL Horizons** (outage, offline, local only): from the cached Horizons answer of the
   same asteroid nearest in date (within 30 days, scaled to the distance), else the sigma table, else the default.
   Before, every such hit got the default (10 km 3-sigma), which changed its chance and reach. Each hit's Horizons
