@@ -14,6 +14,8 @@ from pysyzygos.gui_common import SITE_KEYS, fov, load_ui_state, mag_limit, save_
 
 # the site's event limits, shown together in a highlighted box (the rest of SITE_KEYS: equipment)
 LIMIT_KEYS = ("min_alt", "max_sun_alt", "min_dur_s", "reach_km", "reach_sigma")
+# the star altitude limit (site key alt_limit, only stored as "fixed": absent = the horizon line when there is one)
+ALT_MODES = {"fixed": "fixed min.", "horizon": "user horizon"}
 
 
 def panel(pg):
@@ -93,14 +95,23 @@ def panel(pg):
                     ui.label("Event limits: check these first").classes("text-xs font-semibold text-amber-800")
                     with ui.grid(columns=3).classes("w-full"):
                         for key, label, default, step in SITE_KEYS:
-                            if key in LIMIT_KEYS:
+                            if key == "min_alt":             # a fixed altitude, or the site's horizon line (user's
+                                with ui.row().classes("items-end gap-1 no-wrap"):          # choice, 2026-11-26)
+                                    pg.alt_mode = ui.select(ALT_MODES, value="fixed", label="Star altitude limit") \
+                                        .classes("w-32").tooltip(
+                                        "fixed: the star must be above Min. (°); the horizon, if loaded, only marks "
+                                        "events (\u26f0). user horizon: the horizon line at the star's azimuth "
+                                        "decides instead (load one under Horizon below)")
+                                    pg.fields[key] = ui.number("Min. (°)", value=default, step=step).classes("w-20")
+                            elif key in LIMIT_KEYS:
                                 pg.fields[key] = ui.number(label, value=default, step=step)
                     pg.derived = ui.label().classes("text-sm font-medium text-amber-900")
                 with ui.expansion("Horizon (optional): trees, buildings, hills").classes("w-full") as hz_exp:
                     ui.label("Load OccultWatcher's UserHorizon.txt (the same file works in both programs) for "
-                             "the site in this form, then save the site. The horizon then REPLACES the minimum "
-                             "star altitude in this site's picks and searches: events whose star is behind it are "
-                             "left out; those closer to it than the margin are marked \u26f0 red in the results and "
+                             "the site in this form, then save the site. With Star altitude limit 'user horizon' (the "
+                             "default once a horizon is loaded) it REPLACES the minimum star altitude in this site's "
+                             "picks and searches: events whose star is behind it are left out ('fixed min.': Min. "
+                             "applies and the horizon only marks them); those closer to it than the margin are marked \u26f0 red in the results and "
                              "favorites. Shared (world) pre-screens never use it: they stop at altitude 0. A file "
                              "with several stations: the one named like the site, else the first.").classes(
                         "text-xs text-slate-500")
@@ -183,6 +194,7 @@ def handlers(pg):
         pg.is_default.value = name == pg.state.get("default", pg.default_site)
         pg.hz_margin.value = 15 if s.get("horizon_margin") is None else s["horizon_margin"]
         pg.hz_filter.value = bool(s.get("horizon_filter", False))
+        pg.ALT["want"] = "fixed" if s.get("alt_limit") == "fixed" else "horizon"
         pg.HZ["image"] = s.get("horizon_image") if s.get("horizon_image") and os.path.isfile(s["horizon_image"]) else None
         pg.hz_az.value = float(s.get("horizon_image_az", 0.0))
         pg.HZ["sun"] = None                                          # the Sun marker belongs to the site shown before
@@ -209,6 +221,7 @@ def handlers(pg):
     pg.show_site = show_site
 
     pg.HZ = dict(pts=None, name="", image=None, sun=None)           # the horizon in the form (horizon.py, panorama.py)
+    pg.ALT = dict(want="horizon")                                     # the site's altitude limit (alt_sync)
     pg.HZ_TZ = {}                                                     # site (lat, lon) -> IANA time zone (looked up once)
 
     async def hz_sun():
@@ -475,6 +488,8 @@ def handlers(pg):
         if pg.HZ["pts"]:
             s.update(horizon=[list(p) for p in pg.HZ["pts"]], horizon_name=pg.HZ["name"],
                      horizon_margin=float(15 if pg.hz_margin.value is None else pg.hz_margin.value), horizon_filter=bool(pg.hz_filter.value))
+        if pg.ALT["want"] == "fixed":
+            s["alt_limit"] = "fixed"                           # the site's min_alt; a horizon only marks events
         if pg.HZ["image"]:
             s.update(horizon_image=pg.HZ["image"].replace(os.sep, "/"), horizon_image_az=float(pg.hz_az.value or 0))
         if pg.ele_ref.value == "ellipsoid":
@@ -578,7 +593,28 @@ def handlers(pg):
                 radius=km * 1000.0, color="#d97706", weight=2, dashArray="2 6", fill=True, fillOpacity=0.04,
                 interactive=False)])
 
+    def alt_sync():
+        """The altitude selector: 'user horizon' offered only with a horizon loaded; Min. (deg) used only when
+        fixed. The site's choice (ALT want) is kept while a horizon is removed and loaded again."""
+        has = bool(pg.HZ["pts"])
+        opts = ALT_MODES if has else {"fixed": ALT_MODES["fixed"]}
+        v = pg.ALT["want"] if has else "fixed"
+        if list(pg.alt_mode.options) != list(opts):
+            pg.alt_mode.set_options(opts, value=v)
+        elif pg.alt_mode.value != v:
+            pg.alt_mode.value = v
+        pg.fields["min_alt"].set_enabled(v == "fixed")
+        return v
+    pg.alt_sync = alt_sync
+
+    def alt_changed(e):
+        if pg.HZ["pts"] and e.value in ALT_MODES:
+            pg.ALT["want"] = e.value
+        pg.update_derived()
+    pg.alt_changed = alt_changed
+
     def update_derived(*_):
+        mode = alt_sync()
         s = pg.collect()
         reach_circle(s)
         show_unsaved(pg.saved_site(pg.state["name"]) != pg.effective(s, pg.state["name"]))
@@ -586,8 +622,12 @@ def handlers(pg):
         pg.mag_apply(s)
         pg.derived.text = (f"Stars searched to G {mag_limit(s):.1f} · camera field {w:.1f}′ × {h:.1f}′ "
                            f"(focal {s.get('focal_mm') or 100 * s.get('aperture_cm', 25):.0f} mm)"
-                           + (" · star altitude: the horizon line (Min. star altitude not used)"
-                              if pg.HZ["pts"] and getattr(pg.config, "horizon_limit", True) else ""))
+                           + (" · star altitude: the horizon line (Min. not used)"
+                              if mode == "horizon" and getattr(pg.config, "horizon_limit", True) else
+                              " · star altitude: the horizon line (config horizon_limit = False: Min. applies)"
+                              if mode == "horizon" else
+                              f" · star altitude: fixed {s.get('min_alt', 10):g}°"
+                              + (" (the horizon only marks events)" if pg.HZ["pts"] else "")))
     pg.update_derived = update_derived
 
     def set_position(la, lo, el=None):
@@ -710,7 +750,7 @@ def handlers(pg):
         ui.notify(f"Approximate (from your IP address): {r[3]}")
     pg.ip_loc = ip_loc
 
-    HZ_KEYS = ("horizon", "horizon_name", "horizon_margin", "horizon_filter", "horizon_image", "horizon_image_az")
+    HZ_KEYS = ("horizon", "horizon_name", "horizon_margin", "horizon_filter", "alt_limit", "horizon_image", "horizon_image_az")
 
     def new_site_from_form(name):
         """The form as a new site: position, equipment and limits; the description, MPC code, horizon and photo only
@@ -851,6 +891,7 @@ def connect(pg):
 
     for el in [pg.lat, pg.lon, pg.ele, pg.mpc, *pg.fields.values()]:
         el.on_value_change(pg.update_derived)
+    pg.alt_mode.on_value_change(pg.alt_changed)
 
     pg.m.on("map-click", pg.on_click)
 

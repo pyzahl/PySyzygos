@@ -7,6 +7,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Site tab: choose the star altitude limit** ("Star altitude limit" next to Min.): *user horizon* (default once a
+  horizon is loaded: the horizon line replaces the minimum altitude, as since 1.6.0) or *fixed min.* (the minimum
+  altitude applies and the horizon only marks events ⛰). Saved per site (`sites.py` `alt_limit = "fixed"`). It applies
+  to the site's own pick and search only; pre-screens stay cut at the geometric horizon.
 - **Pre-screen manager for a build server** (`pysyzygos prescreen manage`): a terminal screen (curses, works over
   ssh) for whole-Earth pre-screens: local files, running and stopped builds with progress, the mirror's list (the
   mirror's folder synced to the machine, `--share DIR`), and the next maintenance step. Keys start a build, resume,

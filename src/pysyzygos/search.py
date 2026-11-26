@@ -1876,7 +1876,8 @@ def handle_star(loc, obs_geo, target_id, size, row, ra_col, dec_col, et_guess, b
         # a negative horizon_margin lets the star be that far behind the line (kept, marked 'behind')
         allow = horizon.allowance(site_.get("horizon_margin", 15.0))
         if (hz_flag == "behind" and record["star_alt"] < hz_alt - allow
-                and (getattr(config, "horizon_limit", True) or site_.get("horizon_filter"))):
+                and (getattr(config, "horizon_limit", True)
+                     or (site_.get("horizon_filter") and site_.get("alt_limit") != "fixed"))):
             print(f"  {record['target_name']} at {record['best_utc'][:19]} UT: star behind the site's horizon "
                   f"({record['star_alt']:.0f} deg, horizon {hz_alt:.0f} deg there"
                   + (f", {allow:g} deg allowed" if allow else "") + "): left out")

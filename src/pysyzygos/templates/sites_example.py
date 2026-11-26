@@ -21,8 +21,10 @@
 #             Kitt Peak); shown in the report header. The GUI fills it in when you pick an MPC observatory.
 #   horizon   (set in the GUI, Site tab, "Horizon") horizon: [[az, alt], ...] whole degrees as OccultWatcher's
 #             UserHorizon.txt, horizon_name, horizon_margin (deg, default 15: stars closer are marked;
-#             negative: stars up to that far behind the line are still used), horizon_filter
-#             (True: leave out events behind it); horizon_image (360-degree photo, horizons/<site>.jpg) and
+#             negative: stars up to that far behind the line are still used), alt_limit ("fixed": min_alt
+#             applies and the horizon only marks events; absent: the horizon line replaces min_alt),
+#             horizon_filter (old key, True: with a fixed limit also leave out events behind it; ignored with
+#             alt_limit "fixed"); horizon_image (360-degree photo, horizons/<site>.jpg) and
 #             horizon_image_az (azimuth at the photo's left edge, deg).
 
 sites = {

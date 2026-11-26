@@ -978,6 +978,10 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `prescreen.SHARED_CUTS` (min_alt 0, max_sun_alt 0; build --global and publish refuse others; user 2026-11-23: no
   Sun > 0, the criterion has no sky brightness; a bright-star daytime exemption was offered, not built). owc-check, path-check, obs-check set horizon_limit False. Run summary limits
   horizon_limit (report "star above the site's horizon"), pick header "# star altitude:", pick_meta min_alt/horizon.
+  Per site (2026-11-26, user's choice): site key `alt_limit` "fixed" -> config.py sets horizon_limit False for it
+  (absent = horizon); GUI Site `pg.alt_mode` (ALT_MODES, beside Min.; 'user horizon' only with a horizon loaded,
+  `alt_sync`, pg.ALT want kept across horizon remove/load; Min. disabled in horizon mode); the old horizon_filter is
+  ignored with alt_limit fixed (search).
   Negative horizon_margin (GUI -30..45) = allowance below the line (`horizon.allowance`/`limit`; config
   HORIZON_MARGIN; MIN_STAR_ALT = max(0, lowest - allowance); screen opt horizon_margin; search drops only below
   hz_alt - allowance, kept ones flagged 'behind'; no 'near' for margin <= 0).

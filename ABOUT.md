@@ -315,7 +315,10 @@ their last separation and position angle) and the AAVSO VSX (known variables): "
   those from a 360° photo) uses it *instead of* its `min_alt` in its pick and search (`horizon_limit = True`, the
   default): the star must be above the horizon line at its azimuth. `MIN_STAR_ALT` then becomes the horizon's lowest
   point (never below 0), so the early gates stay loose, and the horizon line is the final test (pick:
-  `screen.screen`; search: `handle_star`). Without a horizon, `min_alt` applies as before. Pre-screens are never cut
+  `screen.screen`; search: `handle_star`). Without a horizon, `min_alt` applies as before. Per site the choice is in
+  the Site tab, **Star altitude limit**: *user horizon* (the default once a horizon is loaded) or *fixed min.*
+  (`sites.py` `alt_limit = "fixed"`: `min_alt` applies and the horizon only marks events, as with
+  `horizon_limit = False` for that site). Pre-screens are never cut
   by a site's limits: they stop at the geometric horizon, for the star (altitude above 0) and the Sun (below 0).
   Whole-Earth (shareable) pre-screens must be built and published with exactly these cuts (`prescreen.SHARED_CUTS`;
   `prescreen build --global`/`publish` refuse others), since they serve every site. The Sun cut stays at 0: its

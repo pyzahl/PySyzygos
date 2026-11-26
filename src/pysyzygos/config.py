@@ -35,6 +35,8 @@ if "ele" in _site and _ns.get("ELE") == _site["ele"]:
 # line at the star's azimuth (screen.screen, search.handle_star). MIN_STAR_ALT_SITE keeps the site's min_alt. Here,
 # after both files: older user files set MIN_STAR_ALT = site.get("min_alt") themselves.
 _ns["HORIZON"] = [(float(a), float(h)) for a, h in (_site.get("horizon") or [])]
+if _site.get("alt_limit") == "fixed":            # the site's choice (GUI Site tab "Star altitude limit"): its min_alt,
+    _ns["horizon_limit"] = False                  # the horizon only marks events; everything reads horizon_limit
 _ns["MIN_STAR_ALT_SITE"] = _ns.get("MIN_STAR_ALT")
 _ns["HORIZON_MARGIN"] = float(15.0 if _site.get("horizon_margin") is None else _site["horizon_margin"])
 if _ns["HORIZON"] and _ns.get("horizon_limit", True):                 # a negative margin lowers the line (horizon.limit)
