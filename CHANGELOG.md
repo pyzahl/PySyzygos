@@ -6,6 +6,8 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.7.0] "Beyond Horizons" - 2026-11-27
+
 ### Added
 - **Windows setup file `PySyzygos-Setup.cmd`** (double-click, for the user, no administrator rights): a private
   uv and Python, PySyzygos from PyPI, Start menu folder (PySyzygos, Observation Manager, Data setup, command prompt,
@@ -1482,7 +1484,8 @@ show it). It collects the work since the first commit:
   orientation coverage in the report header, progress output for long downloads, OWC reference comparisons.
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
-[Unreleased]: https://github.com/pyzahl/PySyzygos/compare/v1.6.0...main
+[Unreleased]: https://github.com/pyzahl/PySyzygos/compare/v1.7.0...main
+[1.7.0]: https://github.com/pyzahl/PySyzygos/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...v1.6.0
 [1.5.2]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...main
 [1.5.1]: https://github.com/pyzahl/PySyzygos/releases/tag/v1.5.1

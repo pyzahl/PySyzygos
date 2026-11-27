@@ -6,7 +6,7 @@
 > An occultation is one: for a few seconds the observer, the asteroid and the star stand in one line. Up to version
 > 0.18 the project was called PyOccult.
 
-Python Occultation Searcher by PyZahl (C) 2026, version 1.6.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
+Python Occultation Searcher by PyZahl (C) 2026, version 1.7.0 “Beyond Horizons”. Free software under the GNU GPL v3 or later (see License below).
 The version and its code name (it changes at major milestones) are kept in `pysyzygos/version.py`; the GUI header and
 its **About** box show both, the report and `--version` of every tool show the version. What changed in each version:
 [CHANGELOG.md](CHANGELOG.md). How the predictions were verified: [VERIFICATION.md](VERIFICATION.md).
@@ -190,7 +190,7 @@ you can read in Notepad).
   that window open while you work; close it to stop PySyzygos. If Windows asks whether Python may use the network,
   allowing private networks is enough.
 - **Update:** Start menu → *Update PySyzygos*, or run the setup file again; it installs the newest release from
-  PyPI. From the next release on, the System tab's **Update** button does the same (it opens the setup's window,
+  PyPI. The System tab's **Update** button does the same (it opens the setup's window,
   which closes PySyzygos, updates it and starts it again).
 - **Uninstall:** Start menu → *Uninstall PySyzygos*. Your data folder stays (sites, settings, catalog, results);
   delete it by hand if you no longer need it.
