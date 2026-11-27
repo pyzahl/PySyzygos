@@ -17,7 +17,8 @@ uploads. Its prescreens.json is the mirror's list; copies the sync client makes 
 (conflicted copy ...).json") are merged into it (key m, and every --auto step).
 
 Maintenance step (plan(); the screen shows it, key a runs it):
-  1. publish a finished, current whole-Earth pre-screen that is not in the mirror's list (one at a time);
+  1. publish a finished, current whole-Earth pre-screen that is not on the mirror yet (one at a time): in slices
+     (prescreen_slices.py: `prescreen split`, downloaded on demand) and/or as the packed archive (publish_mode);
   2. delete local pre-screens whose window is over, or that a newer build covers (superseded); stale partial builds;
   3. withdraw such ones from the mirror;
   4. start the next whole-Earth build (start today, `days` long) when the newest one covers fewer than `lead_days`
@@ -30,6 +31,7 @@ POSIX only (curses, process groups).
 from pysyzygos.version import __version__
 import datetime as dt, glob, json, os, re, signal, sqlite3, subprocess, sys, time
 from pysyzygos import prescreen as PS
+from pysyzygos import prescreen_slices as SL
 
 STATE = "prescreen_manager.json"
 DEFAULTS = dict(share_dir=None,                  # the mirror's synced pre-screen folder
@@ -40,7 +42,9 @@ DEFAULTS = dict(share_dir=None,                  # the mirror's synced pre-scree
                 auto_build=True, auto_publish=True,
                 delete_expired=True, delete_superseded=True,      # local
                 withdraw_expired=True, withdraw_superseded=True,  # mirror
-                max_swap_frac=0.8, min_avail_gb=4.0, min_disk_gb=10.0)
+                max_swap_frac=0.8, min_avail_gb=4.0, min_disk_gb=10.0,
+                publish_mode="both",             # "slices" (downloaded on demand), "archive" (one .tar.xz), "both"
+                g_edges="13,14,15,16", h_split=17.0)      # the slices: G bands, H < / >= h_split
 SETTING_HELP = dict(share_dir="mirror's synced pre-screen folder", days="window of a new build, days",
                     cam_limit="star limit G of a new build", hmax="H limit (empty: all asteroids)",
                     workers="worker processes", mem_frac="share of free memory a build may use",
@@ -49,9 +53,12 @@ SETTING_HELP = dict(share_dir="mirror's synced pre-screen folder", days="window 
                     delete_expired="delete local: window over", delete_superseded="delete local: newer one covers it",
                     withdraw_expired="mirror: withdraw when over", withdraw_superseded="mirror: withdraw superseded",
                     max_swap_frac="no build above this swap use", min_avail_gb="no build below this free memory, GB",
-                    min_disk_gb="no build below this free disk, GB")
+                    min_disk_gb="no build below this free disk, GB",
+                    publish_mode="slices / archive / both", g_edges="slices: G band edges",
+                    h_split="slices: H < this / >= this")
 NAME_RE = re.compile(r"__(\d{4}-\d\d-\d\d)_([\d.]+)d_G([\d.]+)")
 CONFLICT_GLOB = "prescreens*conflict*.json"
+SLICES_CONFLICT_GLOB = "prescreen_slices*conflict*.json"
 
 
 # ------------------------------------------------------------------ settings and job state
@@ -144,11 +151,28 @@ def share_items(share):
                                published=str(e.get("published") or "")))
         except (KeyError, ValueError):
             continue
+    for x in items:
+        x["sliced"] = None
+    by = {x["name"]: x for x in items}
+    sman = SL.load(os.path.join(share, SL.MANIFEST)) or {}
+    for e in sman.get("prescreens", []):                     # the same build in slices: one row with both forms
+        st = SL.folder_state(share, e)
+        x = by.get(e["name"])
+        if x is not None and x["built"] == str(e.get("built") or ""):
+            x["sliced"] = st
+            continue
+        try:
+            items.append(_item(e, name=e["name"], archive=None, bytes=e.get("total_bytes"), state=st, sliced=st,
+                               published=str(e.get("published") or "")))
+        except (KeyError, ValueError):
+            continue
     listed = {e["archive"] for e in man.get("prescreens", [])}
+    folders = {e["folder"] for e in sman.get("prescreens", [])}
     orphans = sorted(f for f in os.listdir(share)
                      if (f.endswith((".tar.xz", ".part")) and f not in listed and f[:-len(".part")] not in listed)
-                     or (f.endswith(".tar.xz.sha256") and f[:-len(".sha256")] not in listed))
-    conflicts = sorted(glob.glob(os.path.join(share, CONFLICT_GLOB)))
+                     or (f.endswith(".tar.xz.sha256") and f[:-len(".sha256")] not in listed)
+                     or (f.endswith((".slices", ".slices.part")) and f not in folders))
+    conflicts = sorted(glob.glob(os.path.join(share, CONFLICT_GLOB)) + glob.glob(os.path.join(share, SLICES_CONFLICT_GLOB)))
     return items, orphans, conflicts
 
 
@@ -224,7 +248,7 @@ def out_of(argv):
     """The output file of a `prescreen build|publish|index` command line."""
     i = argv.index("prescreen")
     sub, rest = argv[i + 1], argv[i + 2:]
-    if sub in ("publish", "index"):
+    if sub in ("publish", "index", "split"):
         return next((a for a in rest if not a.startswith("-")), None)
     o = _arg(rest, "-o") or _arg(rest, "--output")
     if o or "--global" not in rest:
@@ -247,7 +271,7 @@ def scan_processes(home=None):
         if not argv or os.path.basename(argv[0]) in ("sh", "bash", "dash", "zsh") or "prescreen" not in argv:
             continue
         i = argv.index("prescreen")
-        if i + 1 >= len(argv) or argv[i + 1] not in ("build", "publish", "index") \
+        if i + 1 >= len(argv) or argv[i + 1] not in ("build", "publish", "index", "split") \
                 or not any("pysyzygos" in a for a in argv[:i]):
             continue
         try:
@@ -393,6 +417,16 @@ def merge_share(share, extra=(), log=print):
         os.remove(c)
         log(f"   merged and deleted {os.path.basename(c)}")
     log(f"{mp}: {len(man['prescreens'])} pre-screen(s)")
+    sp = os.path.join(share, SL.MANIFEST)                          # the sliced list, the same way
+    sconf = sorted(glob.glob(os.path.join(share, SLICES_CONFLICT_GLOB)))
+    if sconf or os.path.exists(sp):
+        sman = SL.merge([SL.load(sp)] + [SL.load(c) for c in sconf])
+        sman = dict(sman, prescreens=[e for e in sman["prescreens"] if SL.folder_ok(share, e)])
+        SL.write(sman, sp)
+        for c in sconf:
+            os.remove(c)
+            log(f"   merged and deleted {os.path.basename(c)}")
+        log(f"{sp}: {len(sman['prescreens'])} sliced pre-screen(s)")
     return man
 
 
@@ -437,9 +471,13 @@ def inventory(st, today=None):
     mark(mirror, today)
     local = mark(local_items(), today, others=mirror)
     names = {x["name"]: x for x in mirror}
+    mode = cfg.get("publish_mode", "both")
     for x in local:
         e = names.get(x["name"])
-        x["published"] = bool(e and e["built"] == x["built"] and e["state"] != "missing")
+        same = bool(e and e["built"] == x["built"])
+        x["on_archive"] = same and bool(e.get("archive")) and e["state"] != "missing"
+        x["on_slices"] = same and e.get("sliced") not in (None, "missing")
+        x["published"] = ((x["on_archive"] or mode == "slices") and (x["on_slices"] or mode == "archive"))
     return dict(today=today, local=local, partials=partial_items(), mirror=mirror, orphans=orphans,
                 conflicts=conflicts, jobs=jobs(st), share=share, settings=cfg)
 
@@ -455,11 +493,15 @@ def plan(inv, mem=(True, "")):
     if share and inv["conflicts"]:
         acts.append(("merge", share, f"{len(inv['conflicts'])} conflict copy(ies) of {PS.MANIFEST}"))
     gl = [x for x in inv["local"] if x["kind"] == "global"]
-    if share and cfg["auto_publish"] and not any(j["kind"] == "publish" for j in run):
+    if share and cfg["auto_publish"] and not any(j["kind"] in ("publish", "split") for j in run):
         todo = [x for x in gl if not x["published"] and not x["expired"] and not x["superseded"] and x["indexed"]
                 and not x["restricted"] and not is_busy(x["path"])]
+        mode = cfg.get("publish_mode", "both")
         for x in sorted(todo, key=lambda x: x["start"])[:1]:
-            acts.append(("publish", x["path"], "not in the mirror's list yet"))
+            if mode in ("slices", "both") and not x.get("on_slices"):
+                acts.append(("split", x["path"], "not on the mirror in slices yet"))
+            elif mode in ("archive", "both") and not x.get("on_archive"):
+                acts.append(("publish", x["path"], "not in the mirror's archive list yet"))
     keep = protected(inv["local"], cfg["keep_min"])
     for x in inv["local"]:
         if x["name"] in keep or is_busy(x["path"]):
@@ -521,6 +563,10 @@ def execute(st, act, log=print):
     cfg = st["settings"]
     if kind == "publish":
         return launch(st, "publish", ["publish", target, "--to", cfg["share_dir"], "--synced"], target)
+    if kind == "split":
+        return launch(st, "split", ["split", target, "--to", cfg["share_dir"], "--synced", "--g-edges",
+                                    str(cfg.get("g_edges") or "13,14,15,16"), "--h-split",
+                                    f"{float(cfg.get('h_split') or 17):g}"], target)
     if kind == "delete":
         PS.remove(target)
         log(f"deleted {target} ({why})")
@@ -572,8 +618,14 @@ def _flags(x):
         f.append("expired")
     elif x.get("superseded"):
         f.append("superseded")
-    if x.get("published"):
-        f.append("on mirror")
+    if "path" in x and (x.get("on_archive") or x.get("on_slices")):
+        f.append("on mirror (" + "+".join(k for k, v in (("archive", x.get("on_archive")), ("slices", x.get("on_slices")))
+                                          if v) + ")")
+    if x.get("what") == "mirror" or "archive" in x:
+        forms = [k for k, v in (("archive", x.get("archive")), ("slices", x.get("sliced") not in (None, "missing")))
+                 if v]
+        if forms and "path" not in x:
+            f.append("+".join(forms) + ("" if x.get("sliced") in (None, "ok", "missing") else f" (slices {x['sliced']})"))
     if x.get("kind") == "global" and not x.get("indexed", True):
         f.append("no index")
     if x.get("state") and x["state"] != "ok":
@@ -631,7 +683,7 @@ def status_text(st):
 
 
 # ------------------------------------------------------------------ the screen (curses)
-HELP = ("up/down move  n new build  r resume  s stop  p publish  d delete/withdraw  i index  m merge lists  "
+HELP = ("up/down move  n new build  r resume  s stop  p publish (slices/archive)  d delete/withdraw  i index  m merge lists  "
         "a run plan  c settings  l log  q quit")
 
 
@@ -748,9 +800,14 @@ def tui(st):
                         msg = "select a local whole-Earth pre-screen"
                     elif not sh or not os.path.isdir(sh):
                         msg = "no share folder (key c)"
-                    elif confirm(scr, f"publish {item['name']} to {sh}?"):
-                        j = execute(st, ("publish", item["path"], "by hand"))
-                        msg = f"publishing, pid {j['pid']}, log {j['log']}"
+                    else:
+                        mode = st["settings"].get("publish_mode", "both")
+                        dflt = "s" if mode in ("slices", "both") and not item.get("on_slices") else "a"
+                        how = ask(scr, f"publish {item['name']} to {sh} as (s)lices, (a)rchive, or (n)o", dflt).lower()
+                        if how.startswith(("s", "a")):
+                            kind = "split" if how.startswith("s") else "publish"
+                            j = execute(st, (kind, item["path"], "by hand"))
+                            msg = f"{'splitting' if kind == 'split' else 'packing'}, pid {j['pid']}, log {j['log']}"
                 elif key == "i":
                     if item.get("kind") == "global" and not item.get("what"):
                         j = execute(st, ("index", item["path"], "by hand"))

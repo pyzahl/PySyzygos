@@ -1036,6 +1036,8 @@ def withdraw(name, dest=SHARE_DIR, log=print):
             log(f"   deleted {p}")
     if os.path.exists(mp) or keep:
         write_manifest(merge_manifests([dict(prescreens=keep)]), mp)
+    from pysyzygos import prescreen_slices as SL               # its slices too
+    found = SL.withdraw(name, dest, log=log) or found
     log(f"{name}: withdrawn from {dest} ({len(keep)} pre-screen(s) left in {MANIFEST})")
     return found
 
@@ -1327,8 +1329,20 @@ def main(argv=None):
                     help="leave this pre-screen out (withdrawn; repeatable): every list is merged, so a deleted "
                          "archive's entry comes back from the mirror's list otherwise")
     sub.add_parser("remote", help="the shared pre-screens on the mirror")
-    fe = sub.add_parser("fetch", help="download a shared pre-screen from the mirror into prescreen/")
+    fe = sub.add_parser("fetch", help="download a shared pre-screen from the mirror into prescreen/ (a sliced one: "
+                        "only the slices and days needed)")
     fe.add_argument("name", nargs="?", default="latest", help="its name (see remote), default: the latest")
+    fe.add_argument("--start", help="sliced: first UTC day wanted (default: the pre-screen's start)")
+    fe.add_argument("--days", type=float, help="sliced: days wanted (default: to the pre-screen's end)")
+    fe.add_argument("--gmax", type=float, help="sliced: faintest star your picks use (default: all the pre-screen has)")
+    fe.add_argument("--hmax", type=float, help="sliced: H limit of your picks (default: all asteroids)")
+    fe.add_argument("--archive", action="store_true", help="the packed archive (whole file), not the slices")
+    spl = sub.add_parser("split", help="cut a global pre-screen into G/H slices for the mirror (downloaded on demand)")
+    spl.add_argument("file", help="a global pre-screen (.global.npy)")
+    spl.add_argument("--to", default=SHARE_DIR, help=f"share folder (default {SHARE_DIR})")
+    spl.add_argument("--synced", action="store_true", help="the share folder IS the mirror's folder (synced)")
+    spl.add_argument("--g-edges", default="13,14,15,16", help="G band edges (default 13,14,15,16)")
+    spl.add_argument("--h-split", type=float, default=17.0, help="H < this / >= this (default 17)")
     a = ap.parse_args(argv)
     if a.cmd == "publish":
         publish(a.file, a.to, remote=[] if a.no_mirror else (synced_remote(a.to) if a.synced else None))
@@ -1372,6 +1386,13 @@ def main(argv=None):
         if not man:
             print("No pre-screen mirror answered (offline?).")
             return 1
+        from pysyzygos import prescreen_slices as SL
+        _, sman = SL.remote_list(log=lambda *x: None)
+        for e in (sman or {}).get("prescreens", []):
+            print(f"  {e['name']}  [sliced: fetch only what you need]\n    {e['start']} + {e['days']:g} d, whole Earth, "
+                  f"up to G {e['cam_limit']:g}, H {e.get('hmax') or 'all'}; {e['n_events']} events, "
+                  f"{e['total_bytes'] / 1e9:.1f} GB in {len(e['slices'])} slices: "
+                  + ", ".join(f"{s['key']} {(s['bytes'] + s['idx_bytes']) / 1e9:.2f}" for s in e["slices"]))
         print(f"Shared pre-screens at {m} (updated {str(man.get('updated'))[:16]}):")
         here = {os.path.basename(p) for p, _ in list_files()}
         for e in man.get("prescreens", []):
@@ -1383,7 +1404,19 @@ def main(argv=None):
                   f"{str(e.get('built'))[:10]} ({e.get('version')}), download {mb:.0f} MB")
         return 0
     if a.cmd == "fetch":
-        fetch(a.name)
+        from pysyzygos import prescreen_slices as SL
+        sliced = not a.archive and (any(v is not None for v in (a.start, a.days, a.gmax, a.hmax))
+                                    or _sliced_only(a.name))
+        if sliced:
+            SL.fetch(a.name, a.start, a.days, a.gmax, a.hmax)
+        else:
+            fetch(a.name)
+        return 0
+    if a.cmd == "split":
+        from pysyzygos import prescreen_slices as SL
+        SL.split(a.file, a.to, [float(x) for x in a.g_edges.split(",")], a.h_split,
+                 sbdb_cache=os.path.join(c("cache") or tempfile.gettempdir(), "PySyzygos_sbdb_cache.json"),
+                 synced=a.synced)
         return 0
     if a.cmd == "list":
         for p, m in list_files():
@@ -1462,6 +1495,18 @@ def main(argv=None):
         print(f"pre-screen: {e}", file=sys.stderr)
         return 2
     return 0
+
+
+def _sliced_only(name):
+    """True if `name` (or latest) is published in slices (and not newer as an archive): fetch only what is needed."""
+    from pysyzygos import prescreen_slices as SL
+    _, sman = SL.remote_list(log=lambda *x: None)
+    if not sman:
+        return False
+    _, man = remote_list(log=lambda *x: None)
+    s, ar = _choose(sman.get("prescreens", []), name), _choose((man or {}).get("prescreens", []), name)
+    return s is not None and (ar is None or (s.get("start") or "", s.get("built") or "")
+                              >= (ar.get("start") or "", ar.get("built") or ""))
 
 
 def _build_cli(a, c, region, name):

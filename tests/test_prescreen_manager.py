@@ -29,7 +29,7 @@ def make(start, days, built, cam=16.0):
 
 old = make("2026-10-01", 40, "2026-10-01T00:00:00")          # over
 mid = make("2026-11-02", 40, "2026-11-02T00:00:00")          # current, ends 2026-12-12
-st = dict(settings=dict(PM.DEFAULTS, share_dir=share, keep_min=1), jobs=[])
+st = dict(settings=dict(PM.DEFAULTS, share_dir=share, keep_min=1, publish_mode="archive"), jobs=[])   # slices: test_prescreen_slices
 PM.save_state(st)
 
 

@@ -7,6 +7,14 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Shared pre-screens in slices, downloaded on demand.** A 70-day whole-Earth pre-screen is ~9 GB (7 GB packed). It
+  is now also published in disjoint slices by star magnitude (G up to 13, 13-14, 14-15, 15-16) and asteroid H (below
+  17, 17 and above), each sorted by time, with a day table and SHA-256 per block (`prescreen split`, mirror list
+  `prescreen_slices.json`; the old list is unchanged for older versions). `prescreen fetch --start --days --gmax
+  --hmax` downloads only the slices up to your limits and only the days of your window (byte ranges, resumable) and
+  merges them into one ordinary local pre-screen. Checked on a real 40-day file: the merged file equals filtering the
+  original exactly (4.6 M events), 0.62 of 2.3 GB downloaded. The pre-screen manager publishes slices (setting
+  `publish_mode` both / slices / archive; key `p` asks which), lists both forms, and withdraws both.
 - **Site tab: choose the star altitude limit** ("Star altitude limit" next to Min.): *user horizon* (default once a
   horizon is loaded: the horizon line replaces the minimum altitude, as since 1.6.0) or *fixed min.* (the minimum
   altitude applies and the horizon only marks events ⛰). Saved per site (`sites.py` `alt_limit = "fixed"`). It applies

@@ -207,6 +207,24 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   started by hand or GUI), `alive` (zombie + pid-reuse check), `reap`. State HOME/prescreen_manager.json (settings +
   last 30 jobs; gitignored, cleanup SETTINGS). README "Build server" (timer: daily, not monthly; only one machine
   with auto_build: machines do not see each other's running builds). tests/test_prescreen_manager.py.
+  Slices (2026-11-27, after the 70 d all-H build was 8.9 GB raw / 7.1 GB xz; xz gains only 25 %, lossless column
+  packing nothing): `pysyzygos/prescreen_slices.py`. Measured shares (40 d file): G<=13 7 %, 13-14 10 %, 14-15 25 %,
+  15-16 58 %; H>=17 ~half of an all-H build; region boxes 9-36 % but overlap (221 % summed): not used. `split` (G
+  bands G_EDGES via `bands`, H < / >= H_SPLIT from the SBDB bulk list `h_by_number` (unknown H -> small slice);
+  disjoint slices SHARE/<name>.slices/<name>.<key>.npy + .idx.npy, keys like G13-14_H-17, sorted by et; entry: offset
+  (npy header), day0 + day_rows (row at each UTC day boundary from et0), blocks [[sha ev, sha idx]] per BLOCK_ROWS
+  250k; list MANIFEST prescreen_slices.json (old prescreens.json untouched for old clients). `fetch(name, start, days,
+  gmax, hmax)`: `choose` slices (meta hmax: entry's if the H>=17 slice is in, else 17), rows from the day table for
+  window +- HALF_MAX_S, whole blocks by HTTP Range (`_range`; file:// for tests), SHA per block, cache
+  prescreen/.<out>.fetch (resume), merge = exact select() filter (track touches window, g <= gmax) + sort by et ->
+  ordinary global file `out_name` global__<start>_<days>d_G<g>[_H<h>] + meta (sliced_from, built of the entry;
+  et from the entry's et0 + whole days); an existing finished file of that name and build is kept. CLI `prescreen
+  split FILE --to --synced --g-edges --h-split`, `fetch [--start --days --gmax --hmax | --archive]` (sliced if given or
+  `_sliced_only`), `remote` lists slices; `PS.withdraw` removes both forms. Manager: publish_mode both/slices/archive,
+  plan 'split' before 'publish', items carry archive/sliced state (one row per build), key p asks s/a, merge_share
+  merges both lists' conflict copies. Checked 2026-11-27 on the real 40 d file: split 15 s; 20 d at G<=15 fetched =
+  select() exactly (4,612,727 events), 0.62 of 2.3 GB. Not yet: GUI "Download shared" with the pick's limits/window;
+  appending later days to a fetched file. tests/test_prescreen_slices.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via

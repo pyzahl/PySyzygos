@@ -1290,7 +1290,18 @@ a continent with a brighter star limit to share.
 pysyzygos prescreen remote                 # what the mirror offers (window, limits, size, build date)
 pysyzygos prescreen fetch                  # the latest one, into prescreen/ (resumable, SHA-256 checked)
 pysyzygos prescreen fetch global__2026-10-01_40d_G16
+pysyzygos prescreen fetch --start 2026-12-01 --days 30 --gmax 15 --hmax 17   # a sliced one: only what you need
 ```
+
+*Slices: download only what your picks use.* A 70-day whole-Earth pre-screen is ~9 GB (7 GB packed), mostly faint
+stars (G 15-16: ~58 % of the events) and small asteroids (H 17 and above: about half). Newer ones are therefore also
+published in slices, disjoint parts by star magnitude (G up to 13, 13-14, 14-15, 15-16) and asteroid H (below 17,
+17 and above), each sorted by time. `prescreen fetch` with `--start/--days/--gmax/--hmax` downloads only the slices up
+to your limits and only the days of your window (byte ranges of the files, checked block by block with SHA-256,
+resumable), and merges them into one ordinary local pre-screen (`global__<start>_<days>d_G<gmax>[_H<hmax>]`), which
+the pick's "auto" uses as before for picks inside that window and those limits. Example (measured on a 40-day file):
+20 days at G <= 15 is 0.62 GB of the 2.3 GB; for a 70-day build at G <= 15 and H below 17, a 30-day window is about
+0.7 GB instead of 7 GB. `prescreen remote` lists the slices and their sizes; `--archive` takes the packed whole file.
 
 The 40-day one of 2026-10-01 (G <= 16, with the supplement, 19.3 M events of 461,867 asteroids) is about 1.6 GB
 compressed. The pick's "auto" uses it like your own. Orbits are those of the build day, so prefer a recent one; the
@@ -1305,9 +1316,11 @@ mirror; `--check` confirms every listed archive is there) writes `release/world-
 manage` is a terminal screen (works over ssh) listing the local pre-screens, running and stopped builds, and the
 mirror's list, with what it would do next. Give it the mirror's folder synced to that machine (Nextcloud client) once:
 `pysyzygos prescreen manage --share ~/Nextcloud/world-prescreens`. Keys: `n` new whole-Earth build, `r` resume a
-stopped one, `s` stop, `p` publish (packs straight into the synced folder), `d` delete / withdraw, `m` merge the sync
-client's conflict copies of `prescreens.json`, `l` log, `c` settings, `a` run the plan. The plan: publish a finished
-current build, delete local pre-screens whose window is over or that a newer build covers, withdraw those from the
+stopped one, `s` stop, `p` publish straight into the synced folder, as slices (`prescreen split`, ~1 min for 86 M
+events) or as the packed archive, `d` delete / withdraw (both forms), `m` merge the sync client's conflict copies of
+`prescreens.json` and `prescreen_slices.json`, `l` log, `c` settings, `a` run the plan. Setting `publish_mode`:
+`both` (default, while older PySyzygos versions still read only the archive list), `slices` or `archive`; the slice
+edges with `g_edges` (13,14,15,16) and `h_split` (17). The plan: publish a finished current build (slices first), delete local pre-screens whose window is over or that a newer build covers, withdraw those from the
 mirror (the newest is always kept), and start the next build (start today, 70 days by default) when fewer than 21
 days ahead are covered, resuming a stopped build instead where it can. It does not start a build when memory, swap or
 disk are short. Builds run detached: closing the screen or the ssh session does not stop them. Settings in
