@@ -235,6 +235,17 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via
   `.venv/bin/python -m pip install -e .` (never `activate`: sh runs it in a subshell; system pip is refused by PEP 668),
   runs `.venv/bin/pysyzygos setup` then `exec`s `.venv/bin/pysyzygos`; `set -e`, rerunnable. Keep it in step with setup/GUI changes.
+- `windows/setup.ps1` -> `PySyzygos-Setup.cmd` (`scripts/build_windows_setup.py`: cmd header + the script, ASCII, CRLF;
+  ported from PyStarLight's tested setup, 2026-11-27): per user, private uv in `%LOCALAPPDATA%\PySyzygos\bin`
+  (UV_TOOL_DIR / UV_PYTHON_INSTALL_DIR there, PATH untouched), `uv tool install pysyzygos==<PyPI newest>` with Python
+  3.12, Start menu (PySyzygos = `pysyzygos.exe` console: closing it stops the server; Observation Manager, Data setup,
+  command prompt, Data folder, Check installation = `setup --status`, Update, Uninstall), desktop icon (.ico made
+  from the logo with Pillow), the first time `pysyzygos setup` in its window (no pointer and no default-folder config)
+  then starts the GUI; `-Restart -Force` (the GUI's Update: `selfupdate.windows_setup()` detects the install by its
+  folder and opens the setup in a new console), `-NoSetup` / `-Wheel` for tests; uninstall keeps the data folder
+  (`-Purge`: also `%APPDATA%\PySyzygos`). `.github/workflows/windows-setup.yml`: on release published (and by
+  hand): build, test on windows-latest, attach the .cmd to the release. Windows rule: never `os.kill(pid, 0)` (it
+  ends the process); `tasklist` / `taskkill` as in gui_system and prescreen_manager.
 - `pysyzygos/setup.py`: one-time bootstrap (kernels via `pysyzygos/kernels.py`, local Gaia catalog, bright-star index);
   rerunnable, resumes. `pysyzygos/kernels.py`: the kernel download, also called by pysyzygos/search.py at start-up.
 - `pysyzygos/starcat.py` (2026-10-16, catalog format 2, `pysyzygos catalog build|fetch|add|remove|status|xmatch|pack`):

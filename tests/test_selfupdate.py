@@ -85,6 +85,24 @@ try:
     assert S.update_pypi(log=lambda *a: None, run=lambda cmd, **k: ran.append(cmd) or P()) == 0 and ran
     S.status = lambda **k: dict(possible=False, reason="up to date", pypi={"version": "1"})
     assert S.update_pypi(log=lambda *a: None, run=lambda cmd, **k: 1 / 0) == 0      # nothing run
+    # Windows setup install (PySyzygos-Setup.cmd): detected by its folder; the update runs the setup's copy
+    env = {"LOCALAPPDATA": "C:\\Users\\u\\AppData\\Local"}
+    ex = os.path.exists
+    S.os.path.exists = lambda p: p.endswith("setup.ps1") or ex(p)
+    tool = "C:\\Users\\u\\AppData\\Local\\PySyzygos\\tools\\pysyzygos"
+    assert S.windows_setup(tool, env, "win32") == "C:\\Users\\u\\AppData\\Local\\PySyzygos\\setup.ps1"
+    assert S.windows_setup("C:\\Users\\u\\AppData\\Roaming\\uv\\tools\\pysyzygos", env, "win32") is None
+    assert S.windows_setup(tool, env, "linux") is None
+    S.os.path.exists = ex
+    ws = S.windows_setup
+    S.windows_setup = lambda *a, **k: "C:\\setup.ps1"
+    S.status = lambda **k: dict(possible=True, remote_version="99.0.0", pypi={"version": "99.0.0"})
+    started = []
+    assert S.update_pypi(log=lambda *a: None, run=lambda cmd, **k: 1 / 0,
+                         popen=lambda cmd, **k: started.append(cmd)) == 0
+    assert started and started[0][-4:] == ["C:\\setup.ps1", "-Force", "-Restart", "-Pause"], started
+    assert S.pypi_status(dict(), fetch=False, latest=None)["command"].startswith("Start menu")
+    S.windows_setup = ws
     S.status = st_orig
 finally:
     S.repo_dir, S.source_dir, S._direct_url = orig

@@ -26,7 +26,7 @@ Maintenance step (plan(); the screen shows it, key a runs it):
      disk are short (max_swap_frac, min_avail_gb, min_disk_gb): a build with full swap froze a desktop once.
 The newest `keep_min` pre-screens are never deleted or withdrawn by it. Settings: HOME/prescreen_manager.json (key c).
 Jobs run detached (own session): closing the screen or the ssh connection does not stop them. Logs in logs/.
-POSIX only (curses, process groups).
+The curses screen is POSIX only; launch, stop and the job list also work on Windows (the GUI uses them).
 """
 from pysyzygos.version import __version__
 import datetime as dt, glob, json, os, re, signal, sqlite3, subprocess, sys, time
@@ -210,6 +210,8 @@ def _proc_argv(pid):
 
 def alive(pid):
     """The process runs (not a zombie) and is still a PySyzygos process (no reused pid)."""
+    if os.name == "nt":                                  # never os.kill(pid, 0) on Windows: it ends the process
+        return _alive_windows(pid)
     try:
         with open(f"/proc/{int(pid)}/stat") as f:
             if f.read().rsplit(")", 1)[1].split()[0] == "Z":
@@ -226,12 +228,23 @@ def alive(pid):
     return any("pysyzygos" in a for a in argv)
 
 
+def _alive_windows(pid):
+    """Windows: the pid is listed by tasklist and runs Python or pysyzygos (a reused pid runs something else)."""
+    try:
+        r = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/NH", "/FO", "CSV"], capture_output=True,
+                           text=True, timeout=10)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+    image = r.stdout.strip().split(",")[0].strip('"').lower() if f'"{int(pid)}"' in r.stdout else ""
+    return image.startswith(("python", "pysyzygos"))
+
+
 def reap():
-    """Collect our finished children (else they stay zombies while the screen is open)."""
+    """Collect our finished children (else they stay zombies while the screen is open; nothing to do on Windows)."""
     try:
         while os.waitpid(-1, os.WNOHANG)[0]:
             pass
-    except (ChildProcessError, OSError):
+    except (ChildProcessError, OSError, AttributeError):  # AttributeError: no os.WNOHANG on Windows
         pass
 
 
@@ -336,6 +349,11 @@ def jobs(st, home=None):
     return out
 
 
+# Windows: runs the command, then writes the line the log readers look for (as the sh wrapper does elsewhere)
+EXIT_WRAPPER = ("import subprocess, sys; r = subprocess.call(sys.argv[1:]); "
+                "print(f'--- exit code {r}', flush=True); sys.exit(r)")
+
+
 def launch(st, kind, args, out):
     """Start `pysyzygos prescreen <args>` detached (own session), output to logs/<stamp>_prescreen_<kind>.log, with
     a last line '--- exit code N'. Returns the job."""
@@ -349,8 +367,13 @@ def launch(st, kind, args, out):
         fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  PySyzygos {__version__}  (prescreen manager)\n"
                  f"$ pysyzygos prescreen {' '.join(cmd[5:])}\n")
         fh.flush()
-        p = subprocess.Popen(["/bin/sh", "-c", '"$@"; echo "--- exit code $?"', "sh"] + cmd, stdout=fh,
-                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, start_new_session=True)
+        if os.name == "nt":                              # no /bin/sh: a Python wrapper writes the exit code line
+            p = subprocess.Popen([sys.executable, "-c", EXIT_WRAPPER] + cmd, stdout=fh, stderr=subprocess.STDOUT,
+                                 stdin=subprocess.DEVNULL, env=env,
+                                 creationflags=0x00000200 | 0x08000000)   # NEW_PROCESS_GROUP, NO_WINDOW
+        else:
+            p = subprocess.Popen(["/bin/sh", "-c", '"$@"; echo "--- exit code $?"', "sh"] + cmd, stdout=fh,
+                                 stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, start_new_session=True)
     j = dict(pid=p.pid, kind=kind, argv=["prescreen"] + [str(a) for a in args], out=out, log=log,
              started=time.strftime("%Y-%m-%d %H:%M:%S"))
     st["jobs"] = (st["jobs"] + [j])[-30:]                       # the last 30 (finished ones show their exit code)
@@ -359,7 +382,11 @@ def launch(st, kind, args, out):
 
 
 def stop(job):
-    """SIGTERM to the job's process group (a build saves its progress and ends its workers)."""
+    """SIGTERM to the job's process group (a build saves its progress and ends its workers). Windows: taskkill of
+    the job and its workers (no signal to save first; a later run resumes from the last saved chunk)."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(int(job["pid"]))], capture_output=True)
+        return
     try:
         os.killpg(int(job["pid"]), signal.SIGTERM)
     except (ProcessLookupError, PermissionError):

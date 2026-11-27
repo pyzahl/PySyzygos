@@ -1,0 +1,85 @@
+# Windows setup (PySyzygos-Setup.cmd): built from windows/setup.ps1, tested on a real Windows, and attached to a
+# published GitHub release, so the README link releases/latest/download/PySyzygos-Setup.cmd always works.
+# The setup itself installs PySyzygos from PyPI (pypi.yml publishes the same release there).
+#   - on "release published": build, test (with the wheel of this commit), attach to the release
+#   - by hand (Actions -> Windows setup -> Run workflow): build and test only
+# The test runs the setup with -NoSetup (no data download: kernels and the catalog are GBs).
+name: Windows setup
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+      - run: uv build
+      - run: python3 scripts/build_windows_setup.py --dist dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-setup
+          path: dist/
+
+  windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-setup
+          path: dist
+      - name: setup from the built files
+        shell: pwsh
+        run: |
+          $whl = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          cmd /c "dist\PySyzygos-Setup.cmd -Wheel `"$whl`" -NoSetup -NoDesktop < NUL"
+          if ($LASTEXITCODE -ne 0) { throw "setup failed ($LASTEXITCODE)" }
+          $app = Join-Path $env:LOCALAPPDATA 'PySyzygos'
+          $exe = Join-Path $app 'bin\pysyzygos.exe'
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'pysyzygos --version failed' }
+          $start = Join-Path ([Environment]::GetFolderPath('Programs')) 'PySyzygos'
+          foreach ($n in 'PySyzygos', 'PySyzygos Observation Manager', 'Data setup (site, kernels, star catalog)',
+                         'Check installation', 'Update PySyzygos', 'Uninstall PySyzygos') {
+            if (-not (Test-Path (Join-Path $start "$n.lnk"))) { throw "missing shortcut $n" }
+          }
+          if (-not (Test-Path (Join-Path $app 'pysyzygos.ico'))) { throw 'no icon' }
+      - name: the web page answers
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'PySyzygos\bin\pysyzygos.exe'
+          $p = Start-Process $exe -ArgumentList '--no-browser' -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            Start-Sleep 2
+            try { $ok = (Invoke-WebRequest http://127.0.0.1:8080 -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200 } catch { }
+          }
+          Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith((Join-Path $env:LOCALAPPDATA 'PySyzygos')) } |
+            Stop-Process -Force
+          if (-not $ok) { throw 'the web page did not answer' }
+      - name: uninstall
+        shell: pwsh
+        run: |
+          cmd /c "dist\PySyzygos-Setup.cmd -Uninstall -Purge < NUL"
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'PySyzygos\tools')) { throw 'tools left after uninstall' }
+
+  attach:
+    needs: windows
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-setup
+          path: dist
+      - name: attach PySyzygos-Setup.cmd to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/PySyzygos-Setup.cmd --clobber -R "${GITHUB_REPOSITORY}"

@@ -66,6 +66,22 @@ def install_kind():
     return "zip"
 
 
+def windows_setup(prefix=None, environ=None, platform=None):
+    """The Windows setup's own copy (%LOCALAPPDATA%\\PySyzygos\\setup.ps1) when PySyzygos-Setup.cmd made this
+    install (its environment in %LOCALAPPDATA%\\PySyzygos\\tools), else None. Such an install updates through the
+    setup: its uv is private (not on PATH), and Windows cannot replace the files of the running PySyzygos."""
+    import ntpath
+    environ = os.environ if environ is None else environ
+    if not (platform or sys.platform).startswith("win") or not environ.get("LOCALAPPDATA"):
+        return None
+    app = ntpath.join(environ["LOCALAPPDATA"], "PySyzygos")
+    prefix = ntpath.normcase(ntpath.abspath(prefix or sys.prefix))
+    if not prefix.startswith(ntpath.normcase(ntpath.join(app, "tools")) + "\\"):
+        return None
+    script = ntpath.join(app, "setup.ps1")
+    return script if os.path.exists(script) else None
+
+
 def upgrade_command(prefix=None):
     """The command that upgrades a PyPI install in the way it was made: uv tool / pipx environments by their tool,
     else pip of this Python (uv's own venvs have no pip: 'uv pip install --python <python>')."""
@@ -206,8 +222,8 @@ def status(fetch=True, repo=None, release=True):
 
 def pypi_status(s, fetch=True, latest=None):
     """status() for a PyPI install: the newest version there, its changelog entries, the upgrade command."""
-    s.update(kind="pypi", command=" ".join(os.path.basename(c) if i == 0 else c
-                                           for i, c in enumerate(upgrade_command())))
+    s.update(kind="pypi", command="Start menu -> PySyzygos -> Update PySyzygos" if windows_setup() else
+             " ".join(os.path.basename(c) if i == 0 else c for i, c in enumerate(upgrade_command())))
     p = latest if latest is not None else (latest_pypi() if fetch else None)
     s["pypi"] = p
     if not p:
@@ -226,12 +242,21 @@ def pypi_status(s, fetch=True, latest=None):
     return s
 
 
-def update_pypi(log=print, run=subprocess.run):
+def update_pypi(log=print, run=subprocess.run, popen=subprocess.Popen):
     """Upgrade a PyPI install with the tool that made it. Returns 0 on success."""
     s = status(fetch=True)
     if not s.get("possible"):
         log(f"update: nothing to do: {s.get('reason')}")
         return 0 if s.get("pypi") else 1
+    setup = windows_setup()
+    if setup:                                       # Windows setup: its update window ends PySyzygos, updates, restarts
+        ps = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "WindowsPowerShell", "v1.0",
+                          "powershell.exe")
+        popen([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", setup, "-Force", "-Restart", "-Pause"],
+              creationflags=0x00000010)             # CREATE_NEW_CONSOLE: its own window, outlives this process
+        log(f"update: PySyzygos {__version__} -> {s['remote_version']}: the setup's update window ends PySyzygos, "
+            "installs the new version and starts it again (the page reconnects by itself)")
+        return 0
     cmd = upgrade_command()
     log(f"update: PySyzygos {__version__} -> {s['remote_version']} from PyPI: " + " ".join(cmd))
     p = run(cmd, capture_output=True, text=True)

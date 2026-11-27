@@ -7,6 +7,16 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Windows setup file `PySyzygos-Setup.cmd`** (double-click, for the user, no administrator rights): a private
+  uv and Python, PySyzygos from PyPI, Start menu folder (PySyzygos, Observation Manager, Data setup, command prompt,
+  Data folder, Check installation, Update, Uninstall) and a desktop icon; the first time it runs `pysyzygos setup`
+  in its window and then opens PySyzygos. Update: Start menu or the file again; uninstall keeps the data folder.
+  Built by `scripts/build_windows_setup.py` from `windows/setup.ps1`; `.github/workflows/windows-setup.yml` tests it
+  on Windows and attaches it to each published release (README link `releases/latest/download/PySyzygos-Setup.cmd`).
+  Tested on Windows Server 2025 (install, web page, update with restart, uninstall).
+- **System tab Update on a Windows setup install** (`selfupdate.windows_setup`): opens the setup's update window,
+  which ends PySyzygos, installs the new version and starts it again (its uv is private, and Windows cannot replace
+  the files of a running program).
 - **Shared pre-screens in slices, downloaded on demand.** A 70-day whole-Earth pre-screen is ~9 GB (7 GB packed). It
   is now also published in disjoint slices by star magnitude (G up to 13, 13-14, 14-15, 15-16) and asteroid H (below
   17, 17 and above), each sorted by time, with a day table and SHA-256 per block (`prescreen split`, mirror list
@@ -38,6 +48,10 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   the same 10 events as online, chances within 0.3 %.
 
 ### Fixed
+- **Pre-screen manager on Windows:** its alive check used `os.kill(pid, 0)` where there is no `/proc`; on Windows that
+  ends the process, so looking at a running build stopped it. Windows now asks `tasklist`. Jobs start without
+  `/bin/sh` (a Python wrapper writes the exit-code line), Stop uses `taskkill`, and `reap()` no longer fails there
+  (no `os.WNOHANG`).
 - **A pick with a large regional pre-screen looked hung** (reported from a 300 km pre-screen of 8.7 M events,
   1.1 GB): the lookup of the pre-screen's asteroids in the window went through the time index, which reads the rows
   in random order (37 s with the file in memory, many minutes from a disk, with no output meanwhile). It now reads

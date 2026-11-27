@@ -22,6 +22,7 @@ NiceGUI: a local web interface to plan and run all tasks for easy event explorat
 - [Tools in this project](#tools-in-this-project)
 - [Quick start](#quick-start)
 - [Install](#install)
+  - [Windows: the setup file (easiest)](#windows-the-setup-file-easiest)
   - [Releases or the developer version: three ways](#releases-or-the-developer-version-three-ways)
   - [Easiest: with uv (Linux, macOS, Windows)](#easiest-with-uv-linux-macos-windows)
   - [Windows, step by step (with uv)](#windows-step-by-step-with-uv)
@@ -137,6 +138,10 @@ A few commands, one download (about 3 GB), then everything happens in your brows
 packages by itself, keeps PySyzygos in its own environment, and needs no admin rights (pip and pipx work too, see
 [Install](#install)).
 
+**On Windows, the easiest way:** download **[PySyzygos-Setup.cmd](https://github.com/pyzahl/PySyzygos/releases/latest/download/PySyzygos-Setup.cmd)** and double-click it. It installs
+everything, guides you through the data setup and opens PySyzygos in your browser (details:
+[Windows: the setup file](#windows-the-setup-file-easiest)). Then continue with step 3.
+
 1. **Get it:** install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
    `git clone https://github.com/pyzahl/PySyzygos`. **Use git rather than the ZIP:** with git, updates are one click
    (System tab, **Update**); a ZIP install has to be downloaded and copied over by hand for every update, and patch
@@ -165,12 +170,41 @@ GUI, planets and moons, and the report.
 
 # Install
 
+## Windows: the setup file (easiest)
+
+Download **[PySyzygos-Setup.cmd](https://github.com/pyzahl/PySyzygos/releases/latest/download/PySyzygos-Setup.cmd)** and double-click it. Windows may warn about a downloaded file from an
+unknown publisher: click **More info**, then **Run anyway** (the file is not code-signed; it is a plain text script
+you can read in Notepad).
+
+- **For your user:** no administrator rights, no Python, no git needed. It brings its own copy of
+  [uv](https://docs.astral.sh/uv/) and Python, then installs PySyzygos from PyPI, all in
+  `%LOCALAPPDATA%\PySyzygos`. It changes neither PATH nor other Python installations.
+- **The first time, the data setup follows** (`pysyzygos setup`, in the same window): the data folder (Enter takes
+  `%USERPROFILE%\PySyzygos`; keep it out of OneDrive, the catalog is large), your observing site (guessed from your
+  internet address, or a place name), the SPICE kernels and the Gaia star catalog (about 3 GB to download, 5 GB on
+  disk). It can be stopped and resumed later. Then PySyzygos opens in your browser.
+- **Start menu folder PySyzygos:** PySyzygos, PySyzygos Observation Manager, Data setup (site, kernels, star catalog),
+  PySyzygos command prompt (with the `pysyzygos` command for the tools in this README), Data folder, Check
+  installation, Update PySyzygos, Uninstall PySyzygos. **Desktop icon:** PySyzygos.
+- **Using it:** PySyzygos runs in a small window and shows its pages in your browser (http://127.0.0.1:8080). Keep
+  that window open while you work; close it to stop PySyzygos. If Windows asks whether Python may use the network,
+  allowing private networks is enough.
+- **Update:** Start menu → *Update PySyzygos*, or run the setup file again; it installs the newest release from
+  PyPI. From the next release on, the System tab's **Update** button does the same (it opens the setup's window,
+  which closes PySyzygos, updates it and starts it again).
+- **Uninstall:** Start menu → *Uninstall PySyzygos*. Your data folder stays (sites, settings, catalog, results);
+  delete it by hand if you no longer need it.
+
+The setup gets the releases (PyPI). For the developer version with every patch, use git:
+[Windows, step by step](#windows-step-by-step-with-uv).
+
 > **How to type the commands in this README.** They are written as `pysyzygos …`. Depending on how you installed:
 >
 > | installed with | type | where |
 > |---|---|---|
 > | uv | `uv run pysyzygos …` | in the PySyzygos folder |
 > | from PyPI with `uv tool` or pipx | `pysyzygos …` | anywhere |
+> | the Windows setup file | `pysyzygos …` | in Start menu → PySyzygos → *PySyzygos command prompt* |
 > | pip, environment activated (`source .venv/bin/activate`; Windows: `.venv\Scripts\activate`) | `pysyzygos …` | anywhere, in that terminal |
 > | pip, not activated | `.venv/bin/pysyzygos …` (Windows: `.venv\Scripts\pysyzygos …`) | in the PySyzygos folder |
 >
@@ -222,7 +256,9 @@ catalogs, results) stays in the PySyzygos folder, see "Your data folder" below.
 
 ## Windows, step by step (with uv)
 
-Not tested on Windows yet: please report what works and what does not (GitHub issue or e-mail).
+This is the way to the developer version (git). For the releases, the
+[setup file](#windows-the-setup-file-easiest) does all of it in one double-click (tested on Windows Server 2025).
+This route is less tested on Windows: please report what works and what does not (GitHub issue or e-mail).
 
 > **Use a normal PowerShell or command prompt, not "Run as administrator",** and always `cd` into your PySyzygos folder
 > before running anything. An administrator prompt starts in `C:\Windows\System32`, and commands typed there create
