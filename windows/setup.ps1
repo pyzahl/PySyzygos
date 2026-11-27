@@ -130,7 +130,10 @@ function Get-Uv {
     Download "https://github.com/astral-sh/uv/releases/latest/download/uv-$arch-pc-windows-msvc.zip" $zip
     $tmp = Join-Path $env:TEMP 'pysyzygos-uv'
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-    Expand-Archive -Path $zip -DestinationPath $tmp -Force
+    # .NET directly: Expand-Archive fails when this Windows PowerShell 5.1 was started from PowerShell 7
+    # (it inherits PS 7's module path and loads an incompatible Archive module)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($zip, $tmp)
     New-Item -ItemType Directory -Force -Path $Bin | Out-Null
     Get-ChildItem $tmp -Recurse -Include 'uv.exe', 'uvx.exe' | ForEach-Object { Copy-Item $_.FullName $Bin -Force }
     Remove-Item $tmp -Recurse -Force
