@@ -223,8 +223,13 @@ rodluger/pysyzygy (transit code) owns that PyPI/import name. Read `ABOUT.md` for
   `_sliced_only`), `remote` lists slices; `PS.withdraw` removes both forms. Manager: publish_mode both/slices/archive,
   plan 'split' before 'publish', items carry archive/sliced state (one row per build), key p asks s/a, merge_share
   merges both lists' conflict copies. Checked 2026-11-27 on the real 40 d file: split 15 s; 20 d at G<=15 fetched =
-  select() exactly (4,612,727 events), 0.62 of 2.3 GB. Not yet: GUI "Download shared" with the pick's limits/window;
-  appending later days to a fetched file. tests/test_prescreen_slices.py.
+  select() exactly (4,612,727 events), 0.62 of 2.3 GB. GUI Pick "Download shared" (gui_pick prescreen_shared): sliced
+  entries first, one row each (`sliced_row`: start/days via `SL.fit_window` of the pick's window, Star G limit and H
+  from the tab, live size from `SL.plan_fetch`, 'installed' by `out_name`) -> `prescreen fetch NAME --start --days
+  --gmax [--hmax]`; archives below (builds also sliced left out, fetch --archive). Checked in headless Chrome (CDP:
+  0.44 GB -> 0.08 GB at G 13). First real 70 d split (2026-11-27): 8.94 GB in 8 slices (H>=17 ~54 % per band);
+  ranged fetch from the BNL mirror works (1 d, G<=12: 52 MB in 4 s; blocks of 250k rows = ~2.5 days of the brightest
+  slice, so short windows fetch some extra). Not yet: appending later days to a fetched file. tests/test_prescreen_slices.py.
 - `pysyzygos/corridor.py`: per-asteroid path, magnitude cap and vectorized candidate scan; `corridor_candidates(plan, local)`
   takes the stars from `LocalGaia`. No archive access (removed 2026-10-01: archive too slow).
 - `linux_install.sh` (user's quick install, Linux/macOS): creates `.venv` with python3, installs the project via

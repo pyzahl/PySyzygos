@@ -130,7 +130,8 @@ def panel(pg):
                     "flat dense color=negative")
                 ui.button("Download shared", on_click=lambda: pg.prescreen_shared()).props("outline dense").tooltip(
                     "Whole-Earth pre-screens shared on the mirror (built by other users of PySyzygos): list them "
-                    "and download one instead of building it (about 1.5 GB for 40 days at G 16; any site)")
+                    "and download one instead of building it (any site). Sliced ones: only the days, stars (G limit) "
+                    "and asteroids (H) of this tab's pick are downloaded")
             ps_cols = [dict(name=k, label=lbl, field=k, sortable=True, align="left") for k, lbl in
                        (("name", "Name"), ("window", "Window"), ("region", "Region"), ("sites", "Sites inside"),
                         ("limits", "For picks up to"), ("found", "Asteroids / events"), ("age", "Built"), ("fits", "This pick"))]
@@ -230,7 +231,8 @@ def handlers(pg):
                              region="whole Earth" if not reg else f"lat {reg['lat_min']:.0f}..{reg['lat_max']:.0f}, "
                                                                   f"lon {reg['lon_min']:.0f}..{reg['lon_max']:.0f}",
                              sites=", ".join(inside) or "-",
-                             limits=f"G \u2264 {m['cam_limit']:g}, H < {m.get('hmax')}"
+                             limits=f"G \u2264 {m['cam_limit']:g}, "
+                                    + ("all H" if m.get("hmax") is None else f"H < {m['hmax']:g}")
                                     + (f", reach \u2264 {m['reach_km']:g} km" if reg else
                                        f", edge {m.get('reach_km', 200):g} km")
                                     + (f"; only {pg.picks.selection_text(PS.meta_selection(m))}"
@@ -256,18 +258,86 @@ def handlers(pg):
     pg.prescreen_options = prescreen_options
 
     async def prescreen_shared():
-        from pysyzygos import prescreen as PS
+        from pysyzygos import prescreen as PS, prescreen_slices as SL
         ui.notify("Asking the mirror for its shared pre-screens ...")
-        m, man = await run.io_bound(PS.remote_list, None, lambda *a: None)
-        if not man or not man.get("prescreens"):
+        (m, man), (sm, sman) = await run.io_bound(
+            lambda: (PS.remote_list(None, lambda *a: None), SL.remote_list(None, lambda *a: None)))
+        sliced = list(reversed((sman or {}).get("prescreens", [])))
+        names = {e["name"] for e in sliced}
+        arch = [e for e in reversed((man or {}).get("prescreens", [])) if e["name"] not in names]
+        if not sliced and not arch:
             ui.notify("No shared pre-screens (mirror not reachable, or none published yet)", type="warning")
             return
         here = {os.path.basename(p) for p, _ in PS.list_files()}
-        with ui.dialog() as dlg, ui.card().classes("max-w-3xl"):
+        g_pick = float(pg.p_mag.value) if pg.p_mag.value else None
+        h_pick = None if pg.p_all.value else float(pg.p_hmax.value or 17)
+
+        def sliced_row(e, dlg):
+            """One sliced pre-screen: window and limits from this tab's pick (clipped to it), the download size."""
+            cam = float(e["cam_limit"])
+            fw = SL.fit_window(e, pg.p_start.value, pg.p_days.value) or (SL.span(e)[0], float(e["days"]))
+            only = pg.picks.selection_text(PS.meta_selection(e))
+            ui.label(f"{e['start']} + {e['days']:g} d, up to G {cam:g}, "
+                     f"{'all asteroids' if e.get('hmax') is None else 'H < ' + format(e['hmax'], 'g')}"
+                     + (f"; only {only}" if only else "") + f", built {str(e.get('built'))[:10]}: "
+                     f"{e['total_bytes'] / 1e9:.1f} GB in {len(e['slices'])} slices").classes("text-sm font-medium")
+            with ui.row().classes("items-end gap-2"):
+                s_in = ui.input("Start (UTC)", value=str(fw[0])).props("type=date").classes("w-36")
+                d_in = ui.number("Days", value=fw[1], min=1, step=1).classes("w-20")
+                g_in = ui.number("Star G limit", value=min(g_pick or cam, cam), min=6, max=cam, step=0.1).classes(
+                    "w-28").tooltip(f"Faintest star your picks will use; at most the pre-screen's G {cam:g}. "
+                                    "Each magnitude brighter halves to thirds the download")
+                h_in = ui.number("H below", value=h_pick, step=0.5).classes("w-24").tooltip(
+                    "Your picks' H limit; empty: all asteroids. Below 17: only the slice of asteroids with H < 17 "
+                    "(about half of an all-asteroid build)")
+                est = ui.label().classes("text-sm")
+                btn = ui.button("Download").props("dense outline")
+
+            def args():
+                h = h_in.value if h_in.value not in (None, "") else None
+                return s_in.value, float(d_in.value or 0), float(g_in.value or cam), None if h is None else float(h)
+
+            def update(*_):
+                try:
+                    s0, dd, g, h = args()
+                    st, dd, _, g_lim, m_h, _, _, plan, need = SL.plan_fetch(e, s0, dd, g, h)
+                except (ValueError, TypeError) as x:
+                    est.text = str(x)
+                    est.classes(replace="text-sm text-red-700")
+                    btn.disable()
+                    return
+                done = SL.out_name(st, dd, g_lim, m_h) + ".global.npy" in here
+                est.classes(replace="text-sm " + ("text-green-700" if done else "text-slate-600"))
+                est.text = ("installed" if done else
+                            f"~{need / 1e9:.2f} GB ({len(plan)} slice{'' if len(plan) == 1 else 's'})")
+                btn.set_enabled(not done)
+            for el in (s_in, d_in, g_in, h_in):
+                el.on_value_change(update)
+            update()
+
+            async def get():
+                s0, dd, g, h = args()
+                dlg.close()
+                ui.notify(f"Downloading {e['name']}: {s0} + {dd:g} d, G <= {g:g} (see the log)")
+                await run_process(PYSYZYGOS + ["prescreen", "fetch", e["name"], "--start", str(s0), "--days",
+                                               f"{dd:g}", "--gmax", f"{g:g}"]
+                                  + ([] if h is None else ["--hmax", f"{h:g}"]), pg.log)
+                pg.prescreen_options()
+            btn.on_click(get)
+
+        with ui.dialog() as dlg, ui.card().classes("max-w-4xl"):
             ui.label("Shared whole-Earth pre-screens").classes("font-semibold")
             ui.label("Built with the limits shown (loose on purpose: a pick with stricter limits finds the same "
                      "events). Orbits are those of the build day: prefer a recent one.").classes("text-xs text-slate-500")
-            for e in reversed(man["prescreens"]):
+            if sliced:
+                ui.label("In slices: only the stars, asteroids and days your picks use are downloaded. Filled in "
+                         "from this tab (window, Star G limit, H); a pick with these or stricter limits inside this "
+                         "window can use the file.").classes("text-xs text-slate-500")
+                for e in sliced:
+                    sliced_row(e, dlg)
+            if arch:
+                ui.label("Whole files (packed archive)").classes("text-sm font-semibold mt-2")
+            for e in arch:
                 mb = e["archive_bytes"] / 1e6
                 with ui.row().classes("items-center gap-3"):
                     only = pg.picks.selection_text(PS.meta_selection(e))
@@ -281,7 +351,7 @@ def handlers(pg):
                         async def get(name=e["name"]):
                             dlg.close()
                             ui.notify(f"Downloading {name} (see the log)")
-                            await run_process(PYSYZYGOS + ["prescreen", "fetch", name], pg.log)
+                            await run_process(PYSYZYGOS + ["prescreen", "fetch", name, "--archive"], pg.log)
                             pg.prescreen_options()
                         ui.button("Download", on_click=get).props("dense outline")
             ui.button("Close", on_click=dlg.close).props("flat")

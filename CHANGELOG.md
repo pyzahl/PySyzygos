@@ -14,7 +14,9 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   --hmax` downloads only the slices up to your limits and only the days of your window (byte ranges, resumable) and
   merges them into one ordinary local pre-screen. Checked on a real 40-day file: the merged file equals filtering the
   original exactly (4.6 M events), 0.62 of 2.3 GB downloaded. The pre-screen manager publishes slices (setting
-  `publish_mode` both / slices / archive; key `p` asks which), lists both forms, and withdraws both.
+  `publish_mode` both / slices / archive; key `p` asks which), lists both forms, and withdraws both. GUI Pick tab,
+  **Pre-screens → Download shared**: sliced pre-screens are offered with the pick's window, star G limit and H filled
+  in (editable) and the download size shown live; the whole packed files are listed below.
 - **Site tab: choose the star altitude limit** ("Star altitude limit" next to Min.): *user horizon* (default once a
   horizon is loaded: the horizon line replaces the minimum altitude, as since 1.6.0) or *fixed min.* (the minimum
   altitude applies and the horizon only marks events ⛰). Saved per site (`sites.py` `alt_limit = "fixed"`). It applies
