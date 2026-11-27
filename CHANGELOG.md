@@ -6,6 +6,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Fixed
+- **Windows setup update failed right after a new PyPI version** ("no version of pysyzygos==1.7.1"): uv used its
+  cached PyPI listing from the last install; the setup now refreshes it for pysyzygos (`--refresh-package`).
+- **Windows setup: a failed update left PySyzygos closed** (the System tab's Update ends it first); the setup now
+  starts the installed version again when the update fails.
+
 ## [1.7.1] "Beyond Horizons" - 2026-11-27
 
 ### Fixed

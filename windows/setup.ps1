@@ -63,7 +63,15 @@ $Host.UI.RawUI.WindowTitle = 'PySyzygos setup'
 
 function Say([string]$msg) { Write-Host $msg }
 function Step([string]$msg) { Write-Host ''; Write-Host "== $msg" -ForegroundColor Cyan }
-function Fail([string]$msg) { Write-Host ''; Write-Host "ERROR: $msg" -ForegroundColor Red; Finish 1 }
+function Fail([string]$msg) {
+    Write-Host ''; Write-Host "ERROR: $msg" -ForegroundColor Red
+    # the GUI's Update ended PySyzygos: bring back the version still installed (a failed install keeps it)
+    if ($Restart -and (Test-Path $Exe) -and -not (Running-Programs)) {
+        Write-Host '   starting the installed PySyzygos again' -ForegroundColor Yellow
+        Start-Process -FilePath $Exe -WorkingDirectory $env:USERPROFILE
+    }
+    Finish 1
+}
 function Finish([int]$code) {
     if ($Pause) { Write-Host ''; Read-Host 'Press Enter to close' | Out-Null }
     exit $code
@@ -175,7 +183,9 @@ function Latest-Version {
 function Install-Package([string]$want) {
     Step "PySyzygos $want (Python and the packages; the first time takes a few minutes)"
     $spec = if ($Wheel) { "$Pkg @ $(([Uri](Resolve-Path $Wheel).Path).AbsoluteUri)" } else { "$Pkg==$want" }
-    $uvArgs = @('tool', 'install', '--force', '--python-preference', 'only-managed', '--python', '3.12', $spec)
+    # --refresh-package: uv's cached PyPI listing may predate a version published since the last install
+    $uvArgs = @('tool', 'install', '--force', '--refresh-package', $Pkg, '--python-preference', 'only-managed',
+                '--python', '3.12', $spec)
     # uv's hint that its folder is not on PATH is left out: the setup keeps it private on purpose
     Invoke-Native { & $Uv @uvArgs 2>&1 | ForEach-Object { "$_" } |
                     Where-Object { $_ -notmatch 'is not on your PATH|uv tool update-shell|^\s*`?\$env:PATH' } |
