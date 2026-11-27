@@ -397,10 +397,11 @@ def handlers(pg):
         pg.cat_box.clear()
         d = os.path.join(ROOT, pg.cat_sel.value) if pg.cat_sel.value else None
         with pg.cat_box:
-            if not d:
-                ui.label("No catalog: pysyzygos setup").classes("text-sm text-red-700")
-                return
-            if starcat.is_format2(d):
+            if not d:                       # no catalog yet: the download and build below must still show
+                ui.label("No star catalog yet: download the ready-made one below (Download; G \u2264 16 is the "
+                         "usual choice), or run the data setup (pysyzygos setup; Windows: Start menu \u2192 "
+                         "PySyzygos \u2192 Data setup)").classes("text-sm text-red-700")
+            elif starcat.is_format2(d):
                 st = starcat.status(d)
                 v, newer = starcat.data_version(d), starcat.update_available(d)
                 ui.label(f"{pg.cat_sel.value}: data version {v} ({starcat.DATA_TEXT.get(v, '')}), G \u2264 "
@@ -587,9 +588,12 @@ def handlers(pg):
             if not (st.get("fetch") and not starcat.is_format2(os.path.join(ROOT, st["dir"]))) else "")
         if BUILD["running"] and not running:          # just finished or stopped: the header lists it
             opts = catalog_options()
-            pg.cat_sel.set_options(opts, value=pg.cat_sel.value if pg.cat_sel.value in opts else None)
             ok = starcat.is_format2(os.path.join(ROOT, st["dir"]))
-            ui.notify(f"Catalog {st['dir']} is ready: choose it in the header" if ok else
+            first = ok and not pg.cat_sel.value and st["dir"] in opts   # the first catalog: selected at once
+            pg.cat_sel.set_options(opts, value=pg.cat_sel.value if pg.cat_sel.value in opts else
+                                   st["dir"] if first else None)
+            ui.notify(f"Catalog {st['dir']} is ready" + (" and selected in the header" if first else
+                                                          ": choose it in the header") if ok else
                       f"The build of {st['dir']} stopped (see Log); Build again to resume",
                       type="positive" if ok else "warning", timeout=0, close_button=True)
         BUILD["running"] = running

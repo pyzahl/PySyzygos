@@ -117,8 +117,16 @@ function Data-Folder {
 }
 
 function Data-Ready {
-    # set up before: a data-folder setting, or the default folder with its config file
-    (Test-Path $Pointer) -or (Test-Path (Join-Path $DefaultData 'pysyzygos_config.py'))
+    # set up before: a data folder (its setting, or the default folder with its config file) that holds a
+    # complete star catalog (PySyzygos checks: gaia_local.find_catalogs); without one, setup runs (it resumes)
+    if (-not ((Test-Path $Pointer) -or (Test-Path (Join-Path $DefaultData 'pysyzygos_config.py')))) { return $false }
+    $py = Join-Path $Tools "$Pkg\Scripts\python.exe"
+    $code = "from pysyzygos import home, gaia_local; import os; " +
+            "print('yes' if os.path.isdir(home.HOME) and any(c[2] for c in gaia_local.find_catalogs(home.HOME)) else 'no')"
+    $r = (Invoke-Native { & $py -c $code 2>$null }) -join ''
+    if ($r -match 'yes') { return $true }
+    Say '   the data folder has no complete star catalog yet'
+    return $false
 }
 
 # --------------------------------------------------------------------------------------------- uv
@@ -233,15 +241,16 @@ function Start-PySyzygos {
 }
 
 function First-Setup {
-    Step 'Data setup (the first time)'
+    Step 'Data setup'
     Say '   PySyzygos now sets up its data folder. It asks a few questions (Enter takes the suggestion):'
     Say "   - the data folder: Enter = $DefaultData (keep it out of OneDrive: the catalog is large)"
     Say '   - your observing site (it can guess it from your internet address or look up a place)'
     Say '   - the SPICE kernels and the Gaia star catalog: downloads of about 3 GB, about 5 GB on disk'
     Say '   It can be stopped any time (Ctrl+C) and resumed: Start menu -> PySyzygos -> Data setup.'
     Write-Host ''
-    Invoke-Native { & $Exe setup }
-    return ($LASTEXITCODE -eq 0)
+    # attached to this console window (not through PowerShell's output, which would hold back its questions)
+    $p = Start-Process -FilePath $Exe -ArgumentList 'setup' -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) { Say "   the data setup ended with code $($p.ExitCode)" }
 }
 
 # --------------------------------------------------------------------------------------------- uninstall
@@ -303,7 +312,10 @@ if ($before -and $want -ne 'local' -and $before -eq $want) {
 Install-Shortcuts
 
 $ready = Data-Ready
-if (-not $ready -and -not $NoSetup) { $ready = First-Setup }
+if (-not $ready -and -not $NoSetup) {
+    First-Setup
+    $ready = Data-Ready                 # done when a complete star catalog is there
+}
 
 Write-Host ''
 Write-Host "PySyzygos $(Installed-Version) is installed." -ForegroundColor Green
@@ -311,11 +323,12 @@ Say '  Start menu: PySyzygos -> PySyzygos, Observation Manager, Data setup, Comm
 Say '  Check installation, Update, Uninstall. Desktop: PySyzygos.'
 Say "  Your data folder: $(Data-Folder)"
 if (-not $ready) {
-    Write-Host '  The data setup is not finished: Start menu -> PySyzygos -> Data setup (site, kernels, catalog).' -ForegroundColor Yellow
+    Write-Host '  No star catalog yet: Start menu -> PySyzygos -> Data setup, or in PySyzygos: System tab ->' -ForegroundColor Yellow
+    Write-Host '  Star catalog -> Ready-made catalogs -> Download.' -ForegroundColor Yellow
 }
-if ($Restart -or ($ready -and -not $NoSetup -and -not $before)) {
-    Start-PySyzygos
-} elseif ($ready -and -not $NoSetup -and $Pause) {
+if ($Restart -or (-not $NoSetup -and -not $before)) {     # the first install: open it (without a catalog
+    Start-PySyzygos                                        # too: its System tab downloads one)
+} elseif (-not $NoSetup -and $Pause) {
     $a = Read-Host '  Start PySyzygos now? [Y/n]'
     if ($a -notmatch '^\s*n') { Start-PySyzygos }
 }

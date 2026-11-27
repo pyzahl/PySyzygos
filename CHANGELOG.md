@@ -6,6 +6,19 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [1.7.1] "Beyond Horizons" - 2026-11-27
+
+### Fixed
+- **System tab without a star catalog:** the catalog section stopped at "No catalog: pysyzygos setup", so the
+  ready-made download (Zenodo, mirror) and the build were not shown, just when a new install needs them. They show
+  now, with a hint; the first catalog downloaded or built is selected in the header at once.
+- **Windows setup (`PySyzygos-Setup.cmd`):**
+  - a data folder without a complete star catalog no longer counts as set up: the data setup runs (it resumes and
+    asks only for what is missing), and the closing message says how to get the catalog if it is still missing;
+  - the data setup runs attached to the setup's window: before, PowerShell held back its output, so its questions
+    would not have shown;
+  - PySyzygos opens after the first install even without a catalog (the System tab downloads one).
+
 ## [1.7.0] "Beyond Horizons" - 2026-11-27
 
 ### Added
@@ -1485,6 +1498,7 @@ show it). It collects the work since the first commit:
 - 2026-10-04: GPL-3.0-or-later licence, `CITATION.cff`, `CONTRIBUTING.md`, references and acknowledgements.
 
 [Unreleased]: https://github.com/pyzahl/PySyzygos/compare/v1.7.0...main
+[1.7.1]: https://github.com/pyzahl/PySyzygos/compare/v1.7.0...main
 [1.7.0]: https://github.com/pyzahl/PySyzygos/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...v1.6.0
 [1.5.2]: https://github.com/pyzahl/PySyzygos/compare/v1.5.1...main
