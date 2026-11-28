@@ -522,6 +522,9 @@ def _sha256(path):
     return h.hexdigest()
 
 
+UNPACK_CHUNK = 16 << 20       # bytes per piece when unpacking (progress in between)
+
+
 def unpack_archive(archive, out_dir, need="catalog.json"):
     """Unpack a catalog .tar.xz (one top folder, any name) into out_dir. Unpacks into out_dir.unpack first, then moves
     the files over (overwriting a partial build of the same limit), so an interruption leaves no half-written files.
@@ -539,11 +542,16 @@ def unpack_archive(archive, out_dir, need="catalog.json"):
             parts = m.name.replace("\\", "/").split("/")[1:]            # drop the archive's own top folder
             if not m.isfile() or not parts or os.path.isabs(m.name) or ".." in parts:
                 continue
-            m.name = "/".join(parts)
-            try:
-                tf.extract(m, stage, filter="data")
-            except TypeError:                                            # Python without extraction filters
-                tf.extract(m, stage)
+            # copied in pieces with progress in between: the core's files are GBs each (minutes on a slow PC)
+            dest = os.path.join(stage, *parts)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with tf.extractfile(m) as src, open(dest, "wb") as dst:
+                while True:
+                    chunk = src.read(UNPACK_CHUNK)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+                    prog(raw.tell(), f", {n} files, now {parts[-1]}")
             n += 1
     prog.finish(f"{n} files")
     if not os.path.isfile(os.path.join(stage, need)):

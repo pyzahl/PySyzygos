@@ -114,7 +114,8 @@ def log_tail(path, n=40):
             text = fh.read().decode("utf-8", "replace")
     except OSError:
         return []
-    lines = [ln.split("\r")[-1].rstrip() for ln in text.split("\n")]
+    # a Windows log ends its lines with \r\n: drop that \r first, else the text after it (nothing) is all that is left
+    lines = [ln.rstrip("\r").split("\r")[-1].rstrip() for ln in text.split("\n")]
     return [ln for ln in lines if ln.strip()][-n:]
 
 
@@ -587,6 +588,8 @@ def handlers(pg):
             f'{" (" + html.escape(detail) + ")" if detail else ""}</span>' for step, state, detail in steps_of(st))
             if not (st.get("fetch") and not starcat.is_format2(os.path.join(ROOT, st["dir"]))) else "")
         if BUILD["running"] and not running:          # just finished or stopped: the header lists it
+            if hasattr(pg, "catalog_refresh"):
+                pg.catalog_refresh()                     # the runs' check (Pick, Search) knows it as complete
             opts = catalog_options()
             ok = starcat.is_format2(os.path.join(ROOT, st["dir"]))
             first = ok and not pg.cat_sel.value and st["dir"] in opts   # the first catalog: selected at once

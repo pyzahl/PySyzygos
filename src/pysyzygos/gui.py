@@ -244,8 +244,17 @@ def index():
         pg.prescreen_options()
     pg.supplement_change = supplement_change
 
+    def catalog_refresh():
+        """pg.complete / pg.cat_gmax from the data folder again (a download or build finished since the page opened)."""
+        found = pg.gaia_local.find_catalogs(ROOT)
+        pg.complete = {d for d, g, ok, _ in found if ok}
+        pg.cat_gmax = {d: float(g) for d, g, ok, _ in found if g is not None}
+    pg.catalog_refresh = catalog_refresh
+
     def catalog_ok():
         """Runs need a complete catalog: tell the user how to get one otherwise."""
+        if pg.cat_sel.value and pg.cat_sel.value not in pg.complete:
+            catalog_refresh()                                # finished after the page was built?
         if pg.cat_sel.value in pg.complete:
             return True
         ui.notify(("No complete Gaia catalog yet" if not pg.cat_sel.value else f"Catalog {pg.cat_sel.value} is incomplete")

@@ -11,6 +11,15 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
   cached PyPI listing from the last install; the setup now refreshes it for pysyzygos (`--refresh-package`).
 - **Windows setup: a failed update left PySyzygos closed** (the System tab's Update ends it first); the setup now
   starts the installed version again when the update fails.
+- **Catalog download: no progress while unpacking.** Progress was reported only between the archive's files, and
+  the core's files are GBs each: on a slow PC the log and the System tab stood at "unpacking ..." for minutes. The
+  files are now unpacked in 16 MB pieces with progress (GB, MB/s, ETA) every 10 s. tests/test_unpack_archive.py.
+- **System tab on Windows: the catalog job's Log and progress line were empty.** The log's Windows line ends
+  (`\r\n`) met the handling of rewritten progress lines (text after the last `\r`), which kept nothing of each line.
+  tests/test_log_tail.py.
+- **"Catalog ... is incomplete" after a download in the running GUI:** the list of complete catalogs was made when
+  the page opened, so Pick and Search refused a catalog downloaded or built since, until a restart. They now check
+  the data folder again before refusing, and a finished download or build updates the list.
 
 ## [1.7.1] "Beyond Horizons" - 2026-11-27
 
