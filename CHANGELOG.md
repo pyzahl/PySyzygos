@@ -6,6 +6,12 @@ All notable changes to PySyzygos. Newest first. Format: [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- **"Build the sigma table" next to the orange "no sigma table" warning** (Pick and Search tabs): one click starts
+  the same job as the System tab's "Path uncertainties" (JPL Horizons, about 1 hour, shown in the log; Stop keeps
+  what it has); when it is done, a message says to run the pick again. Shown only while the table is missing and
+  the pick carries that warning (`gui_common.sigma_needed`, tests/test_sigma_needed.py).
+
 ### Fixed
 - **Windows setup update failed right after a new PyPI version** ("no version of pysyzygos==1.7.1"): uv used its
   cached PyPI listing from the last install; the setup now refreshes it for pysyzygos (`--refresh-package`).

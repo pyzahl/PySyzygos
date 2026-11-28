@@ -92,6 +92,27 @@ def catalog_options(found=None):
             for d, g, ok, _ in found}
 
 
+def sigma_needed(p):
+    """A saved pick made without the sigma table (its 'no sigma table' warning), which is still missing: the Pick and
+    Search tabs offer to build it next to the orange warning."""
+    from pysyzygos import picks, sigmatable
+    return bool(p) and any(str(w).startswith(picks.SIGMA_WARNING) for w in (p.get("warnings") or [])) \
+        and not sigmatable.exists(ROOT)
+
+
+def sigma_button(pg):
+    """'Build the sigma table' for next to an orange 'no sigma table' warning; hidden until sigma_needed. Runs
+    pg.sigma_build (gui_pick: the System tab's job, then the warnings are refreshed)."""
+    from pysyzygos import sigmatable
+    b = ui.button("Build the sigma table (about 1 h)", on_click=lambda: pg.sigma_build()).props(
+        "outline dense color=orange").tooltip(
+        "Each NEO's, Mars-crosser's, Trojan's, Centaur's and TNO's own path uncertainty from JPL Horizons "
+        f"(pysyzygos sigmas build: {sigmatable.BUILD_TIME}). It runs as the current job (see the log; Stop keeps "
+        "what it has). Then run the pick again: it uses the table instead of the fixed allowance.")
+    b.set_visibility(False)
+    return b
+
+
 LOG_DIR, LOG_KEEP_DAYS = "logs", 30          # every GUI run's output, one file per run (<data folder>/logs)
 
 

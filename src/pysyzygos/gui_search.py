@@ -6,7 +6,7 @@ wires them up; pg holds the page's elements and functions shared between the tab
 import json
 
 from nicegui import ui
-from pysyzygos.gui_common import PYSYZYGOS, run_process, stop_process, today_utc
+from pysyzygos.gui_common import PYSYZYGOS, run_process, sigma_button, sigma_needed, stop_process, today_utc
 from pysyzygos.sbdb import split_targets
 
 
@@ -31,7 +31,9 @@ def panel(pg):
         pg.s_use_file = ui.switch("Targets from the saved pick of this site (Pick tab)", value=True).tooltip(
             "Uses the newest saved pick of the selected site whose window covers the search window; "
             "without one, targets.py or the list in pysyzygos_config.py")
-        pg.targets_warn_s = ui.label().classes("text-sm w-full")
+        with ui.row().classes("w-full items-center gap-2 no-wrap"):
+            pg.targets_warn_s = ui.label().classes("text-sm grow")
+            pg.search_sigma = sigma_button(pg)
         pg.s_targets = ui.textarea("Targets, comma separated: asteroid numbers or designations of unnumbered ones (3200, 2026 ED138, ...)",
                                    value=", ".join(pg.config.targets)).classes("w-full")
         with ui.row():
@@ -121,13 +123,15 @@ def handlers(pg):
             pg.targets_warn_s.text = f"The search uses the {pg.picks.describe(p)} (its targets below; switch off to " \
                                      f"edit them or use them at another site)." + (
                 f" {pg.picks.warnings_text(p)}" if p.get("warnings") else "")
-            pg.targets_warn_s.classes(replace="text-sm w-full " + ("text-orange-600 font-semibold" if p.get("warnings")
-                                                                   else "text-slate-600"))
+            pg.targets_warn_s.classes(replace="text-sm grow " + ("text-orange-600 font-semibold" if p.get("warnings")
+                                                                 else "text-slate-600"))
+            pg.search_sigma.set_visibility(sigma_needed(p))
         else:
             pg.s_targets.props(remove="readonly")
             pg.targets_warn_s.text = (f"No saved pick of site {pg.state['name']} covers this window: the search uses "
                                       f"targets.py or the config list. Run a pick for it (Pick tab) for better targets.")
-            pg.targets_warn_s.classes(replace="text-sm w-full text-amber-700")
+            pg.targets_warn_s.classes(replace="text-sm grow text-amber-700")
+            pg.search_sigma.set_visibility(False)
     pg.saved_info = saved_info
 
     def scope_changed():

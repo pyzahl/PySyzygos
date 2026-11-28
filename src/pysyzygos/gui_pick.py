@@ -11,7 +11,7 @@ from pysyzygos.home import HOME as ROOT
 from nicegui import background_tasks, run, ui
 from pysyzygos.gui_common import (
     PRE_FIXED, PYSYZYGOS, SUPPLEMENT, _day_et, load_ui_state, prescreen_regions, resizable_box, run_process, save_ui_state,
-    stop_process, today_utc)
+    sigma_button, sigma_needed, stop_process, today_utc)
 
 
 def panel(pg):
@@ -150,7 +150,9 @@ def panel(pg):
                 "Download the selected pick's events as a CSV table."
                 " Columns: csv_exports.py in the data folder (default: as the table shows them; any log column can be added)")
         pg.pick_info = ui.label().classes("text-sm text-slate-600 w-full")
-        pg.pick_warn = ui.label().classes("text-sm w-full font-semibold").style("color:#ea580c")   # fallbacks
+        with ui.row().classes("w-full items-center gap-2 no-wrap"):
+            pg.pick_warn = ui.label().classes("text-sm grow font-semibold").style("color:#ea580c")   # fallbacks
+            pg.pick_sigma = sigma_button(pg)
         pg.targets_info = ui.label().classes("text-sm text-slate-600 w-full")
         cols = [dict(name=k, label=lbl, field=k, sortable=True, align="left") for k, lbl in
                 (("target", "Target"), ("number", "#"), ("name", "Asteroid"), ("H", "H"), ("utc", "UT"),
@@ -170,6 +172,7 @@ def handlers(pg):
         if p is None:
             pg.pick_info.text = f"No saved pick for site {pg.state['name']} yet: run a pick."
             pg.pick_warn.text = ""
+            pg.pick_sigma.set_visibility(False)
             pg.targets_info.text = ""
         else:
             if os.path.isfile(p["csv"]):
@@ -178,6 +181,7 @@ def handlers(pg):
             rows = [dict(exports.pick_shown(r, p["targets"]), key=f"{r.get('number')}_{r.get('utc')}") for r in rows]
             pg.pick_info.text = f"{pg.picks.describe(p)}: {len(rows)} events ({p['csv']})"
             pg.pick_warn.text = pg.picks.warnings_text(p)
+            pg.pick_sigma.set_visibility(sigma_needed(p))
             pg.targets_info.text = ("Targets: " + ", ".join(p["targets"][:60]) + (" ..." if len(p["targets"]) > 60 else ""))
         pg.p_table.rows = rows
         return len(rows)
@@ -395,6 +399,17 @@ def handlers(pg):
     pg.picks = picks
     pg.picks_dir = getattr(pg.config, "picks_dir", "picks")
     pg.saved_list = []
+
+    async def sigma_build():
+        rc = await pg.sys_sigmas()
+        ok = rc == 0 and sigmatable.exists(ROOT)
+        ui.notify("Sigma table built: run the pick again to use it" if ok else
+                  "The sigma table build stopped (see the log); the button starts it again and it resumes",
+                  type="positive" if ok else "warning", timeout=0 if ok else 10000, close_button=ok)
+        pg.load_pick()                                            # the warning says the table exists now
+        if hasattr(pg, "saved_info"):
+            pg.saved_info()
+    pg.sigma_build = sigma_build
 
     async def sigma_ask():
         """Asked once, at the first pick without a sigma table (sigmatable.py): build it now, or pick without it
